@@ -1,0 +1,15 @@
+<h3>สถานะ: <span class="badge {{ req.status }}">{{ status_labels[req.status] }}</span></h3>
+{% if req.review_note %}<p class="muted">หมายเหตุ: {{ req.review_note }}</p>{% endif %}
+{% if req.status in ["submitted", "in_review", "needs_info"] %}
+<form hx-post="/queue/{{ req.id }}/status" hx-target="#status-panel" hx-swap="innerHTML">
+  <label>หมายเหตุ (ถ้ามี)</label>
+  <input name="note">
+  {% if req.status == "needs_info" %}
+  <button name="new_status" value="submitted">ผู้ขอส่งข้อมูลแล้ว รับเข้าคิวใหม่</button>
+  {% else %}
+  <button name="new_status" value="approved">อนุมัติ</button>
+  <button name="new_status" value="needs_info" class="secondary">ขอข้อมูลเพิ่ม</button>
+  {% endif %}
+  <button name="new_status" value="rejected" class="danger">ไม่อนุมัติ</button>
+</form>
+{% endif %}

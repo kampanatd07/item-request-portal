@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}ส่งคำขอสร้าง Item{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>ส่งคำขอสร้าง Item</h2>
+  <form hx-post="/requests" hx-target="#form-result" hx-swap="innerHTML">
+    <div class="row">
+      <div>
+        <label>ชื่อผู้ขอ *</label>
+        <input name="requester_name" required>
+      </div>
+      <div>
+        <label>Email ผู้ขอ *</label>
+        <input name="requester_email" type="email" required>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>โรงงาน *</label>
+        <select name="factory_id" required
+                hx-get="/fragments/systems" hx-target="#system-slot" hx-swap="innerHTML">
+          <option value="" disabled selected>-- เลือกโรงงาน --</option>
+          {% for f in factories %}
+          <option value="{{ f.id }}">{{ f.code }} — {{ f.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>ประเภท / ระบบรหัส *</label>
+        <div id="system-slot">
+          <select name="code_system_id" required disabled>
+            <option>-- เลือกโรงงานก่อน --</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>หมวดสินค้า *</label>
+        <div id="group-slot">
+          <select name="group_id" required disabled>
+            <option>-- เลือกระบบก่อน --</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label>หมวดย่อย</label>
+        <div id="subgroup-slot">
+          <select name="subgroup_id" disabled>
+            <option value="">-- ไม่มี --</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <label>ชื่อสินค้า *</label>
+    <input name="item_name" required placeholder="เช่น Ball Bearing">
+    <div class="row">
+      <div><label>แบรนด์</label><input name="brand" placeholder="เช่น SKF"></div>
+      <div><label>รุ่น</label><input name="model" placeholder="เช่น UCF209-28"></div>
+      <div><label>ขนาด</label><input name="size" placeholder='เช่น 1-3/4" 44.45mm'></div>
+      <div><label>หน่วยนับ</label><input name="uom" placeholder="เช่น PCS"></div>
+    </div>
+    <label>สเปค / รายละเอียดเพิ่มเติม</label>
+    <textarea name="spec_note" rows="3" placeholder="ชนิด สี หรือรายละเอียดอื่นๆ"></textarea>
+
+    <button type="submit">ส่งคำขอ</button>
+  </form>
+  <div id="form-result"></div>
+</div>
+{% endblock %}

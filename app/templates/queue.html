@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}คิวจัดซื้อ{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>คิวคำขอสร้าง Item</h2>
+  <p>
+    {% for s in ["submitted", "in_review", "needs_info", "approved", "rejected"] %}
+      <a href="/queue?status={{ s }}" class="badge {{ s }}">{{ status_labels[s] }}</a>
+    {% endfor %}
+    <a href="/queue" class="badge">ทั้งหมด</a>
+  </p>
+  <table>
+    <tr><th>#</th><th>สินค้า</th><th>โรงงาน</th><th>ระบบ</th><th>ผู้ขอ</th><th>สถานะ</th><th>วันที่</th></tr>
+    {% for r in requests %}
+    <tr>
+      <td><a href="/queue/{{ r.id }}">{{ r.id }}</a></td>
+      <td><a href="/queue/{{ r.id }}">{{ r.item_name }}{% if r.brand %} {{ r.brand }}{% endif %}</a></td>
+      <td>{{ r.factory.code }}</td>
+      <td>{{ r.code_system.name_th }}</td>
+      <td>{{ r.requester_name }}</td>
+      <td><span class="badge {{ r.status }}">{{ status_labels[r.status] }}</span></td>
+      <td class="muted">{{ r.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="muted">ยังไม่มีคำขอ</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}
