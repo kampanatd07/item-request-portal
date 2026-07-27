@@ -19,6 +19,13 @@
   </table>
 </div>
 
+<div class="card"
+     hx-post="/fragments/duplicates" hx-trigger="load" hx-swap="innerHTML" hx-target="find div"
+     hx-vals='{"factory_id": "{{ req.factory_id }}", "item_name": {{ req.item_name | tojson }}, "brand": {{ (req.brand or "") | tojson }}, "model": {{ (req.model or "") | tojson }}}'>
+  <h3>เช็คซ้ำกับ item master ล่าสุด</h3>
+  <div><p class="muted">กำลังตรวจสอบ...</p></div>
+</div>
+
 <div class="card" id="status-panel">
   {% include "partials/status_panel.html" %}
 </div>

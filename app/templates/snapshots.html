@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Item Master Snapshot{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Item Master Snapshot</h2>
+  <p class="muted">อัปโหลดไฟล์ item master (.xlsx / .csv ที่มีคอลัมน์ Item number, Product name)
+  ระบบใช้ข้อมูลนี้เช็คซ้ำและหาเลข running ล่าสุด — อัปโหลดใหม่จะแทนที่ของเดิมทั้งชุด</p>
+  <table>
+    <tr><th>แหล่ง</th><th>อัปโหลดล่าสุด</th><th>จำนวนรายการ</th><th>ไฟล์</th></tr>
+    <tr>
+      <td>CBD (AX)</td>
+      <td>{{ cbd.at.strftime("%d/%m/%Y %H:%M") if cbd else "ยังไม่มีข้อมูล" }}</td>
+      <td>{{ cbd.row_count if cbd else "-" }}</td>
+      <td class="muted">{{ cbd.filename if cbd else "-" }}</td>
+    </tr>
+    <tr>
+      <td>D365 (APM/APG/ACM)</td>
+      <td>{{ d365.at.strftime("%d/%m/%Y %H:%M") if d365 else "ยังไม่มีข้อมูล" }}</td>
+      <td>{{ d365.row_count if d365 else "-" }}</td>
+      <td class="muted">{{ d365.filename if d365 else "-" }}</td>
+    </tr>
+  </table>
+</div>
+<div class="card">
+  <h3>อัปโหลด snapshot ใหม่</h3>
+  <form hx-post="/admin/snapshots" hx-target="#upload-result" hx-swap="innerHTML" enctype="multipart/form-data">
+    <label>แหล่งข้อมูล</label>
+    <select name="source" required>
+      <option value="CBD">CBD (AX)</option>
+      <option value="D365">D365 (APM/APG/ACM)</option>
+    </select>
+    <label>ไฟล์</label>
+    <input type="file" name="file" accept=".xlsx,.csv" required>
+    <button type="submit">อัปโหลด</button>
+  </form>
+  <div id="upload-result"></div>
+</div>
+{% endblock %}

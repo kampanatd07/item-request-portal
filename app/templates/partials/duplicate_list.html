@@ -1,0 +1,21 @@
+{% if items %}
+<div class="card" style="background:#faeeda; border-color:#efb95f;">
+  <strong>พบรายการใกล้เคียง {{ items|length }} รายการ</strong>
+  <p class="muted">ถ้าตรงกับที่ต้องการ ให้ใช้ item เดิมแทนการขอสร้างใหม่</p>
+  <table>
+    <tr><th>Item number</th><th>ชื่อ</th><th>ความคล้าย</th></tr>
+    {% for item, score in items %}
+    <tr>
+      <td><code>{{ item.item_number }}</code></td>
+      <td>{{ item.name }}</td>
+      <td>{{ (score * 100) | round | int }}%</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% elif query_too_short %}
+{% elif no_snapshot %}
+<p class="muted">ยังไม่มีข้อมูล item master สำหรับเช็คซ้ำ — แจ้งจัดซื้ออัปโหลด snapshot</p>
+{% else %}
+<p class="muted" style="color:#3b6d11;">ไม่พบรายการใกล้เคียงใน item master</p>
+{% endif %}

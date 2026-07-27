@@ -2,6 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import CodeGroup, ItemRequest, RequestEvent
+from app.services import snapshots
 
 # Allowed status transitions: guards against double-clicks and stale queue pages.
 TRANSITIONS: dict[str, set[str]] = {
@@ -71,9 +72,21 @@ def submit_request(
     )
     db.add(req)
     db.flush()
+
+    # Record top duplicate candidates at submission time in the audit trail, so
+    # the reviewer sees what the requester saw even after the snapshot changes.
+    source = snapshots.source_for_factory(db, factory_id)
+    query = " ".join(p for p in [item_name, brand or "", model or ""] if p)
+    matches = snapshots.search_similar(db, source=source, query=query, limit=3)
+    detail = (
+        "duplicate candidates: "
+        + "; ".join(f"{i.item_number} {i.name[:60]} ({s:.0%})" for i, s in matches)
+        if matches
+        else None
+    )
     db.add(
         RequestEvent(
-            request_id=req.id, actor=requester_email, action="submitted", detail=None
+            request_id=req.id, actor=requester_email, action="submitted", detail=detail
         )
     )
     db.commit()

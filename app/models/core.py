@@ -25,6 +25,8 @@ class Factory(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(10), unique=True)  # CBD, APM, APG, ACM
     name: Mapped[str] = mapped_column(String(100))
+    # Which item-master snapshot this factory's duplicate check searches against.
+    item_source: Mapped[str] = mapped_column(String(10), default="D365")  # CBD | D365
     active: Mapped[bool] = mapped_column(default=True)
 
     code_systems: Mapped[list["FactoryCodeSystem"]] = relationship(back_populates="factory")
@@ -114,6 +116,35 @@ class ItemRequest(Base):
     events: Mapped[list["RequestEvent"]] = relationship(
         back_populates="request", order_by="RequestEvent.id"
     )
+
+
+class SnapshotImport(Base):
+    """Audit of each item-master upload."""
+
+    __tablename__ = "snapshot_imports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source: Mapped[str] = mapped_column(String(10))  # CBD | D365
+    filename: Mapped[str] = mapped_column(String(300))
+    row_count: Mapped[int] = mapped_column()
+    uploaded_by: Mapped[str] = mapped_column(String(100), default="procurement")
+    at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class ItemSnapshot(Base):
+    """Copy of the item master used for duplicate check + max running lookup.
+    Replaced wholesale per source on each upload; later swappable for a live
+    AX DB query behind the same service functions."""
+
+    __tablename__ = "item_snapshot"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source: Mapped[str] = mapped_column(String(10), index=True)  # CBD | D365
+    item_number: Mapped[str] = mapped_column(String(30), index=True)
+    name: Mapped[str] = mapped_column(String(500))
+    normalized_name: Mapped[str] = mapped_column(String(500), index=True)
+    item_group: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    import_id: Mapped[int] = mapped_column(ForeignKey("snapshot_imports.id"))
 
 
 class RequestEvent(Base):

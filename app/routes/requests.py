@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.services import catalog
+from app.services import catalog, snapshots
 from app.services.requests import RequestError, submit_request
 from app.templating import templates
 
@@ -38,6 +38,30 @@ def subgroups_fragment(request: Request, group_id: int, db: Session = Depends(ge
     return templates.TemplateResponse(
         request, "partials/subgroup_select.html",
         {"subgroups": catalog.subgroups_for_group(db, group_id)},
+    )
+
+
+@router.post("/fragments/duplicates", response_class=HTMLResponse)
+def duplicates_fragment(
+    request: Request,
+    factory_id: int = Form(...),
+    item_name: str = Form(""),
+    brand: str = Form(""),
+    model: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    query = " ".join(p for p in [item_name, brand, model] if p).strip()
+    source = snapshots.source_for_factory(db, factory_id)
+    if len(query) < 3:
+        return templates.TemplateResponse(
+            request, "partials/duplicate_list.html",
+            {"items": [], "query_too_short": True, "no_snapshot": False},
+        )
+    no_snapshot = snapshots.latest_import(db, source) is None
+    items = [] if no_snapshot else snapshots.search_similar(db, source=source, query=query)
+    return templates.TemplateResponse(
+        request, "partials/duplicate_list.html",
+        {"items": items, "query_too_short": False, "no_snapshot": no_snapshot},
     )
 
 

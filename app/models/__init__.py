@@ -4,7 +4,9 @@ from app.models.core import (
     Factory,
     FactoryCodeSystem,
     ItemRequest,
+    ItemSnapshot,
     RequestEvent,
+    SnapshotImport,
 )
 
 __all__ = [
@@ -13,5 +15,7 @@ __all__ = [
     "Factory",
     "FactoryCodeSystem",
     "ItemRequest",
+    "ItemSnapshot",
     "RequestEvent",
+    "SnapshotImport",
 ]

@@ -12,10 +12,10 @@ from app.database import SessionLocal
 from app.models import CodeGroup, CodeSystem, Factory, FactoryCodeSystem
 
 FACTORIES = [
-    ("CBD", "Carabao Distillery"),
-    ("APM", "Asia Pacific Manufacturing"),
-    ("APG", "Asia Pacific Glass"),
-    ("ACM", "Asia Can Manufacturing"),
+    ("CBD", "Carabao Distillery", "CBD"),
+    ("APM", "Asia Pacific Manufacturing", "D365"),
+    ("APG", "Asia Pacific Glass", "D365"),
+    ("ACM", "Asia Can Manufacturing", "D365"),
 ]
 
 SYSTEMS = [
@@ -120,12 +120,14 @@ CBD_NONSTOCK_CATS = [
 
 def seed(db: Session) -> None:
     factories: dict[str, Factory] = {}
-    for code, name in FACTORIES:
+    for code, name, item_source in FACTORIES:
         f = db.scalar(select(Factory).where(Factory.code == code))
         if f is None:
-            f = Factory(code=code, name=name)
+            f = Factory(code=code, name=name, item_source=item_source)
             db.add(f)
             db.flush()
+        elif f.item_source != item_source:
+            f.item_source = item_source
         factories[code] = f
 
     systems: dict[str, CodeSystem] = {}
