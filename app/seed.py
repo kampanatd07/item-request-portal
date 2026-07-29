@@ -15,6 +15,7 @@ from app.models import (
     Factory,
     FactoryCodeSystem,
     GroupExportMap,
+    ProcurementCategory,
     SearchTerm,
     Uom,
 )
@@ -278,6 +279,19 @@ def seed(db: Session) -> None:
     for term in SEARCH_TERMS:
         if db.scalar(select(SearchTerm).where(SearchTerm.term == term)) is None:
             db.add(SearchTerm(term=term))
+
+    # Procurement categories observed in the temp files; Peter completes the list.
+    for source, label in [
+        ("D365", "54050102 Computer expenses (54050102 Computer expenses)"),
+        ("D365", "54080401 MA - Outsource Maintenance (54080401 MA - Outsource Maintenance)"),
+        ("D365", "54080601 MA-Overhaul"),
+    ]:
+        if db.scalar(
+            select(ProcurementCategory).where(
+                ProcurementCategory.source == source, ProcurementCategory.label == label
+            )
+        ) is None:
+            db.add(ProcurementCategory(source=source, label=label))
 
     for (sys_code, grp_code), (igid, mgid, gtc) in GROUP_EXPORT_MAP.items():
         grp = db.scalar(

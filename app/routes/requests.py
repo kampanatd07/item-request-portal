@@ -34,6 +34,17 @@ def groups_fragment(request: Request, code_system_id: int, db: Session = Depends
     )
 
 
+@router.get("/fragments/categories", response_class=HTMLResponse)
+def categories_fragment(request: Request, factory_id: int, db: Session = Depends(get_db)):
+    from app.services import config_admin, snapshots
+
+    source = snapshots.source_for_factory(db, factory_id)
+    return templates.TemplateResponse(
+        request, "partials/category_select.html",
+        {"categories": config_admin.active_categories(db, source)},
+    )
+
+
 @router.get("/fragments/subgroups", response_class=HTMLResponse)
 def subgroups_fragment(request: Request, group_id: int, db: Session = Depends(get_db)):
     return templates.TemplateResponse(

@@ -151,6 +151,18 @@ class Uom(Base):
     active: Mapped[bool] = mapped_column(default=True)
 
 
+class ProcurementCategory(Base):
+    """Procurement Category options for the import files, scoped per source.
+    Label is embedded verbatim into the export (e.g. '54050102 Computer expenses')."""
+
+    __tablename__ = "procurement_categories"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source: Mapped[str] = mapped_column(String(10))  # CBD | D365
+    label: Mapped[str] = mapped_column(String(200))
+    active: Mapped[bool] = mapped_column(default=True)
+
+
 class GroupExportMap(Base):
     """Resolves a top-level group to the D365 internal codes an import file needs.
     Seeded with observed values; completed by Peter. Nullable = not yet known."""

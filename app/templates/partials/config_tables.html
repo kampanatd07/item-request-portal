@@ -1,0 +1,72 @@
+<div class="card">
+  <h3>หน่วยนับ (UOM)</h3>
+  <table>
+    <tr><th>รหัส</th><th>ชื่อ</th><th>สถานะ</th><th></th></tr>
+    {% for u in uoms %}
+    <tr>
+      <td><code>{{ u.code }}</code></td><td>{{ u.name }}</td>
+      <td>{% if u.active %}<span class="badge approved">ใช้งาน</span>{% else %}<span class="badge rejected">ปิด</span>{% endif %}</td>
+      <td><button class="secondary" hx-post="/admin/config/uom/{{ u.id }}/toggle" hx-target="#config-tables" hx-swap="innerHTML">สลับ</button></td>
+    </tr>
+    {% endfor %}
+  </table>
+  <form hx-post="/admin/config/uom" hx-target="#config-tables" hx-swap="innerHTML" class="row" style="align-items:end; gap:8px;">
+    <div><label>รหัส</label><input name="code" placeholder="เช่น Pcs"></div>
+    <div><label>ชื่อ</label><input name="name" placeholder="ชิ้น"></div>
+    <div style="flex:0"><button type="submit">เพิ่ม</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Procurement Category</h3>
+  <table>
+    <tr><th>แหล่ง</th><th>ชื่อ category</th><th>สถานะ</th><th></th></tr>
+    {% for c in categories %}
+    <tr>
+      <td>{{ c.source }}</td><td>{{ c.label }}</td>
+      <td>{% if c.active %}<span class="badge approved">ใช้งาน</span>{% else %}<span class="badge rejected">ปิด</span>{% endif %}</td>
+      <td><button class="secondary" hx-post="/admin/config/category/{{ c.id }}/toggle" hx-target="#config-tables" hx-swap="innerHTML">สลับ</button></td>
+    </tr>
+    {% else %}<tr><td colspan="4" class="muted">ยังไม่มี — เพิ่มด้านล่าง</td></tr>
+    {% endfor %}
+  </table>
+  <form hx-post="/admin/config/category" hx-target="#config-tables" hx-swap="innerHTML" class="row" style="align-items:end; gap:8px;">
+    <div style="flex:0"><label>แหล่ง</label><select name="source"><option value="D365">D365</option><option value="CBD">CBD</option></select></div>
+    <div><label>ชื่อ category</label><input name="label" placeholder="54050102 Computer expenses"></div>
+    <div style="flex:0"><button type="submit">เพิ่ม</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Mapping หมวด → รหัส D365 (ItemGroupId / ModelGroup / GroupType)</h3>
+  <p class="muted">เว้นว่างได้ — ระบบจะใช้ค่า default ของ template จนกว่าจะกรอก</p>
+  <table>
+    <tr><th>หมวด</th><th>ItemGroupId</th><th>ModelGroupId</th><th>GroupType</th><th></th></tr>
+    {% for g, mp in group_maps %}
+    <tr>
+      <td><code>{{ g.code }}</code> {{ g.name[:22] }}</td>
+      <form hx-post="/admin/config/groupmap/{{ g.id }}" hx-target="#config-tables" hx-swap="innerHTML">
+        <td><input name="item_group_id" value="{{ mp.item_group_id if mp else '' }}" style="width:90px"></td>
+        <td><input name="model_group_id" value="{{ mp.model_group_id if mp else '' }}" style="width:90px"></td>
+        <td><input name="group_type_code" value="{{ mp.group_type_code if mp else '' }}" style="width:70px"></td>
+        <td><button type="submit" class="secondary">บันทึก</button></td>
+      </form>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h3>คำ Search name ({{ terms|length }})</h3>
+  <p class="muted">คำมาตรฐานที่ระบบใช้แนะนำ search name — ปิดคำที่ไม่ใช้ได้</p>
+  <table>
+    <tr><th>คำ</th><th>ใช้ไป</th><th>สถานะ</th><th></th></tr>
+    {% for t in terms %}
+    <tr>
+      <td>{{ t.term }}</td><td class="muted">{{ t.usage_count }}</td>
+      <td>{% if t.active %}<span class="badge approved">ใช้งาน</span>{% else %}<span class="badge rejected">ปิด</span>{% endif %}</td>
+      <td><button class="secondary" hx-post="/admin/config/term/{{ t.id }}/toggle" hx-target="#config-tables" hx-swap="innerHTML">สลับ</button></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>

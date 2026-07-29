@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}ตั้งค่าระบบ{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>ตั้งค่าข้อมูลอ้างอิง</h2>
+  <p class="muted">แก้รายการที่ระบบใช้ตอนสร้างคำขอและ export ไฟล์ —
+  หน่วยนับ, Procurement Category, คำ search name, และ mapping หมวด → รหัส D365</p>
+  <div id="form-msg"></div>
+</div>
+<div id="config-tables">
+  {% include "partials/config_tables.html" %}
+</div>
+{% endblock %}

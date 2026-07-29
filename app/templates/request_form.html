@@ -25,6 +25,11 @@
           <option value="{{ f.id }}">{{ f.code }} — {{ f.name }}</option>
           {% endfor %}
         </select>
+        <script>
+        document.querySelector('select[name=factory_id]').addEventListener('change', function(e){
+          htmx.ajax('GET','/fragments/categories?factory_id='+e.target.value,{target:'#category-slot',swap:'innerHTML'});
+        });
+        </script>
       </div>
       <div>
         <label>ประเภท / ระบบรหัส *</label>
@@ -84,7 +89,11 @@
       <div><label>ราคาซื้อโดยประมาณ</label><input name="purchase_price" placeholder="เช่น 2320"></div>
     </div>
     <label>Procurement Category</label>
-    <input name="procurement_category" placeholder="เช่น 54050102 Computer expenses">
+    <div id="category-slot">
+      <select name="procurement_category">
+        <option value="">-- เลือกโรงงานก่อน --</option>
+      </select>
+    </div>
     <label>สเปค / รายละเอียดเพิ่มเติม</label>
     <textarea name="spec_note" rows="3" placeholder="ชนิด สี หรือรายละเอียดอื่นๆ"></textarea>
 
