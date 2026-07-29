@@ -56,10 +56,13 @@
     </div>
 
     <label>ชื่อสินค้า *</label>
-    <input name="item_name" required placeholder="เช่น Ball Bearing"
+    <input name="item_name" required placeholder="เช่น Ball Bearing SKF UCF209-28"
            hx-post="/fragments/duplicates" hx-target="#dup-slot" hx-swap="innerHTML"
            hx-include="closest form" hx-trigger="keyup changed delay:600ms">
     <div id="dup-slot"></div>
+    <div id="sn-slot"
+         hx-post="/fragments/searchname" hx-target="#sn-slot" hx-swap="innerHTML"
+         hx-include="closest form" hx-trigger="keyup changed from:input[name='item_name'] delay:700ms"></div>
     <div class="row">
       <div><label>แบรนด์</label><input name="brand" placeholder="เช่น SKF"
            hx-post="/fragments/duplicates" hx-target="#dup-slot" hx-swap="innerHTML"
@@ -77,7 +80,7 @@
       </div>
     </div>
     <div class="row">
-      <div><label>Search name (ชื่อย่อ — เว้นว่างได้ ระบบจะย่อให้)</label><input name="search_name" placeholder="เช่น Bearing"></div>
+      <div><label>Search name (ชื่อหมวด — ระบบแนะนำให้)</label><input name="search_name" id="search_name" placeholder="เช่น BEARING"></div>
       <div><label>ราคาซื้อโดยประมาณ</label><input name="purchase_price" placeholder="เช่น 2320"></div>
     </div>
     <label>Procurement Category</label>

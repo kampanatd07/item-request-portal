@@ -8,6 +8,7 @@ from app.models.core import (
     ItemRequest,
     ItemSnapshot,
     RequestEvent,
+    SearchTerm,
     SnapshotImport,
     Uom,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "ItemRequest",
     "ItemSnapshot",
     "RequestEvent",
+    "SearchTerm",
     "SnapshotImport",
     "Uom",
 ]

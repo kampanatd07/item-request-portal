@@ -15,6 +15,7 @@ from app.models import (
     Factory,
     FactoryCodeSystem,
     GroupExportMap,
+    SearchTerm,
     Uom,
 )
 
@@ -162,6 +163,26 @@ GROUP_EXPORT_MAP = {
 }
 
 
+# Canonical search-name vocabulary, curated from the real CBD master (terms that
+# actually cluster items). Multi-word terms first so specific beats generic.
+SEARCH_TERMS = [
+    "BALL BEARING", "PLAIN BEARING", "ROLLER BEARING", "DEEP GROOVE BEARING",
+    "BEARING", "OIL SEAL", "SHAFT SEAL", "O-RING", "GASKET", "WEAR STRIP",
+    "WEAR STRIP PROFILE", "CHAIN SPROCKET", "CHAIN WHEEL", "SPROCKET", "STARWHEEL",
+    "TOOTHED BELT", "TIMING BELT", "V-BELT", "BELT", "ROLLER", "SHAFT",
+    "ROTARY SHAFT", "PIN", "RETAINING RING", "RING", "GUIDE", "PRESSURE SPRING",
+    "SPRING", "BUSH", "BUSHING", "COVER BUSH", "SLEEVE", "SPACER", "SHIM", "WASHER",
+    "PLATE", "DEAD PLATE", "SUPPORT", "COVER", "BRACKET", "CYLINDER",
+    "STANDARD CYLINDER", "FILTER", "SOLENOID VALVE", "BUTTERFLY VALVE",
+    "CHECK VALVE", "BALL VALVE", "VALVE", "CIRCUIT BREAKER", "CONTACTOR",
+    "FREQUENCY CONVERTER", "INVERTER", "SENSOR", "PROXIMITY SENSOR", "MOTOR",
+    "GEAR MOTOR", "PUMP", "WATER PUMP", "GEAR", "COUPLING", "HEXAGON SCREW",
+    "SCREW", "BOLT", "NUT", "SERVICE KIT", "SEAL KIT", "DIAPHRAGM", "NOZZLE",
+    "HOSE", "FITTING", "CABLE", "CONNECTOR", "RELAY", "FUSE", "SWITCH",
+    "SOFTWARE LICENSE", "STICKER", "BANNER", "LABEL",
+]
+
+
 def seed(db: Session) -> None:
     factories: dict[str, Factory] = {}
     for code, name, item_source in FACTORIES:
@@ -253,6 +274,10 @@ def seed(db: Session) -> None:
     for code, name in UOMS:
         if db.scalar(select(Uom).where(Uom.code == code)) is None:
             db.add(Uom(code=code, name=name))
+
+    for term in SEARCH_TERMS:
+        if db.scalar(select(SearchTerm).where(SearchTerm.term == term)) is None:
+            db.add(SearchTerm(term=term))
 
     for (sys_code, grp_code), (igid, mgid, gtc) in GROUP_EXPORT_MAP.items():
         grp = db.scalar(

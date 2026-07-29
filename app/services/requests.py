@@ -20,6 +20,15 @@ class RequestError(Exception):
     """Domain error with a user-facing Thai message."""
 
 
+def _resolve_search_name(db: Session, given: str | None, item_name: str) -> str:
+    if given and given.strip():
+        return given.strip()[:60]
+    from app.services.classifier import classify
+    from app.services.llm_backend import get_llm
+
+    return classify(db, item_name, llm=get_llm())["suggestion"][:60]
+
+
 def submit_request(
     db: Session,
     *,
@@ -72,8 +81,9 @@ def submit_request(
         size=size or None,
         spec_note=spec_note or None,
         uom=uom or None,
-        # search_name defaults to a truncation now; the taxonomy slice replaces this.
-        search_name=(search_name or item_name).strip()[:60],
+        # If the requester left search name blank, classify the item name into a
+        # canonical term so items still cluster (dictionary + optional LLM).
+        search_name=_resolve_search_name(db, search_name, item_name),
         purchase_price=purchase_price or None,
         procurement_category=procurement_category or None,
         status="submitted",

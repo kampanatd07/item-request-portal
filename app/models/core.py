@@ -128,6 +128,18 @@ class ItemRequest(Base):
     )
 
 
+class SearchTerm(Base):
+    """Canonical item-type vocabulary for search names (e.g. BALL BEARING, GASKET).
+    Seeded from the real master; grows as procurement promotes new terms."""
+
+    __tablename__ = "search_terms"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    term: Mapped[str] = mapped_column(String(60), unique=True)
+    active: Mapped[bool] = mapped_column(default=True)
+    usage_count: Mapped[int] = mapped_column(default=0)
+
+
 class Uom(Base):
     """Unit-of-measure options offered in the form (AX-valid values)."""
 

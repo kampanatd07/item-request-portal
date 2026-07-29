@@ -66,6 +66,26 @@ def duplicates_fragment(
     )
 
 
+@router.post("/fragments/searchname", response_class=HTMLResponse)
+def searchname_fragment(
+    request: Request,
+    item_name: str = Form(""),
+    brand: str = Form(""),
+    model: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    text = " ".join(p for p in [item_name, brand, model] if p).strip()
+    if len(text) < 3:
+        return HTMLResponse("")
+    from app.services.classifier import classify
+    from app.services.llm_backend import get_llm
+
+    result = classify(db, text, llm=get_llm())
+    return templates.TemplateResponse(
+        request, "partials/searchname_suggest.html", result
+    )
+
+
 @router.post("/requests", response_class=HTMLResponse)
 def create_request(
     request: Request,
