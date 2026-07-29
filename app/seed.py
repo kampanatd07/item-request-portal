@@ -43,6 +43,25 @@ D365_STOCK_GROUPS = [
     ("806", "Mould", "Mould ขึ้นรูปขวด (APG) — โครงสร้างพิเศษ 806+type+run5"),
 ]
 
+# Mould types under group 806 (from D365 stock rule sheet); code = digits 4-6.
+MOULD_TYPES = [
+    ("001", "AP-01 150 ml. CARABAO"),
+    ("002", "AP-08 330 ml. Khao hom"),
+    ("003", "AP-09 620 ml. LEO Beer"),
+    ("004", "AP-22 GALAXY 350 ML."),
+    ("005", "AP-12 WHISKEY 360 ML Tae yang"),
+    ("006", "AP-18 WHISKEY 350 ML Tendo"),
+    ("007", "AP-24 KACHA 375 ML"),
+    ("008", "AP-17A 625 ml. Khao hom"),
+    ("009", "AP-37 620 ml. TWD Beer"),
+    ("010", "AP-10 140 ML. C+Lock"),
+    ("011", "AP-16 WHISKEY 700 ML TENDO"),
+    ("012", "AP-21 WHISKEY 700 ML Rattanakosin 158 Bottle"),
+    ("013", "AP-01 CARABAO 150 ml.NNPB"),
+    ("014", "AP-38 CARABAO BEER 320 ml."),
+    ("015", "AP-39 CARABAO 150ml. NNPB 120 g."),
+]
+
 D365_NONSTOCK_GROUPS = [
     ("900", "Spare Parts & Mechanical Parts", "SPT"),
     ("901", "Electrical Parts", "SPT"),
@@ -91,6 +110,7 @@ CBD_STOCK_CATS: list[tuple[str, str, list[tuple[str, str]]]] = [
     ("06", "SMO — Motor/Pump/Gear", [
         ("01", "Motor"), ("02", "Water pump"), ("03", "Gear"),
     ]),
+    ("99", "อื่นๆ", []),
 ]
 
 # CBD non-stock categories: from rule doc + categories found in real data (2026-07)
@@ -158,6 +178,7 @@ def seed(db: Session) -> None:
     def ensure_group(
         system: CodeSystem, code: str, name: str,
         scope: str | None = None, parent: CodeGroup | None = None,
+        pattern_override: str | None = None,
     ) -> CodeGroup:
         g = db.scalar(
             select(CodeGroup).where(
@@ -170,13 +191,24 @@ def seed(db: Session) -> None:
             g = CodeGroup(
                 code_system_id=system.id, code=code, name=name,
                 scope_note=scope, parent_id=parent.id if parent else None,
+                pattern_override=pattern_override,
             )
             db.add(g)
             db.flush()
+        elif pattern_override and g.pattern_override != pattern_override:
+            g.pattern_override = pattern_override
         return g
 
     for code, name, scope in D365_STOCK_GROUPS:
-        ensure_group(systems["D365_STOCK"], code, name, scope)
+        override = "{group}{sub}{run:5}" if code == "806" else None
+        group = ensure_group(
+            systems["D365_STOCK"], code, name, scope, pattern_override=override
+        )
+        if code == "806":
+            for type_code, type_name in MOULD_TYPES:
+                ensure_group(
+                    systems["D365_STOCK"], type_code, type_name, parent=group
+                )
     for code, name, scope in D365_NONSTOCK_GROUPS:
         ensure_group(systems["D365_NONSTOCK"], code, name, scope)
     for code, name, scope in D365_SERVICE_GROUPS:
@@ -186,9 +218,13 @@ def seed(db: Session) -> None:
         cat = ensure_group(systems["CBD_STOCK"], cat_code, cat_name)
         for sub_code, sub_name in subs:
             ensure_group(systems["CBD_STOCK"], sub_code, sub_name, parent=cat)
+        # Every category has a '99' catch-all subcategory in the real master
+        # (e.g. 99050599, 99059999) — seeded so codegen never dead-ends.
+        ensure_group(systems["CBD_STOCK"], "99", "อื่นๆ", parent=cat)
 
     for code, name in CBD_NONSTOCK_CATS:
-        ensure_group(systems["CBD_NONSTOCK"], code, name)
+        override = "64{cat}{run:4}" if code == "SVSP" else None
+        ensure_group(systems["CBD_NONSTOCK"], code, name, pattern_override=override)
 
     db.commit()
 

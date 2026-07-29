@@ -74,6 +74,8 @@ class CodeGroup(Base):
     code: Mapped[str] = mapped_column(String(10))  # '800', 'BD', '01' ...
     name: Mapped[str] = mapped_column(String(200))
     scope_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Overrides the system's pattern_template for this group (e.g. SVSP, 806 Mould).
+    pattern_override: Mapped[str | None] = mapped_column(String(100), nullable=True)
     active: Mapped[bool] = mapped_column(default=True)
 
     system: Mapped[CodeSystem] = relationship(back_populates="groups")

@@ -1,4 +1,5 @@
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import CodeGroup, ItemRequest, RequestEvent
@@ -108,7 +109,57 @@ def change_status(
     if note:
         req.review_note = note
     db.add(RequestEvent(request_id=req.id, actor=actor, action=new_status, detail=note))
-    db.commit()
+
+    # Approval mints the item code in the same transaction; the unique
+    # constraint on generated_code is the last line of defense against races.
+    if new_status == "approved" and req.generated_code is None:
+        from app.services.codegen import CodegenError, generate_code
+
+        try:
+            code = generate_code(db, req)
+        except CodegenError as e:
+            db.rollback()
+            raise RequestError(str(e)) from e
+        req.generated_code = code
+        db.add(
+            RequestEvent(
+                request_id=req.id, actor=actor, action="code_generated", detail=code
+            )
+        )
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        raise RequestError(
+            "ออกรหัสชนกับคำขออื่นที่เพิ่งอนุมัติ — กด approve อีกครั้ง"
+        ) from e
+    return req
+
+
+def override_code(
+    db: Session, request_id: int, *, new_code: str, actor: str
+) -> ItemRequest:
+    req = db.get(ItemRequest, request_id)
+    if req is None:
+        raise RequestError("ไม่พบคำขอนี้")
+    if req.status not in {"approved"}:
+        raise RequestError("แก้รหัสได้เฉพาะคำขอที่อนุมัติแล้วและยังไม่ export")
+    new_code = new_code.strip()
+    if not new_code:
+        raise RequestError("กรุณากรอกรหัส")
+    old = req.generated_code
+    req.generated_code = new_code
+    db.add(
+        RequestEvent(
+            request_id=req.id, actor=actor, action="code_overridden",
+            detail=f"{old} -> {new_code}",
+        )
+    )
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        raise RequestError("รหัสนี้ถูกใช้กับคำขออื่นแล้ว") from e
     return req
 
 

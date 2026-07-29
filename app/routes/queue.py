@@ -4,7 +4,12 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import ItemRequest
-from app.services.requests import RequestError, change_status, list_queue
+from app.services.requests import (
+    RequestError,
+    change_status,
+    list_queue,
+    override_code,
+)
 from app.templating import templates
 
 router = APIRouter(prefix="/queue")
@@ -38,6 +43,24 @@ def update_status(
         req = change_status(
             db, request_id, new_status=new_status, actor="procurement", note=note or None
         )
+    except RequestError as e:
+        return templates.TemplateResponse(
+            request, "partials/form_error.html", {"message": str(e)}, status_code=422
+        )
+    return templates.TemplateResponse(
+        request, "partials/status_panel.html", {"req": req}
+    )
+
+
+@router.post("/{request_id}/code", response_class=HTMLResponse)
+def edit_code(
+    request: Request,
+    request_id: int,
+    new_code: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        req = override_code(db, request_id, new_code=new_code, actor="procurement")
     except RequestError as e:
         return templates.TemplateResponse(
             request, "partials/form_error.html", {"message": str(e)}, status_code=422
