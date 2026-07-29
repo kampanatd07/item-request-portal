@@ -13,7 +13,8 @@ router = APIRouter()
 @router.get("/", response_class=HTMLResponse)
 def request_form(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(
-        request, "request_form.html", {"factories": catalog.list_factories(db)}
+        request, "request_form.html",
+        {"factories": catalog.list_factories(db), "uoms": catalog.list_uoms(db)},
     )
 
 
@@ -80,6 +81,9 @@ def create_request(
     size: str = Form(""),
     spec_note: str = Form(""),
     uom: str = Form(""),
+    search_name: str = Form(""),
+    purchase_price: str = Form(""),
+    procurement_category: str = Form(""),
     db: Session = Depends(get_db),
 ):
     try:
@@ -97,6 +101,9 @@ def create_request(
             size=size,
             spec_note=spec_note,
             uom=uom,
+            search_name=search_name,
+            purchase_price=purchase_price,
+            procurement_category=procurement_category,
         )
     except RequestError as e:
         return templates.TemplateResponse(

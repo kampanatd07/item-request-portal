@@ -9,7 +9,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models import CodeGroup, CodeSystem, Factory, FactoryCodeSystem
+from app.models import (
+    CodeGroup,
+    CodeSystem,
+    Factory,
+    FactoryCodeSystem,
+    GroupExportMap,
+    Uom,
+)
 
 FACTORIES = [
     ("CBD", "Carabao Distillery", "CBD"),
@@ -138,6 +145,23 @@ CBD_NONSTOCK_CATS = [
 ]
 
 
+# UOM options seen in the temp import files; Peter completes the AX-valid list.
+UOMS = [
+    ("Pcs", "ชิ้น (Pcs)"),
+    ("PC", "ชิ้น (PC)"),
+    ("Set", "ชุด (Set)"),
+    ("Job", "งาน (Job)"),
+    ("JOB", "งาน (JOB)"),
+]
+
+# Group -> D365 export codes. Seeded from observed temp values where known;
+# blanks are completed by Peter via admin (export still works, uses defaults).
+GROUP_EXPORT_MAP = {
+    # system_code, group_code : (item_group_id, model_group_id, group_type_code)
+    ("D365_SERVICE", "707"): ("EN-FS", "EN", "SP"),
+}
+
+
 def seed(db: Session) -> None:
     factories: dict[str, Factory] = {}
     for code, name, item_source in FACTORIES:
@@ -225,6 +249,26 @@ def seed(db: Session) -> None:
     for code, name in CBD_NONSTOCK_CATS:
         override = "64{cat}{run:4}" if code == "SVSP" else None
         ensure_group(systems["CBD_NONSTOCK"], code, name, pattern_override=override)
+
+    for code, name in UOMS:
+        if db.scalar(select(Uom).where(Uom.code == code)) is None:
+            db.add(Uom(code=code, name=name))
+
+    for (sys_code, grp_code), (igid, mgid, gtc) in GROUP_EXPORT_MAP.items():
+        grp = db.scalar(
+            select(CodeGroup).where(
+                CodeGroup.code_system_id == systems[sys_code].id,
+                CodeGroup.code == grp_code,
+                CodeGroup.parent_id.is_(None),
+            )
+        )
+        if grp and db.scalar(
+            select(GroupExportMap).where(GroupExportMap.code_group_id == grp.id)
+        ) is None:
+            db.add(GroupExportMap(
+                code_group_id=grp.id, item_group_id=igid,
+                model_group_id=mgid, group_type_code=gtc,
+            ))
 
     db.commit()
 

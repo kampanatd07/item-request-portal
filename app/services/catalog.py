@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import CodeGroup, CodeSystem, Factory, FactoryCodeSystem
+from app.models import CodeGroup, CodeSystem, Factory, FactoryCodeSystem, Uom
 
 
 def list_factories(db: Session) -> list[Factory]:
@@ -29,6 +29,10 @@ def groups_for_system(db: Session, code_system_id: int) -> list[CodeGroup]:
         .order_by(CodeGroup.code)
     )
     return list(db.scalars(stmt))
+
+
+def list_uoms(db: Session) -> list[Uom]:
+    return list(db.scalars(select(Uom).where(Uom.active).order_by(Uom.code)))
 
 
 def subgroups_for_group(db: Session, group_id: int) -> list[CodeGroup]:

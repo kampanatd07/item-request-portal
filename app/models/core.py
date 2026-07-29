@@ -101,10 +101,18 @@ class ItemRequest(Base):
     size: Mapped[str | None] = mapped_column(String(100), nullable=True)
     spec_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     uom: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # Export-only fields (slice 4). search_name defaults to a truncation of the
+    # composed name; the taxonomy slice replaces the default with a smart value.
+    search_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    purchase_price: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    procurement_category: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     status: Mapped[str] = mapped_column(String(20), default="submitted")
     generated_code: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True)
     review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    export_batch_id: Mapped[int | None] = mapped_column(
+        ForeignKey("export_batches.id"), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -118,6 +126,47 @@ class ItemRequest(Base):
     events: Mapped[list["RequestEvent"]] = relationship(
         back_populates="request", order_by="RequestEvent.id"
     )
+
+
+class Uom(Base):
+    """Unit-of-measure options offered in the form (AX-valid values)."""
+
+    __tablename__ = "uoms"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(30), unique=True)
+    name: Mapped[str] = mapped_column(String(100))
+    active: Mapped[bool] = mapped_column(default=True)
+
+
+class GroupExportMap(Base):
+    """Resolves a top-level group to the D365 internal codes an import file needs.
+    Seeded with observed values; completed by Peter. Nullable = not yet known."""
+
+    __tablename__ = "group_export_map"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code_group_id: Mapped[int] = mapped_column(ForeignKey("code_groups.id"), unique=True)
+    item_group_id: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    model_group_id: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    group_type_code: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
+    group: Mapped["CodeGroup"] = relationship()
+
+
+class ExportBatch(Base):
+    """One generated import file for one factory."""
+
+    __tablename__ = "export_batches"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    factory_id: Mapped[int] = mapped_column(ForeignKey("factories.id"))
+    filename: Mapped[str] = mapped_column(String(200))
+    item_count: Mapped[int] = mapped_column()
+    created_by: Mapped[str] = mapped_column(String(100), default="procurement")
+    at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    factory: Mapped[Factory] = relationship()
 
 
 class SnapshotImport(Base):

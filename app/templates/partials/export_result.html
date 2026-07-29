@@ -1,0 +1,8 @@
+<div class="success">
+  {% if created %}
+  mark เป็น "สร้างแล้ว" เรียบร้อย — คำขอในไฟล์ {{ batch.filename }} พร้อมแจ้งผู้ขอ
+  {% else %}
+  สร้างไฟล์ {{ batch.filename }} แล้ว ({{ batch.item_count }} รายการ)
+  <a href="/exports/{{ batch.id }}/download">ดาวน์โหลด</a> — โหลดหน้าใหม่เพื่อเห็นในรายการ
+  {% endif %}
+</div>

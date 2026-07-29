@@ -25,6 +25,32 @@
 **Alternatives considered:** React — rejected for v1: no genuinely stateful UI needs; slower first ship.
 **Revisit when:** UI needs drag-drop/live collaboration, or a real learning-React goal outweighs speed.
 
+## [2026-07-27] Export templates modeled per-factory in code, reference data as config
+**Decision:** 4 factory import formats (CBD 1-sheet, APM/APG 5-sheet, ACM wide)
+are reproduced by per-factory builder functions. Variable fields come from the
+request; fixed columns are constants from the temp files. Three reference lists
+(UOM, procurement category, group→ItemGroupId/ModelGroup mapping) are editable
+config seeded with observed values, completed by Peter later.
+**Alternatives considered:** A fully generic data-driven column-mapping engine —
+rejected as over-engineering for 4 known, stable templates.
+**Revisit when:** A 5th format appears, or a factory's template changes shape.
+
+## [2026-07-27] Search name = AI-assisted taxonomy, built after export ships
+**Decision:** Slice 4 ships export using simple truncation for search name. A
+later slice adds AI-assisted search-name classification into a canonical
+item-type vocabulary (seeded from the well-grouped terms in the master:
+WEAR STRIP, SPROCKET, PLATE, ROLLER…). Real data shows 95% of existing search
+names equal the full product name — no usable taxonomy today, so this is a
+genuine cleanup, not just automation.
+**Alternatives considered:** (a) fuzzy-match existing search names — rejected,
+95% ungrouped so it just echoes full names; (b) curated dictionary only —
+viable, kept as the deterministic fallback under the AI path.
+**Implementation notes for that slice:** LLM classification needs an Anthropic
+API key as a *soft* dependency — always fall back to the curated dictionary +
+keyword match so the deployed app never hard-fails without the key; cache
+name→search_name results; every suggestion is editable by a human before export.
+**Revisit when:** building the taxonomy slice.
+
 ## [2026-07-24] Auth: simple email+password first, Azure AD SSO later
 **Decision:** v1 uses app-managed accounts created by Peter; structure code so AD SSO can replace the login provider later.
 **Alternatives considered:** AD SSO from day 1 — rejected: blocks on IT app registration.

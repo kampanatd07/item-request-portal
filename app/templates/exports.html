@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Export ไฟล์ import{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Export ไฟล์ import AX/D365</h2>
+  <p class="muted">รวมคำขอที่อนุมัติแล้ว (ยังไม่ export) ของแต่ละโรงงานเป็นไฟล์เดียว
+  ตาม format ของโรงนั้น แล้วนำไป import ใน AX/D365</p>
+  <table>
+    <tr><th>โรงงาน</th><th>มีคำขอรอ export</th><th></th></tr>
+    {% for f in factories %}
+    <tr>
+      <td>{{ f.code }} — {{ f.name }}</td>
+      <td>{% if pending[f.id] %}<span class="badge approved">มี</span>{% else %}<span class="muted">ไม่มี</span>{% endif %}</td>
+      <td>
+        {% if pending[f.id] %}
+        <button hx-post="/exports/{{ f.id }}" hx-target="#export-result" hx-swap="innerHTML">สร้างไฟล์ export</button>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  <div id="export-result"></div>
+</div>
+
+<div class="card">
+  <h3>ไฟล์ export ล่าสุด</h3>
+  <table>
+    <tr><th>ไฟล์</th><th>โรงงาน</th><th>จำนวน</th><th>เวลา</th><th></th></tr>
+    {% for b in batches %}
+    <tr>
+      <td>{{ b.filename }}</td>
+      <td>{{ b.factory.code }}</td>
+      <td>{{ b.item_count }}</td>
+      <td class="muted">{{ b.at.strftime("%d/%m/%Y %H:%M") }}</td>
+      <td>
+        <a href="/exports/{{ b.id }}/download"><button class="secondary">ดาวน์โหลด</button></a>
+        <button hx-post="/exports/{{ b.id }}/mark-created" hx-target="#export-result" hx-swap="innerHTML"
+                hx-confirm="ยืนยันว่า import เข้า AX/D365 เรียบร้อยแล้ว?">mark สร้างแล้ว</button>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">ยังไม่มีไฟล์ export</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

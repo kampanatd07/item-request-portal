@@ -35,6 +35,9 @@ def submit_request(
     size: str | None = None,
     spec_note: str | None = None,
     uom: str | None = None,
+    search_name: str | None = None,
+    purchase_price: str | None = None,
+    procurement_category: str | None = None,
 ) -> ItemRequest:
     if not requester_name.strip():
         raise RequestError("กรุณากรอกชื่อผู้ขอ")
@@ -69,6 +72,10 @@ def submit_request(
         size=size or None,
         spec_note=spec_note or None,
         uom=uom or None,
+        # search_name defaults to a truncation now; the taxonomy slice replaces this.
+        search_name=(search_name or item_name).strip()[:60],
+        purchase_price=purchase_price or None,
+        procurement_category=procurement_category or None,
         status="submitted",
     )
     db.add(req)
