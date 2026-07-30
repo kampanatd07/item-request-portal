@@ -12,6 +12,7 @@ from app.models.core import (
     SearchTerm,
     SnapshotImport,
     Uom,
+    UomAlias,
 )
 
 __all__ = [
@@ -28,4 +29,5 @@ __all__ = [
     "SearchTerm",
     "SnapshotImport",
     "Uom",
+    "UomAlias",
 ]

@@ -43,6 +43,22 @@ def toggle_uom(request: Request, uom_id: int, db: Session = Depends(get_db)):
     return templates.TemplateResponse(request, "partials/config_tables.html", _config_ctx(db))
 
 
+@router.post("/config/uom/merge", response_class=HTMLResponse)
+def merge_uoms(
+    request: Request,
+    source_id: int = Form(...),
+    target_id: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        config_admin.merge_uoms(db, source_id, target_id)
+    except ConfigError as e:
+        return templates.TemplateResponse(
+            request, "partials/form_error.html", {"message": str(e)}, status_code=422
+        )
+    return templates.TemplateResponse(request, "partials/config_tables.html", _config_ctx(db))
+
+
 @router.post("/config/category", response_class=HTMLResponse)
 def add_category(request: Request, source: str = Form(...), label: str = Form(...),
                  db: Session = Depends(get_db)):

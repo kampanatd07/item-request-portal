@@ -20,6 +20,12 @@ class RequestError(Exception):
     """Domain error with a user-facing Thai message."""
 
 
+def _canonical_uom(db: Session, raw: str | None) -> str | None:
+    from app.services.config_admin import canonical_uom
+
+    return canonical_uom(db, raw)
+
+
 def _resolve_search_name(db: Session, given: str | None, item_name: str) -> str:
     if given and given.strip():
         return given.strip()[:60]
@@ -80,7 +86,7 @@ def submit_request(
         model=model or None,
         size=size or None,
         spec_note=spec_note or None,
-        uom=uom or None,
+        uom=_canonical_uom(db, uom),
         # If the requester left search name blank, classify the item name into a
         # canonical term so items still cluster (dictionary + optional LLM).
         search_name=_resolve_search_name(db, search_name, item_name),

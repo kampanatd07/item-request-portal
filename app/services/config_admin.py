@@ -5,10 +5,18 @@ field update for the group export mapping. All changes are immediate; these
 tables are low-volume config, not transactional data.
 """
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import CodeGroup, GroupExportMap, ProcurementCategory, SearchTerm, Uom
+from app.models import (
+    CodeGroup,
+    GroupExportMap,
+    ItemRequest,
+    ProcurementCategory,
+    SearchTerm,
+    Uom,
+    UomAlias,
+)
 
 
 class ConfigError(Exception):
@@ -37,6 +45,49 @@ def toggle_uom(db: Session, uom_id: int) -> None:
     if u:
         u.active = not u.active
         db.commit()
+
+
+def canonical_uom(db: Session, raw: str | None) -> str | None:
+    """Normalize a raw UOM string to its canonical code.
+    Resolution order: exact code match -> alias match (case-insensitive) ->
+    unique case-insensitive code match. Ambiguous or unknown input is returned
+    as-is — never guess between look-alikes like Job vs JOB."""
+    if not raw or not raw.strip():
+        return None
+    raw = raw.strip()
+    if db.scalar(select(Uom).where(Uom.code == raw, Uom.active)):
+        return raw
+    alias = db.scalar(select(UomAlias).where(UomAlias.alias == raw.lower()))
+    if alias:
+        return alias.uom.code
+    matches = list(
+        db.scalars(select(Uom).where(func.lower(Uom.code) == raw.lower(), Uom.active))
+    )
+    if len(matches) == 1:
+        return matches[0].code
+    return raw
+
+
+def merge_uoms(db: Session, source_id: int, target_id: int) -> Uom:
+    """Merge source UOM into target: source becomes an alias of target, is
+    deactivated, its aliases are re-pointed, and existing requests using the
+    source code are rewritten so old data is cleaned too."""
+    if source_id == target_id:
+        raise ConfigError("เลือกหน่วยต้นทางกับปลายทางให้ต่างกัน")
+    source, target = db.get(Uom, source_id), db.get(Uom, target_id)
+    if source is None or target is None:
+        raise ConfigError("ไม่พบหน่วยนับ")
+
+    for alias in list(source.aliases):
+        alias.uom_id = target.id
+    if not db.scalar(select(UomAlias).where(UomAlias.alias == source.code.lower())):
+        db.add(UomAlias(alias=source.code.lower(), uom_id=target.id))
+    source.active = False
+
+    for req in db.scalars(select(ItemRequest).where(ItemRequest.uom == source.code)):
+        req.uom = target.code
+    db.commit()
+    return target
 
 
 # --- Procurement category ---------------------------------------------------

@@ -150,6 +150,22 @@ class Uom(Base):
     name: Mapped[str] = mapped_column(String(100))
     active: Mapped[bool] = mapped_column(default=True)
 
+    aliases: Mapped[list["UomAlias"]] = relationship(back_populates="uom")
+
+
+class UomAlias(Base):
+    """Alternative spellings that normalize to a canonical UOM (job -> Job).
+    Created by the admin merge tool — never auto-merged, because look-alike
+    codes (Job vs JOB) can be legitimately different per AX environment."""
+
+    __tablename__ = "uom_aliases"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    alias: Mapped[str] = mapped_column(String(30), unique=True)  # stored lowercase
+    uom_id: Mapped[int] = mapped_column(ForeignKey("uoms.id"))
+
+    uom: Mapped[Uom] = relationship(back_populates="aliases")
+
 
 class ProcurementCategory(Base):
     """Procurement Category options for the import files, scoped per source.
