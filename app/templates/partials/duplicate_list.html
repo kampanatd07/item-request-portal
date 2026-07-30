@@ -1,3 +1,10 @@
+{% if suggest %}
+<div id="sn-slot" hx-swap-oob="innerHTML">
+  {% with source = suggest.source, candidates = suggest.candidates, suggestion = suggest.suggestion %}
+    {% include "partials/searchname_suggest.html" %}
+  {% endwith %}
+</div>
+{% endif %}
 {% if items %}
 <div class="card" style="background:#faeeda; border-color:#efb95f;">
   <strong>พบรายการใกล้เคียง {{ items|length }} รายการ</strong>

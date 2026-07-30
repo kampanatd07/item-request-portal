@@ -63,6 +63,34 @@ def test_promote_term_adds_and_bumps(db_session):
     assert st.usage_count == 2
 
 
+def test_duplicates_fragment_carries_searchname_oob(client, db_session):
+    """Regression: the search-name suggestion must ride along with the duplicate
+    check (its own hx-trigger never fired in the browser)."""
+    import io
+
+    from openpyxl import Workbook
+
+    from app.models import Factory
+    from app.services.snapshots import import_snapshot
+
+    wb = Workbook()
+    wb.active.append(["Item number", "Product name"])
+    wb.active.append(["990501012260", "Bearing SKF 6205"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    import_snapshot(db_session, source="CBD", filename="t.xlsx", data=buf.getvalue())
+
+    cbd = db_session.scalar(select(Factory).where(Factory.code == "CBD"))
+    resp = client.post(
+        "/fragments/duplicates",
+        data={"factory_id": cbd.id, "item_name": "Ball Bearing SKF 6205"},
+    )
+    assert resp.status_code == 200
+    assert 'id="sn-slot"' in resp.text and "hx-swap-oob" in resp.text
+    assert "BALL BEARING" in resp.text
+    assert "พบรายการใกล้เคียง" in resp.text
+
+
 def test_submit_autofills_search_name_when_blank(db_session):
     factory = db_session.scalar(select(Factory).where(Factory.code == "APM"))
     system = db_session.scalar(select(CodeSystem).where(CodeSystem.code == "D365_STOCK"))

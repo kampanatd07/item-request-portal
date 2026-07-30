@@ -67,13 +67,25 @@ def duplicates_fragment(
     if len(query) < 3:
         return templates.TemplateResponse(
             request, "partials/duplicate_list.html",
-            {"items": [], "query_too_short": True, "no_snapshot": False},
+            {"items": [], "query_too_short": True, "no_snapshot": False, "suggest": None},
         )
     no_snapshot = snapshots.latest_import(db, source) is None
     items = [] if no_snapshot else snapshots.search_similar(db, source=source, query=query)
+
+    # Piggyback the search-name suggestion on this same request and deliver it
+    # via an out-of-band swap — one round-trip, and it can't fail to trigger.
+    from app.services.classifier import classify
+    from app.services.llm_backend import get_llm
+
+    suggest = classify(db, query, llm=get_llm())
     return templates.TemplateResponse(
         request, "partials/duplicate_list.html",
-        {"items": items, "query_too_short": False, "no_snapshot": no_snapshot},
+        {
+            "items": items,
+            "query_too_short": False,
+            "no_snapshot": no_snapshot,
+            "suggest": suggest,
+        },
     )
 
 

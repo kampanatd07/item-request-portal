@@ -65,9 +65,8 @@
            hx-post="/fragments/duplicates" hx-target="#dup-slot" hx-swap="innerHTML"
            hx-include="closest form" hx-trigger="keyup changed delay:600ms">
     <div id="dup-slot"></div>
-    <div id="sn-slot"
-         hx-post="/fragments/searchname" hx-target="#sn-slot" hx-swap="innerHTML"
-         hx-include="closest form" hx-trigger="keyup changed from:input[name='item_name'] delay:700ms"></div>
+    <!-- filled by an out-of-band swap from /fragments/duplicates -->
+    <div id="sn-slot"></div>
     <div class="row">
       <div><label>แบรนด์</label><input name="brand" placeholder="เช่น SKF"
            hx-post="/fragments/duplicates" hx-target="#dup-slot" hx-swap="innerHTML"
