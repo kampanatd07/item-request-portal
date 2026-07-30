@@ -74,10 +74,16 @@ def duplicates_fragment(
 
     # Piggyback the search-name suggestion on this same request and deliver it
     # via an out-of-band swap — one round-trip, and it can't fail to trigger.
+    # Classify from the BASE name only: brand/model would poison the category.
     from app.services.classifier import classify
     from app.services.llm_backend import get_llm
 
-    suggest = classify(db, query, llm=get_llm())
+    suggest = classify(
+        db,
+        item_name,
+        llm=get_llm(),
+        snapshot_source=None if no_snapshot else source,
+    )
     return templates.TemplateResponse(
         request, "partials/duplicate_list.html",
         {
@@ -106,6 +112,18 @@ def searchname_fragment(
     result = classify(db, text, llm=get_llm())
     return templates.TemplateResponse(
         request, "partials/searchname_suggest.html", result
+    )
+
+
+@router.post("/fragments/size", response_class=HTMLResponse)
+def size_fragment(request: Request, size: str = Form("")):
+    from app.services.units import normalize_size
+
+    canonical = normalize_size(size)
+    changed = bool(canonical) and canonical != " ".join((size or "").split())
+    return templates.TemplateResponse(
+        request, "partials/size_hint.html",
+        {"canonical": canonical, "changed": changed},
     )
 
 

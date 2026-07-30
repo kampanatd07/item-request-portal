@@ -26,13 +26,20 @@ def _canonical_uom(db: Session, raw: str | None) -> str | None:
     return canonical_uom(db, raw)
 
 
-def _resolve_search_name(db: Session, given: str | None, item_name: str) -> str:
+def _resolve_search_name(
+    db: Session, given: str | None, base_name: str, factory_id: int
+) -> str:
     if given and given.strip():
         return given.strip()[:60]
     from app.services.classifier import classify
     from app.services.llm_backend import get_llm
 
-    return classify(db, item_name, llm=get_llm())["suggestion"][:60]
+    source = snapshots.source_for_factory(db, factory_id)
+    has_snapshot = snapshots.latest_import(db, source) is not None
+    return classify(
+        db, base_name, llm=get_llm(),
+        snapshot_source=source if has_snapshot else None,
+    )["suggestion"][:60]
 
 
 def submit_request(
@@ -63,10 +70,12 @@ def submit_request(
     # Compose the standard product name (แบบ B) — the requester's fields are
     # structure, the name is an output, not an input.
     from app.services.naming import NamingError, compose_name
+    from app.services.units import normalize_size
 
     try:
         composed_name = compose_name(
-            item_name, brand=brand, model=model, size=size, detail=variant
+            item_name, brand=brand, model=model,
+            size=normalize_size(size), detail=variant,
         )
     except NamingError as e:
         raise RequestError(str(e)) from e
@@ -96,13 +105,13 @@ def submit_request(
         item_name=composed_name,
         brand=brand or None,
         model=model or None,
-        size=size or None,
+        size=normalize_size(size) or None,
         variant=variant or None,
         spec_note=spec_note or None,
         uom=_canonical_uom(db, uom),
-        # If the requester left search name blank, classify the item name into a
-        # canonical term so items still cluster (dictionary + optional LLM).
-        search_name=_resolve_search_name(db, search_name, composed_name),
+        # If the requester left search name blank, classify the BASE name into a
+        # canonical category term (dictionary -> master neighbours -> LLM).
+        search_name=_resolve_search_name(db, search_name, item_name, factory_id),
         purchase_price=purchase_price or None,
         procurement_category=procurement_category or None,
         status="submitted",

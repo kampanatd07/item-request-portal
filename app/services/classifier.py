@@ -24,30 +24,44 @@ from app.models import SearchTerm
 
 
 def _norm(text: str) -> str:
-    return re.sub(r"[^a-z0-9 ]+", " ", (text or "").lower())
+    # keep Thai characters — the master is bilingual and most category words
+    # for consumables/hardware are Thai (ตะปู, ลูกปืน, สายไฟ...)
+    return re.sub(r"[^a-z0-9฀-๿ ]+", " ", (text or "").lower())
 
 
 def _tokens(text: str) -> list[str]:
     return [t for t in _norm(text).split() if t]
 
 
+_THAI = re.compile(r"[฀-๿]")
+
+
 def suggest_from_dictionary(name: str, terms: list[str]) -> list[tuple[str, float]]:
-    """Rank canonical terms that appear in `name`. Score favours more specific
-    (multi-word) terms and earlier position in the name."""
+    """Rank canonical terms that appear in `name`.
+
+    Latin terms match on whole words (so PIN doesn't match PINION); Thai terms
+    match as substrings, because Thai is written without spaces between words
+    ('งานสอบเทียบเครื่องชั่ง' contains 'งานสอบเทียบ' with no boundary to anchor on).
+    Score = length of the matched term, so the most specific term wins.
+    """
     name_tokens = _tokens(name)
     if not name_tokens:
         return []
     name_join = " " + " ".join(name_tokens) + " "
     scored: list[tuple[str, float]] = []
     for term in terms:
-        t_tokens = _tokens(term)
-        if not t_tokens:
+        t_norm = " ".join(_tokens(term))
+        if not t_norm:
             continue
-        phrase = " " + " ".join(t_tokens) + " "
-        if phrase in name_join:
-            pos = name_join.index(phrase)
-            # specificity (word count) dominates; earlier position breaks ties
-            score = len(t_tokens) * 10 - pos / 100.0
+        if _THAI.search(t_norm):
+            pos = name_join.find(t_norm)
+            matched = pos >= 0
+        else:
+            phrase = " " + t_norm + " "
+            pos = name_join.find(phrase)
+            matched = pos >= 0
+        if matched:
+            score = len(t_norm) - pos / 100.0
             scored.append((term, score))
     scored.sort(key=lambda p: p[1], reverse=True)
     # de-duplicate keeping best, cap to 3
@@ -66,9 +80,36 @@ def active_terms(db: Session) -> list[str]:
     )
 
 
-def classify(db: Session, name: str, *, llm=None) -> dict:
+def _neighbour_vote(db: Session, name: str, source: str, terms: list[str]) -> str | None:
+    """Ask the item master: what do similar items call themselves?
+    Looks up close matches and returns the canonical term most of them share —
+    the category is learned from real data instead of guessed."""
+    from app.services.snapshots import search_similar
+
+    try:
+        hits = search_similar(db, source=source, query=name, limit=10, min_score=0.25)
+    except Exception:
+        return None
+    votes: dict[str, int] = {}
+    for item, _score in hits:
+        for term, _s in suggest_from_dictionary(item.name, terms):
+            votes[term] = votes.get(term, 0) + 1
+            break  # only the best term per neighbour
+    if not votes:
+        return None
+    best, count = max(votes.items(), key=lambda kv: kv[1])
+    return best if count >= 2 else None
+
+
+def classify(
+    db: Session, name: str, *, llm=None, snapshot_source: str | None = None
+) -> dict:
     """Return {'suggestion', 'source', 'candidates'}.
-    source ∈ {'dictionary','llm','fallback'}. Always returns something usable."""
+    source ∈ {'dictionary','neighbours','llm','fallback'}.
+
+    `name` should be the BASE item name only — passing brand/model in produces
+    nonsense categories ('ตะปู XXX #12345' -> 'XXX 12345').
+    """
     terms = active_terms(db)
     dict_hits = suggest_from_dictionary(name, terms)
     if dict_hits:
@@ -77,6 +118,10 @@ def classify(db: Session, name: str, *, llm=None) -> dict:
             "source": "dictionary",
             "candidates": [t for t, _ in dict_hits],
         }
+    if snapshot_source:
+        voted = _neighbour_vote(db, name, snapshot_source, terms)
+        if voted:
+            return {"suggestion": voted, "source": "neighbours", "candidates": [voted]}
     if llm is not None:
         try:
             picked = llm(name, terms)
@@ -84,9 +129,9 @@ def classify(db: Session, name: str, *, llm=None) -> dict:
             picked = None
         if picked:
             return {"suggestion": picked, "source": "llm", "candidates": [picked]}
-    # Fallback: first meaningful tokens, upper-cased (better than the full string).
-    toks = _tokens(name)
-    fallback = " ".join(toks[:2]).upper() if toks else (name or "")[:60]
+    # Fallback: the base name itself, cleaned — for 'ตะปู' that IS the category.
+    cleaned = " ".join(_tokens(name)[:3])
+    fallback = cleaned.upper() if cleaned else (name or "")[:60]
     return {"suggestion": fallback, "source": "fallback", "candidates": []}
 
 

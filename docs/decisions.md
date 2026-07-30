@@ -1,5 +1,24 @@
 # Decision Log
 
+## [2026-07-30] Item names are composed, not typed (แบบ B)
+**Decision:** Product name = compose(ชื่อเรียก, แบรนด์, รุ่น, ขนาด, ชนิด/สี) in the
+company's documented convention order, with cleaning (whitespace, forbidden
+chars, token dedupe). Requester sees a live preview but cannot edit the result;
+procurement can rename before export (audit-logged).
+**Alternatives considered:** Noun-Modifier MRO style ('BEARING, BALL: SKF…') —
+rejected: search-name taxonomy already provides grouping, and consistency with
+22k existing items keeps duplicate detection accurate.
+**Revisit when:** AX-side naming policy changes.
+
+## [2026-07-30] UOM merges are manual, never automatic
+**Decision:** canonical_uom() normalizes via exact -> alias -> unique
+case-insensitive match; ambiguous look-alikes are left untouched. Merging is a
+deliberate admin action (source becomes alias, old requests rewritten).
+**Alternatives considered:** auto-merge case variants — rejected: Job (APM) vs
+JOB (ACM) may be legitimately different per AX environment; a wrong merge
+produces import files AX rejects.
+**Revisit when:** AX teams confirm a single canonical unit list.
+
 ## [2026-07-24] Human-in-the-loop via import files, no direct AX/D365 write
 **Decision:** System generates AX/D365 import files; Peter imports manually and marks batches as created.
 **Alternatives considered:** Direct write via AIF/OData/DB — rejected: needs IT project on AX side, higher blast radius on error.
