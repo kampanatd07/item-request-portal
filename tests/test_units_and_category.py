@@ -79,19 +79,27 @@ def test_neighbour_vote_learns_category_from_master(db_session):
     wb = Workbook()
     wb.active.append(["Item number", "Product name"])
     for code, name in [
-        ("64FQ000131", "ตะปู 2-1/2 #12 P"),
-        ("64FQ000132", "ตะปู ยิงไม้ WT64"),
-        ("64FQ000133", "ตะปู เกลียวปล่อย"),
+        ("990501010001", "ลูกปืน 6205 2RS SKF"),
+        ("990501010002", "ลูกปืน 6205 ZZ SKF"),
+        ("990501010003", "ลูกปืน 6206 2RS SKF"),
     ]:
         wb.active.append([code, name])
     buf = io.BytesIO()
     wb.save(buf)
     import_snapshot(db_session, source="CBD", filename="m.xlsx", data=buf.getvalue())
 
-    # a name the dictionary doesn't know, but the master's neighbours do
-    r = classify(db_session, "ตะปูคอนกรีตพิเศษ", snapshot_source="CBD")
-    assert r["suggestion"] == "ตะปู"
-    assert r["source"] in {"dictionary", "neighbours"}
+    # the query itself contains no dictionary term — only the master's
+    # neighbours know this is a ลูกปืน
+    assert classify(db_session, "6205 2RS SKF")["source"] == "fallback"
+    r = classify(db_session, "6205 2RS SKF", snapshot_source="CBD")
+    assert r["suggestion"] == "ลูกปืน"
+    assert r["source"] == "neighbours"
+
+
+def test_compound_term_beats_component_term(db_session):
+    # แหวนสปริง is a washer, not a spring — the longer term must win
+    assert classify(db_session, "แหวนสปริง 12mm")["suggestion"] == "แหวนสปริง"
+    assert classify(db_session, "สปริงกดลูกกลิ้ง")["suggestion"] == "สปริง"
 
 
 def test_submit_normalizes_size_in_name_and_field(db_session):
