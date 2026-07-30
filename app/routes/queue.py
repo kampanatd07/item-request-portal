@@ -7,6 +7,7 @@ from app.models import ItemRequest
 from app.services.requests import (
     RequestError,
     change_status,
+    edit_name,
     list_queue,
     override_code,
 )
@@ -49,6 +50,24 @@ def update_status(
         )
     return templates.TemplateResponse(
         request, "partials/status_panel.html", {"req": req}
+    )
+
+
+@router.post("/{request_id}/name", response_class=HTMLResponse)
+def rename_item(
+    request: Request,
+    request_id: int,
+    new_name: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        req = edit_name(db, request_id, new_name=new_name, actor="procurement")
+    except RequestError as e:
+        return templates.TemplateResponse(
+            request, "partials/form_error.html", {"message": str(e)}, status_code=422
+        )
+    return templates.TemplateResponse(
+        request, "partials/name_panel.html", {"req": req}
     )
 
 

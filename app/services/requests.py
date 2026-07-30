@@ -48,6 +48,7 @@ def submit_request(
     brand: str | None = None,
     model: str | None = None,
     size: str | None = None,
+    variant: str | None = None,
     spec_note: str | None = None,
     uom: str | None = None,
     search_name: str | None = None,
@@ -57,7 +58,18 @@ def submit_request(
     if not requester_name.strip():
         raise RequestError("กรุณากรอกชื่อผู้ขอ")
     if not item_name.strip():
-        raise RequestError("กรุณากรอกชื่อสินค้า")
+        raise RequestError("กรุณากรอกชื่อเรียกสินค้า")
+
+    # Compose the standard product name (แบบ B) — the requester's fields are
+    # structure, the name is an output, not an input.
+    from app.services.naming import NamingError, compose_name
+
+    try:
+        composed_name = compose_name(
+            item_name, brand=brand, model=model, size=size, detail=variant
+        )
+    except NamingError as e:
+        raise RequestError(str(e)) from e
 
     group = db.get(CodeGroup, group_id)
     if group is None or group.code_system_id != code_system_id or not group.active:
@@ -81,15 +93,16 @@ def submit_request(
         code_system_id=code_system_id,
         group_id=group_id,
         subgroup_id=subgroup_id,
-        item_name=item_name.strip(),
+        item_name=composed_name,
         brand=brand or None,
         model=model or None,
         size=size or None,
+        variant=variant or None,
         spec_note=spec_note or None,
         uom=_canonical_uom(db, uom),
         # If the requester left search name blank, classify the item name into a
         # canonical term so items still cluster (dictionary + optional LLM).
-        search_name=_resolve_search_name(db, search_name, item_name),
+        search_name=_resolve_search_name(db, search_name, composed_name),
         purchase_price=purchase_price or None,
         procurement_category=procurement_category or None,
         status="submitted",
@@ -156,6 +169,30 @@ def change_status(
         raise RequestError(
             "ออกรหัสชนกับคำขออื่นที่เพิ่งอนุมัติ — กด approve อีกครั้ง"
         ) from e
+    return req
+
+
+def edit_name(db: Session, request_id: int, *, new_name: str, actor: str) -> ItemRequest:
+    """Procurement-only override of the composed product name, before export."""
+    req = db.get(ItemRequest, request_id)
+    if req is None:
+        raise RequestError("ไม่พบคำขอนี้")
+    if req.status in {"exported", "created", "notified"}:
+        raise RequestError("แก้ชื่อไม่ได้หลัง export แล้ว")
+    new_name = " ".join(new_name.split())
+    if not new_name:
+        raise RequestError("กรุณากรอกชื่อ")
+    old = req.item_name
+    if new_name == old:
+        return req
+    req.item_name = new_name
+    db.add(
+        RequestEvent(
+            request_id=req.id, actor=actor, action="name_edited",
+            detail=f"{old} -> {new_name}",
+        )
+    )
+    db.commit()
     return req
 
 

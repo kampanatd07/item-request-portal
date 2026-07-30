@@ -19,6 +19,10 @@
   </table>
 </div>
 
+<div class="card" id="name-panel">
+  {% include "partials/name_panel.html" %}
+</div>
+
 <div class="card"
      hx-post="/fragments/duplicates" hx-trigger="load" hx-swap="innerHTML" hx-target="find div"
      hx-vals='{"factory_id": "{{ req.factory_id }}", "item_name": {{ req.item_name | tojson }}, "brand": {{ (req.brand or "") | tojson }}, "model": {{ (req.model or "") | tojson }}}'>

@@ -36,7 +36,8 @@ def test_submit_d365_stock_request_happy_path(client, db_session):
 
     req = db_session.scalar(select(ItemRequest))
     assert req.status == "submitted"
-    assert req.item_name == "Ball Bearing"
+    # name is composed from structured fields (แบบ B convention)
+    assert req.item_name == "Ball Bearing SKF UCF209-28"
     events = list(db_session.scalars(select(RequestEvent)))
     assert [e.action for e in events] == ["submitted"]
 

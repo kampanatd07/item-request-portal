@@ -1,0 +1,10 @@
+<h3>ชื่อสินค้า (ระบบประกอบให้)</h3>
+<p style="font-size:17px;"><strong>{{ req.item_name }}</strong></p>
+<p class="muted">ประกอบจาก: {{ req.brand or "-" }} / {{ req.model or "-" }} / {{ req.size or "-" }} / {{ req.variant or "-" }}</p>
+{% if req.status not in ["exported", "created", "notified"] %}
+<form hx-post="/queue/{{ req.id }}/name" hx-target="#name-panel" hx-swap="innerHTML" style="max-width:480px;">
+  <label class="muted">แก้ชื่อ (เฉพาะจัดซื้อ — บันทึกลง audit)</label>
+  <input name="new_name" value="{{ req.item_name }}">
+  <button type="submit" class="secondary">บันทึกชื่อใหม่</button>
+</form>
+{% endif %}

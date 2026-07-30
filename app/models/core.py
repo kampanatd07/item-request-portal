@@ -95,10 +95,13 @@ class ItemRequest(Base):
     subgroup_id: Mapped[int | None] = mapped_column(ForeignKey("code_groups.id"), nullable=True)
 
     # Name parts follow the naming convention: ชื่อ / แบรนด์ / รุ่น / ขนาด / ชนิด / สี
+    # item_name is COMPOSED from (base ชื่อเรียก + brand + model + size + variant)
+    # by services/naming.py — requesters never type the final name directly.
     item_name: Mapped[str] = mapped_column(String(300))
     brand: Mapped[str | None] = mapped_column(String(100), nullable=True)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     size: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    variant: Mapped[str | None] = mapped_column(String(100), nullable=True)  # ชนิด/สี
     spec_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     uom: Mapped[str | None] = mapped_column(String(30), nullable=True)
     # Export-only fields (slice 4). search_name defaults to a truncation of the
