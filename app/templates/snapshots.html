@@ -22,6 +22,31 @@
   </table>
 </div>
 <div class="card">
+  <h3>Master ที่จัดหมวดแล้ว (สอนระบบแนะนำหมวด)</h3>
+  <p class="muted">อัปโหลดไฟล์ <code>Carabao_Group_Item_Master_Central</code> ชีต New_Item_Master
+  — ระบบใช้รายการที่จัดหมวดไว้แล้วเป็นตัวอย่างในการแนะนำหมวดให้ user</p>
+  <table>
+    <tr><th>ชุดข้อมูล</th><th>อัปโหลดล่าสุด</th><th>จำนวน</th></tr>
+    <tr>
+      <td>Master ที่จัดหมวดแล้ว</td>
+      <td>{{ central.at.strftime("%d/%m/%Y %H:%M") if central else "ยังไม่มีข้อมูล" }}</td>
+      <td>{{ central.row_count if central else "-" }}</td>
+    </tr>
+    <tr>
+      <td>สิ่งที่ระบบเรียนจากจัดซื้อ</td>
+      <td>{{ learned.at.strftime("%d/%m/%Y %H:%M") if learned else "ยังไม่มี" }}</td>
+      <td>{{ learned.row_count if learned else "0" }}</td>
+    </tr>
+  </table>
+  <form hx-post="/admin/snapshots/labeled" hx-target="#labeled-result" hx-swap="innerHTML" enctype="multipart/form-data">
+    <label>ไฟล์ (.xlsx ที่มีคอลัมน์ Category Code / Sub-Category Code)</label>
+    <input type="file" name="file" accept=".xlsx" required>
+    <button type="submit">อัปโหลด</button>
+  </form>
+  <div id="labeled-result"></div>
+</div>
+
+<div class="card">
   <h3>อัปโหลด snapshot ใหม่</h3>
   <form hx-post="/admin/snapshots" hx-target="#upload-result" hx-swap="innerHTML" enctype="multipart/form-data">
     <label>แหล่งข้อมูล</label>

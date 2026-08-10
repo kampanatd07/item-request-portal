@@ -1,0 +1,27 @@
+<h3>หมวดสินค้า</h3>
+<p style="font-size:16px;">
+  <code>{{ req.group.code }}{% if req.subgroup %}-{{ req.subgroup.code }}{% endif %}</code>
+  {{ req.subgroup.name if req.subgroup else req.group.name }}
+  <span class="muted">({{ req.group.name }})</span>
+</p>
+{% if not req.generated_code %}
+<form hx-post="/queue/{{ req.id }}/category" hx-target="#category-panel" hx-swap="innerHTML"
+      style="max-width:520px;">
+  <label class="muted">แก้หมวด (ระบบจะจำไว้ใช้แนะนำครั้งหน้า)</label>
+  <select name="subgroup_id" required>
+    <option value="" disabled selected>-- เลือกหมวดย่อย --</option>
+    {% for grp, subs in taxonomy %}
+    <optgroup label="{{ grp.code }} {{ grp.name }}">
+      {% for s in subs %}
+      <option value="{{ s.id }}" {% if req.subgroup and s.id == req.subgroup.id %}selected{% endif %}>
+        {{ grp.code }}-{{ s.code }} {{ s.name }}
+      </option>
+      {% endfor %}
+    </optgroup>
+    {% endfor %}
+  </select>
+  <button type="submit" class="secondary">บันทึกหมวดใหม่</button>
+</form>
+{% else %}
+<p class="muted">ออกรหัสแล้ว — เปลี่ยนหมวดไม่ได้ เพราะรหัสอิงหมวด</p>
+{% endif %}

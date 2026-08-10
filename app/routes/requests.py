@@ -84,6 +84,12 @@ def duplicates_fragment(
         llm=get_llm(),
         snapshot_source=None if no_snapshot else source,
     )
+
+    # Category proposal rides along too: the user types the name once and gets
+    # duplicates, a search name and a category without three separate waits.
+    from app.services.categorizer import AUTO_SELECT_CONFIDENCE, suggest_category
+
+    categories = suggest_category(db, item_name, llm=get_llm())
     return templates.TemplateResponse(
         request, "partials/duplicate_list.html",
         {
@@ -91,6 +97,8 @@ def duplicates_fragment(
             "query_too_short": False,
             "no_snapshot": no_snapshot,
             "suggest": suggest,
+            "categories": categories,
+            "auto_select": AUTO_SELECT_CONFIDENCE,
         },
     )
 

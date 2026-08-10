@@ -6,6 +6,7 @@ from app.database import get_db
 from app.models import ItemRequest
 from app.services.requests import (
     RequestError,
+    change_category,
     change_status,
     edit_name,
     list_queue,
@@ -23,11 +24,36 @@ def queue_page(request: Request, status: str | None = None, db: Session = Depend
     )
 
 
+def _taxonomy(db: Session):
+    """[(group, [subs])] of the active central taxonomy, for the re-categorise picker."""
+    from sqlalchemy import select
+
+    from app.models import CodeGroup, CodeSystem
+
+    system = db.scalar(select(CodeSystem).where(CodeSystem.code == "CENTRAL"))
+    if system is None:
+        return []
+    groups = list(db.scalars(
+        select(CodeGroup).where(
+            CodeGroup.code_system_id == system.id,
+            CodeGroup.parent_id.is_(None), CodeGroup.active,
+        ).order_by(CodeGroup.code)
+    ))
+    return [
+        (g, list(db.scalars(
+            select(CodeGroup).where(
+                CodeGroup.parent_id == g.id, CodeGroup.active
+            ).order_by(CodeGroup.code)
+        )))
+        for g in groups
+    ]
+
+
 @router.get("/{request_id}", response_class=HTMLResponse)
 def request_detail(request: Request, request_id: int, db: Session = Depends(get_db)):
     req = db.get(ItemRequest, request_id)
     return templates.TemplateResponse(
-        request, "request_detail.html", {"req": req}
+        request, "request_detail.html", {"req": req, "taxonomy": _taxonomy(db)}
     )
 
 
@@ -68,6 +94,26 @@ def rename_item(
         )
     return templates.TemplateResponse(
         request, "partials/name_panel.html", {"req": req}
+    )
+
+
+@router.post("/{request_id}/category", response_class=HTMLResponse)
+def recategorise(
+    request: Request,
+    request_id: int,
+    subgroup_id: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        req = change_category(
+            db, request_id, subgroup_id=subgroup_id, actor="procurement"
+        )
+    except RequestError as e:
+        return templates.TemplateResponse(
+            request, "partials/form_error.html", {"message": str(e)}, status_code=422
+        )
+    return templates.TemplateResponse(
+        request, "partials/category_panel.html", {"req": req, "taxonomy": _taxonomy(db)}
     )
 
 

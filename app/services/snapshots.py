@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Factory, ItemSnapshot, SnapshotImport
 
-SOURCES = ("CBD", "D365")
+SOURCES = ("CBD", "D365", "CENTRAL")
 
 
 class SnapshotError(Exception):
@@ -52,6 +52,73 @@ def similarity(a: str, b: str) -> float:
     if not ta or not tb:
         return 0.0
     return len(ta & tb) / len(ta | tb)
+
+
+def _extract_labeled_rows(filename: str, data: bytes) -> list[dict]:
+    """Rows from the classified master (New_Item_Master): item, name, and the
+    central Category/Sub-Category codes that make the row a training example.
+
+    Product Name carries the 'CATEGORY - ' prefix; the searchable text is the
+    part a user would actually type, so the prefix is stripped for matching.
+    """
+    if not filename.lower().endswith((".xlsx", ".xlsm")):
+        raise SnapshotError("ไฟล์ master ที่จัดหมวดแล้วต้องเป็น .xlsx")
+    wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    required = {"item number", "product name", "category code", "sub-category code"}
+    for ws in wb.worksheets:
+        header: dict[str, int] | None = None
+        out: list[dict] = []
+        for row in ws.iter_rows(values_only=True):
+            cells = ["" if c is None else str(c).strip() for c in row]
+            lowered = [c.lower() for c in cells]
+            if header is None:
+                if required.issubset(set(lowered)):
+                    header = {k: lowered.index(k) for k in required}
+                continue
+            number = cells[header["item number"]]
+            name = cells[header["product name"]]
+            group = cells[header["category code"]]
+            sub = cells[header["sub-category code"]]
+            if not (number and name and group and sub):
+                continue
+            searchable = name.split(" - ", 1)[1] if " - " in name else name
+            out.append({
+                "item_number": number, "name": name, "searchable": searchable,
+                "group_code": group.zfill(3)[:3], "sub_code": sub.zfill(2)[:2],
+            })
+        if header is not None:
+            wb.close()
+            if not out:
+                raise SnapshotError("ไม่พบข้อมูลรายการในไฟล์")
+            return out
+    wb.close()
+    raise SnapshotError(
+        "ไม่พบคอลัมน์ Item Number / Product Name / Category Code / Sub-Category Code"
+    )
+
+
+def import_labeled_master(
+    db: Session, *, filename: str, data: bytes, uploaded_by: str = "procurement"
+) -> SnapshotImport:
+    """Load the classified master as labelled training data for category
+    suggestion. Replaces the previous CENTRAL load; LEARNED rows are untouched."""
+    rows = _extract_labeled_rows(filename, data)
+    imp = SnapshotImport(
+        source="CENTRAL", filename=filename, row_count=len(rows), uploaded_by=uploaded_by
+    )
+    db.add(imp)
+    db.flush()
+    db.execute(delete(ItemSnapshot).where(ItemSnapshot.source == "CENTRAL"))
+    db.add_all(
+        ItemSnapshot(
+            source="CENTRAL", item_number=r["item_number"], name=r["name"],
+            normalized_name=normalize(r["searchable"]),
+            group_code=r["group_code"], sub_code=r["sub_code"], import_id=imp.id,
+        )
+        for r in rows
+    )
+    db.commit()
+    return imp
 
 
 def _extract_rows(filename: str, data: bytes) -> list[tuple[str, str, str | None]]:

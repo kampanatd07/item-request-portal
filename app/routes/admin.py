@@ -108,7 +108,27 @@ def snapshots_page(request: Request, db: Session = Depends(get_db)):
         {
             "cbd": snapshots.latest_import(db, "CBD"),
             "d365": snapshots.latest_import(db, "D365"),
+            "central": snapshots.latest_import(db, "CENTRAL"),
+            "learned": snapshots.latest_import(db, "LEARNED"),
         },
+    )
+
+
+@router.post("/snapshots/labeled", response_class=HTMLResponse)
+async def upload_labeled_master(
+    request: Request, file: UploadFile = File(...), db: Session = Depends(get_db)
+):
+    data = await file.read()
+    try:
+        imp = snapshots.import_labeled_master(
+            db, filename=file.filename or "upload", data=data
+        )
+    except SnapshotError as e:
+        return templates.TemplateResponse(
+            request, "partials/form_error.html", {"message": str(e)}, status_code=422
+        )
+    return templates.TemplateResponse(
+        request, "partials/snapshot_result.html", {"imp": imp}
     )
 
 

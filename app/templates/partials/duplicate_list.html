@@ -1,3 +1,27 @@
+{% if categories %}
+<div id="cat-slot" hx-swap-oob="innerHTML">
+  <div class="card" style="background:#eef4fb; border-color:#9cc0e8;">
+    <strong>หมวดที่ระบบแนะนำ</strong>
+    <p class="muted" style="margin:4px 0 8px;">กดเลือกได้เลย หรือเลือกเองจากช่องด้านล่าง</p>
+    {% for c in categories %}
+    <div style="margin-bottom:6px;">
+      <button type="button"
+              style="padding:5px 12px; border:1px solid #185FA5; background:{{ '#185FA5' if loop.first and c.confidence >= auto_select else '#fff' }}; color:{{ '#fff' if loop.first and c.confidence >= auto_select else '#185FA5' }}; border-radius:6px; cursor:pointer;"
+              onclick="pickCategory('{{ c.group.id }}','{{ c.sub.id }}', this)">
+        {{ c.label }} · {{ (c.confidence * 100) | round | int }}%
+      </button>
+      {% if c.examples %}
+      <span class="muted" style="font-size:12px;">เพราะคล้ายกับ: {{ c.examples[0][:48] }}</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% if categories[0].confidence >= auto_select %}
+    <p class="muted" style="font-size:12px;">เลือกอันดับ 1 ให้อัตโนมัติแล้ว — เปลี่ยนได้</p>
+    <script>pickCategory('{{ categories[0].group.id }}','{{ categories[0].sub.id }}', null);</script>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
 {% if suggest %}
 <div id="sn-slot" hx-swap-oob="innerHTML">
   {% with source = suggest.source, candidates = suggest.candidates, suggestion = suggest.suggestion %}

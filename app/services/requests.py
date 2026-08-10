@@ -209,6 +209,44 @@ def edit_name(db: Session, request_id: int, *, new_name: str, actor: str) -> Ite
     return req
 
 
+def change_category(
+    db: Session, request_id: int, *, subgroup_id: int, actor: str
+) -> ItemRequest:
+    """Procurement re-categorises a request before a code is issued, and the
+    correction is fed back so similar future requests start out right."""
+    req = db.get(ItemRequest, request_id)
+    if req is None:
+        raise RequestError("ไม่พบคำขอนี้")
+    if req.generated_code:
+        raise RequestError("เปลี่ยนหมวดไม่ได้หลังออกรหัสแล้ว — รหัสอิงหมวด")
+
+    sub = db.get(CodeGroup, subgroup_id)
+    if sub is None or sub.parent_id is None or not sub.active:
+        raise RequestError("หมวดย่อยไม่ถูกต้อง")
+    parent = db.get(CodeGroup, sub.parent_id)
+    old = f"{req.group.code}-{req.subgroup.code}" if req.subgroup else req.group.code
+    new = f"{parent.code}-{sub.code}"
+    if old == new:
+        return req
+
+    req.group_id = parent.id
+    req.subgroup_id = sub.id
+    db.add(
+        RequestEvent(
+            request_id=req.id, actor=actor, action="category_changed",
+            detail=f"{old} -> {new}",
+        )
+    )
+    db.commit()
+
+    from app.services.categorizer import learn_from_correction
+
+    learn_from_correction(
+        db, name=req.item_name, group_code=parent.code, sub_code=sub.code, actor=actor
+    )
+    return req
+
+
 def override_code(
     db: Session, request_id: int, *, new_code: str, actor: str
 ) -> ItemRequest:

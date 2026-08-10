@@ -259,11 +259,16 @@ class ItemSnapshot(Base):
     __tablename__ = "item_snapshot"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    source: Mapped[str] = mapped_column(String(10), index=True)  # CBD | D365
+    source: Mapped[str] = mapped_column(String(10), index=True)  # CBD | D365 | CENTRAL
     item_number: Mapped[str] = mapped_column(String(30), index=True)
     name: Mapped[str] = mapped_column(String(500))
     normalized_name: Mapped[str] = mapped_column(String(500), index=True)
     item_group: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Central taxonomy labels, present when the row came from the classified
+    # master (New_Item_Master) or from a procurement correction. These make the
+    # snapshot a training set for category suggestion, not just a dup index.
+    group_code: Mapped[str | None] = mapped_column(String(3), nullable=True, index=True)
+    sub_code: Mapped[str | None] = mapped_column(String(2), nullable=True)
     import_id: Mapped[int] = mapped_column(ForeignKey("snapshot_imports.id"))
 
 

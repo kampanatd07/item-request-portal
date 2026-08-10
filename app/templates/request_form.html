@@ -65,7 +65,8 @@
            hx-post="/fragments/duplicates" hx-target="#dup-slot" hx-swap="innerHTML"
            hx-include="closest form" hx-trigger="keyup changed delay:600ms">
     <div id="dup-slot"></div>
-    <!-- filled by an out-of-band swap from /fragments/duplicates -->
+    <!-- both filled by out-of-band swaps from /fragments/duplicates -->
+    <div id="cat-slot"></div>
     <div id="sn-slot"></div>
     <div class="row">
       <div><label>แบรนด์</label><input name="brand" placeholder="เช่น SKF"
@@ -113,6 +114,27 @@
   <div id="form-result"></div>
 </div>
 <script>
+// Select a suggested category: set the group dropdown, load its sub-categories,
+// then select the sub once the fragment has swapped in.
+function pickCategory(groupId, subId, btn) {
+  var groupSel = document.querySelector('[name="group_id"]');
+  if (!groupSel) return;
+  groupSel.value = groupId;
+  htmx.ajax('GET', '/fragments/subgroups?group_id=' + groupId,
+            { target: '#subgroup-slot', swap: 'innerHTML' })
+    .then(function () {
+      var subSel = document.querySelector('[name="subgroup_id"]');
+      if (subSel) { subSel.disabled = false; subSel.value = subId; }
+    });
+  if (btn) {
+    btn.parentElement.parentElement
+       .querySelectorAll('button').forEach(function (b) {
+         b.style.background = '#fff'; b.style.color = '#185FA5';
+       });
+    btn.style.background = '#185FA5'; btn.style.color = '#fff';
+  }
+}
+
 (function () {
   var fields = ["item_name", "brand", "model", "size", "variant"];
   function compose() {
