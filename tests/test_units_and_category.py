@@ -7,7 +7,7 @@ from openpyxl import Workbook
 from sqlalchemy import select
 
 from app.models import CodeGroup, CodeSystem, Factory
-from app.services.classifier import classify
+from app.services.classifier import classify, suggest_from_dictionary
 from app.services.requests import submit_request
 from app.services.snapshots import import_snapshot
 from app.services.units import normalize_size
@@ -94,6 +94,32 @@ def test_neighbour_vote_learns_category_from_master(db_session):
     r = classify(db_session, "6205 2RS SKF", snapshot_source="CBD")
     assert r["suggestion"] == "ลูกปืน"
     assert r["source"] == "neighbours"
+
+
+def test_service_search_name_names_the_work_not_an_object(db_session):
+    """Regression (Peter, 2026-08-10): 'ติดตั้งเครื่องแพ็คกล่อง' is an installation
+    job filed under 700-01, but the search name came back as 'กล่อง' — a noun
+    buried at the end of the phrase."""
+    r = classify(db_session, "ติดตั้งเครื่องแพ็คกล่อง", product_type="Service")
+    assert r["suggestion"] == "ติดตั้ง"
+    assert classify(db_session, "งานซ่อมยาง Roller เครื่องแพ็คกล่อง",
+                    product_type="Service")["suggestion"] == "งานซ่อม"
+    assert classify(db_session, "ค่าเช่ารถโฟล์คลิฟท์",
+                    product_type="Service")["suggestion"] == "ค่าเช่า"
+
+
+def test_item_search_name_still_uses_the_object(db_session):
+    # the same phrase filed as an Item keeps object-noun behaviour
+    assert classify(db_session, "กล่องกระดาษลูกฟูก",
+                    product_type="Item")["suggestion"] == "กล่อง"
+
+
+def test_leading_term_outranks_a_longer_one_buried_later(db_session):
+    """Thai puts the head noun first; position must dominate length."""
+    hits = suggest_from_dictionary(
+        "ติดตั้งเครื่องแพ็คกล่อง", ["ติดตั้ง", "กล่อง", "เครื่องจักร"]
+    )
+    assert hits[0][0] == "ติดตั้ง"
 
 
 def test_compound_term_beats_component_term(db_session):

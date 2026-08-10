@@ -18,9 +18,11 @@ def test_specific_term_beats_generic(db_session):
 def test_dictionary_classify_common_types(db_session):
     assert classify(db_session, "GASKET AY9W72AA010#29")["suggestion"] == "GASKET"
     assert classify(db_session, "Solenoid Valve for Air Block")["suggestion"] == "SOLENOID VALVE"
-    r = classify(db_session, "แหวนสปริง Wear Strip Profile 8mm")
+    r = classify(db_session, "Wear Strip Profile 8mm")
     assert r["suggestion"] == "WEAR STRIP PROFILE"
     assert r["source"] == "dictionary"
+    # when two product terms appear, the leading one is the head noun
+    assert classify(db_session, "แหวนสปริง Wear Strip 8mm")["suggestion"] == "แหวนสปริง"
 
 
 def test_unknown_name_falls_back_without_llm(db_session):

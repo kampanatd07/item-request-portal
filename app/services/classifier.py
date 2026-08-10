@@ -61,7 +61,10 @@ def suggest_from_dictionary(name: str, terms: list[str]) -> list[tuple[str, floa
             pos = name_join.find(phrase)
             matched = pos >= 0
         if matched:
-            score = len(t_norm) - pos / 100.0
+            # Position first, length second. Thai puts the head noun at the
+            # front ('ติดตั้งเครื่องแพ็คกล่อง' is an installation job, not a box),
+            # so a term buried later must never outrank one at the start.
+            score = (100 - min(pos, 99)) * 10 + len(t_norm)
             scored.append((term, score))
     scored.sort(key=lambda p: p[1], reverse=True)
     # de-duplicate keeping best, cap to 3
@@ -101,16 +104,51 @@ def _neighbour_vote(db: Session, name: str, source: str, terms: list[str]) -> st
     return best if count >= 2 else None
 
 
+SERVICE_TERMS = frozenset({
+    "งานสอบเทียบ", "งานซ่อม", "งานติดตั้ง", "ค่าบริการ", "ค่าเช่า", "ค่าขนส่ง",
+    "ติดตั้ง", "ซ่อม", "ซ่อมแซม", "สอบเทียบ", "ปรับปรุง", "บำรุงรักษา",
+    "ตรวจสอบ", "ทำความสะอาด", "เช่า", "ขนส่ง", "ก่อสร้าง", "ต่อเติม",
+    "รื้อถอน", "ออกแบบ", "ที่ปรึกษา", "ฝึกอบรม", "จ้างเหมา",
+})
+
+
 def classify(
-    db: Session, name: str, *, llm=None, snapshot_source: str | None = None
+    db: Session,
+    name: str,
+    *,
+    llm=None,
+    snapshot_source: str | None = None,
+    product_type: str | None = None,
 ) -> dict:
     """Return {'suggestion', 'source', 'candidates'}.
     source ∈ {'dictionary','neighbours','llm','fallback'}.
 
     `name` should be the BASE item name only — passing brand/model in produces
     nonsense categories ('ตะปู XXX #12345' -> 'XXX 12345').
+
+    `product_type` is the chosen sub-category's type. For a Service the search
+    name must name the WORK, not an object mentioned in passing:
+    'ติดตั้งเครื่องแพ็คกล่อง' is an installation job, not a box.
     """
     terms = active_terms(db)
+    if (product_type or "").lower() == "service":
+        service_only = [t for t in terms if t in SERVICE_TERMS]
+        hits = suggest_from_dictionary(name, service_only)
+        if hits:
+            return {
+                "suggestion": hits[0][0],
+                "source": "dictionary",
+                "candidates": [t for t, _ in hits],
+            }
+        # no known service verb: keep the leading words, which in Thai carry
+        # the action, rather than a noun from the end of the phrase
+        head = " ".join(_tokens(name)[:3])
+        return {
+            "suggestion": (head or name)[:60],
+            "source": "fallback",
+            "candidates": [],
+        }
+
     dict_hits = suggest_from_dictionary(name, terms)
     if dict_hits:
         return {

@@ -27,7 +27,8 @@ def _canonical_uom(db: Session, raw: str | None) -> str | None:
 
 
 def _resolve_search_name(
-    db: Session, given: str | None, base_name: str, factory_id: int
+    db: Session, given: str | None, base_name: str, factory_id: int,
+    product_type: str | None = None,
 ) -> str:
     if given and given.strip():
         return given.strip()[:60]
@@ -39,6 +40,7 @@ def _resolve_search_name(
     return classify(
         db, base_name, llm=get_llm(),
         snapshot_source=source if has_snapshot else None,
+        product_type=product_type,
     )["suggestion"][:60]
 
 
@@ -115,7 +117,10 @@ def submit_request(
         uom=_canonical_uom(db, uom),
         # If the requester left search name blank, classify the BASE name into a
         # canonical category term (dictionary -> master neighbours -> LLM).
-        search_name=_resolve_search_name(db, search_name, item_name, factory_id),
+        search_name=_resolve_search_name(
+            db, search_name, item_name, factory_id,
+            product_type=(sub or group).product_type,
+        ),
         purchase_price=purchase_price or None,
         procurement_category=procurement_category or None,
         status="submitted",

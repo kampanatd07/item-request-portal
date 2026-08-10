@@ -60,6 +60,7 @@ def duplicates_fragment(
     item_name: str = Form(""),
     brand: str = Form(""),
     model: str = Form(""),
+    subgroup_id: str = Form(""),
     db: Session = Depends(get_db),
 ):
     query = " ".join(p for p in [item_name, brand, model] if p).strip()
@@ -78,11 +79,17 @@ def duplicates_fragment(
     from app.services.classifier import classify
     from app.services.llm_backend import get_llm
 
+    # If the user already picked a category, its product type steers the search
+    # name: a Service must be named after the work, not an object in the phrase.
+    from app.models import CodeGroup
+
+    chosen = db.get(CodeGroup, int(subgroup_id)) if subgroup_id.isdigit() else None
     suggest = classify(
         db,
         item_name,
         llm=get_llm(),
         snapshot_source=None if no_snapshot else source,
+        product_type=chosen.product_type if chosen else None,
     )
 
     # Category proposal rides along too: the user types the name once and gets
