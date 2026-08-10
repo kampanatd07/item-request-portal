@@ -37,7 +37,13 @@ def _resolve(db: Session, req: ItemRequest) -> dict:
     mp = db.scalar(
         select(GroupExportMap).where(GroupExportMap.code_group_id == top_group.id)
     )
-    is_service = req.code_system.code.endswith("SERVICE")
+    # Product type is a property of the sub-category in the group taxonomy
+    # (fall back to the parent group, then to the legacy system-name guess).
+    declared = (req.subgroup.product_type if req.subgroup else None) or top_group.product_type
+    if declared:
+        is_service = declared.lower() == "service"
+    else:
+        is_service = req.code_system.code.endswith("SERVICE")
     return {
         "code": req.generated_code or "",
         "name": req.item_name,

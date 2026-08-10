@@ -1,15 +1,18 @@
-"""Standard item-name composition (แบบ B — company convention).
+"""Standard item-name composition — Carabao Group convention (approved Aug 2026).
 
-The product name is COMPOSED from structured fields, never free-typed:
-    ชื่อเรียกสินค้า -> แบรนด์ -> รุ่น -> ขนาด -> รายละเอียด(ชนิด/สี)
-e.g.  Ball Bearing SKF 6205-2Z 25mm
+    [CATEGORY] - [ชื่อสินค้า/บริการ] - [รายละเอียดจำเพาะ]      <= 110 chars
 
-Cleaning applied while composing:
-- trim + collapse whitespace in every part
-- drop a part that merely repeats an earlier token (user typed brand in the
-  name field too -> no 'SKF SKF')
-- strip characters that break AX imports or Excel formulas (=, |, tabs)
-- length guard (AX name columns)
+  CATEGORY   the sub-category's Name Prefix, English, upper case  (<= 16)
+  ชื่อ        noun first, then brand/model                        (<= 50)
+  รายละเอียด  size / spec / material / packing                     (<= 40)
+
+Mandatory rules enforced here (docs/rules/naming-standard.md):
+1. ' - ' is the only level separator; '--', ':', '/', ',' are rejected
+2. a name may not start with a separator or punctuation
+3. noun before modifier (enforced by field order, not by parsing)
+4. number and unit are separated by one space ('20 L', not '20L')
+5. '(ยกเลิก)' is never part of a name — use Lifecycle State = Blocked
+6. no price, vendor, PO number or project name inside the name
 
 Requesters cannot edit the composed result; procurement can override at
 review, and the override is audit-logged.
@@ -17,9 +20,15 @@ review, and the override is audit-logged.
 
 import re
 
-MAX_NAME_LEN = 100
+MAX_NAME_LEN = 110
+MAX_CATEGORY_LEN = 16
+MAX_BASE_LEN = 50
+MAX_DETAIL_LEN = 40
 
 _FORBIDDEN = re.compile(r"[=|\t\r\n]")
+# separators that must not appear as level separators inside a segment
+_BAD_SEPARATORS = re.compile(r"--+|\s:\s|\s/\s|\s,\s")
+_BLOCKED_WORDS = re.compile(r"\(\s*ยกเลิก\s*\)", re.IGNORECASE)
 
 
 class NamingError(Exception):
@@ -28,7 +37,30 @@ class NamingError(Exception):
 
 def _clean_part(part: str | None) -> str:
     part = _FORBIDDEN.sub(" ", part or "")
-    return " ".join(part.split())
+    part = _BAD_SEPARATORS.sub(" ", part)
+    part = _BLOCKED_WORDS.sub("", part)
+    part = " ".join(part.split())
+    # rule 2: never begin with punctuation
+    return part.lstrip("-–—:/,. ").strip()
+
+
+def _join_unique(parts: list[str]) -> str:
+    """Join with single spaces, dropping parts whose tokens all already appeared."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for cleaned in parts:
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if key in seen:
+            continue
+        tokens = [t.lower() for t in cleaned.split()]
+        if tokens and all(t in seen for t in tokens):
+            continue
+        out.append(cleaned)
+        seen.add(key)
+        seen.update(tokens)
+    return " ".join(out)
 
 
 def compose_name(
@@ -37,31 +69,34 @@ def compose_name(
     model: str | None = None,
     size: str | None = None,
     detail: str | None = None,
+    category_prefix: str | None = None,
 ) -> str:
-    """Join parts in convention order, skipping repeats and noise."""
-    parts: list[str] = []
-    seen: set[str] = set()
-    for raw in [base, brand, model, size, detail]:
-        cleaned = _clean_part(raw)
-        if not cleaned:
-            continue
-        key = cleaned.lower()
-        if key in seen:
-            continue
-        # drop the part if every one of its tokens already appeared
-        tokens = [t.lower() for t in cleaned.split()]
-        if tokens and all(t in seen for t in tokens):
-            continue
-        parts.append(cleaned)
-        seen.add(key)
-        seen.update(tokens)
+    """Build '[CATEGORY] - [name] - [detail]' per the group naming standard.
 
-    name = " ".join(parts)
-    if not name:
+    category_prefix comes from the chosen sub-category (taxonomy Name Prefix).
+    When it is absent the name degrades gracefully to the two remaining
+    segments rather than emitting a dangling separator.
+    """
+    category = _clean_part(category_prefix).upper()[:MAX_CATEGORY_LEN]
+    name_seg = _join_unique([_clean_part(base), _clean_part(brand), _clean_part(model)])
+    detail_seg = _join_unique([_clean_part(size), _clean_part(detail)])
+
+    if not name_seg:
         raise NamingError("กรุณากรอกชื่อเรียกสินค้า")
+    if len(name_seg) > MAX_BASE_LEN:
+        raise NamingError(
+            f"ชื่อสินค้ายาว {len(name_seg)} ตัวอักษร (เกิน {MAX_BASE_LEN}) — "
+            "ย้ายรายละเอียดไปช่องขนาด/ชนิด หรือสเปคเพิ่มเติม"
+        )
+    if len(detail_seg) > MAX_DETAIL_LEN:
+        raise NamingError(
+            f"รายละเอียดจำเพาะยาว {len(detail_seg)} ตัวอักษร (เกิน {MAX_DETAIL_LEN}) — "
+            "ย้ายส่วนเกินไปช่องสเปคเพิ่มเติม"
+        )
+
+    name = " - ".join(seg for seg in [category, name_seg, detail_seg] if seg)
     if len(name) > MAX_NAME_LEN:
         raise NamingError(
-            f"ชื่อที่ประกอบได้ยาว {len(name)} ตัวอักษร (เกิน {MAX_NAME_LEN}) — "
-            "ย้ายรายละเอียดปลีกย่อยไปช่องสเปคเพิ่มเติม"
+            f"ชื่อที่ประกอบได้ยาว {len(name)} ตัวอักษร (เกิน {MAX_NAME_LEN})"
         )
     return name

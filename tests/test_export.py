@@ -12,6 +12,7 @@ from app.models import CodeGroup, CodeSystem, ExportBatch, Factory, ItemRequest
 from app.services.exporter import build_workbook_bytes, export_pending
 from app.services.requests import change_status, submit_request
 from app.services.snapshots import import_snapshot
+from tests.conftest import central_ids
 
 TEMP_DIR = Path(__file__).resolve().parent / "fixtures"
 
@@ -36,28 +37,13 @@ def _headers(path, sheet, hdr_row):
     return [("" if c is None else str(c)).strip() for c in rows[0] if c is not None]
 
 
-def _submit_approve(db, factory_code, system_code, group_code, sub_code=None, **extra):
-    factory = db.scalar(select(Factory).where(Factory.code == factory_code))
-    system = db.scalar(select(CodeSystem).where(CodeSystem.code == system_code))
-    group = db.scalar(
-        select(CodeGroup).where(
-            CodeGroup.code_system_id == system.id,
-            CodeGroup.code == group_code,
-            CodeGroup.parent_id.is_(None),
-        )
-    )
-    sub = None
-    if sub_code:
-        sub = db.scalar(
-            select(CodeGroup).where(
-                CodeGroup.parent_id == group.id, CodeGroup.code == sub_code
-            )
-        )
+def _submit_approve(db, factory_code, group_code="900", sub_code="01", **extra):
+    factory, system, group, sub = central_ids(db, factory_code, group_code, sub_code)
     req = submit_request(
         db, requester_name="ทดสอบ", requester_email="t@example.com",
         factory_id=factory.id, code_system_id=system.id, group_id=group.id,
-        subgroup_id=sub.id if sub else None, item_name=extra.get("name", "Test item"),
-        uom=extra.get("uom", "Pcs"), procurement_category=extra.get("cat", ""),
+        subgroup_id=sub.id, item_name=extra.get("name", "Test item"),
+        uom=extra.get("uom", "EA"), procurement_category=extra.get("cat", ""),
         purchase_price=extra.get("price", ""),
     )
     return change_status(db, req.id, new_status="approved", actor="test")
@@ -70,11 +56,8 @@ def test_export_headers_match_real_template(db_session, factory_code):
     if not temp_path.exists():
         pytest.skip(f"temp template not available: {fname}")
 
-    if factory_code == "CBD":
-        _submit_approve(db_session, "CBD", "CBD_NONSTOCK", "FQ", name="O-RING #663")
-    else:
-        _submit_approve(db_session, factory_code, "D365_SERVICE", "707",
-                        name="MA Cisco", cat="54050102 Computer expenses", price="2320")
+    _submit_approve(db_session, factory_code, "907", "01",
+                    name="MA Cisco", cat="54050102 Computer expenses", price="2320")
 
     reqs = list(db_session.scalars(select(ItemRequest)))
     data = build_workbook_bytes(db_session, factory_code, reqs)
@@ -89,24 +72,24 @@ def test_export_headers_match_real_template(db_session, factory_code):
 
 def test_export_populates_variable_fields(db_session):
     req = _submit_approve(
-        db_session, "APM", "D365_SERVICE", "707",
-        name="MA Cisco Catalyst 9120AX", uom="Job", cat="54050102 Computer expenses",
+        db_session, "APM", "707", "01",
+        name="MA Cisco Catalyst 9120AX", uom="JOB", cat="54050102 Computer expenses",
         price="2320",
     )
     data = build_workbook_bytes(db_session, "APM", [req])
     wb = load_workbook(io.BytesIO(data))
     prod = list(wb["Products_V2"].iter_rows(min_row=2, values_only=True))[0]
     assert prod[0] == req.generated_code
-    assert prod[1] == "MA Cisco Catalyst 9120AX"
+    assert "MA Cisco Catalyst 9120AX" in prod[1]
     assert prod[5] == "Service"
     cat = list(wb["Product_category_assignments"].iter_rows(min_row=2, values_only=True))[0]
     assert cat[1] == "54050102 Computer expenses"
 
 
 def test_export_pending_marks_exported_and_batches(db_session):
-    factory = db_session.scalar(select(Factory).where(Factory.code == "APM"))
-    r1 = _submit_approve(db_session, "APM", "D365_SERVICE", "707", name="A")
-    r2 = _submit_approve(db_session, "APM", "D365_SERVICE", "707", name="B")
+    factory, _s, _g, _sub = central_ids(db_session, "APM")
+    r1 = _submit_approve(db_session, "APM", name="A")
+    r2 = _submit_approve(db_session, "APM", name="B")
     batch = export_pending(db_session, factory.id)
     assert batch.item_count == 2
     db_session.refresh(r1)
@@ -119,8 +102,8 @@ def test_export_pending_marks_exported_and_batches(db_session):
 
 
 def test_exported_then_created_flow(db_session):
-    factory = db_session.scalar(select(Factory).where(Factory.code == "APG"))
-    _submit_approve(db_session, "APG", "D365_STOCK", "800", name="Bearing")
+    factory, _s, _g, _sub = central_ids(db_session, "APG")
+    _submit_approve(db_session, "APG", name="Bearing")
     batch = export_pending(db_session, factory.id)
     reqs = list(
         db_session.scalars(

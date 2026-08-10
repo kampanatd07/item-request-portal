@@ -23,9 +23,19 @@ class SnapshotError(Exception):
     """Import error with a user-facing Thai message."""
 
 
+def fix_thai(text: str) -> str:
+    """Recompose SARA AM. Some sources store it decomposed (NIKHAHIT + SARA AA),
+    which makes 'น้ำยา' and 'น้ํายา' compare as different strings."""
+    return text.replace("ํา", "ำ")
+
+
 def normalize(text: str) -> str:
-    """Lowercase, strip punctuation/spacing noise so 'BALL-BEARING  SKF' == 'ball bearing skf'."""
-    text = unicodedata.normalize("NFKC", text or "")
+    """Lowercase, strip punctuation/spacing noise so 'BALL-BEARING  SKF' == 'ball bearing skf'.
+
+    NFC, never NFKC: NFKC decomposes Thai SARA AM (ำ) into two characters, so
+    Thai keywords stop matching entirely.
+    """
+    text = fix_thai(unicodedata.normalize("NFC", text or ""))
     text = text.lower()
     text = re.sub(r"[^\w฀-๿]+", " ", text)  # keep Thai + word chars
     return " ".join(text.split())

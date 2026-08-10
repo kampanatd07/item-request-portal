@@ -1,0 +1,1042 @@
+[
+ {
+  "group": "700",
+  "group_name": "Installation & Repair Machinery",
+  "sub": "01",
+  "sub_name": "Machine Installation",
+  "prefix": "MACHINE INSTALL",
+  "product_type": "Service"
+ },
+ {
+  "group": "700",
+  "group_name": "Installation & Repair Machinery",
+  "sub": "02",
+  "sub_name": "Machine Repair",
+  "prefix": "MACHINE REPAIR",
+  "product_type": "Service"
+ },
+ {
+  "group": "700",
+  "group_name": "Installation & Repair Machinery",
+  "sub": "03",
+  "sub_name": "Preventive Maintenance",
+  "prefix": "PM SERVICE",
+  "product_type": "Service"
+ },
+ {
+  "group": "700",
+  "group_name": "Installation & Repair Machinery",
+  "sub": "04",
+  "sub_name": "Overhaul",
+  "prefix": "OVERHAUL",
+  "product_type": "Service"
+ },
+ {
+  "group": "700",
+  "group_name": "Installation & Repair Machinery",
+  "sub": "05",
+  "sub_name": "Fabrication & Made-to-Order",
+  "prefix": "FABRICATION",
+  "product_type": "Service"
+ },
+ {
+  "group": "700",
+  "group_name": "Installation & Repair Machinery",
+  "sub": "06",
+  "sub_name": "Forklift & Mobile Equipment Service",
+  "prefix": "FORKLIFT SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "700",
+  "group_name": "Installation & Repair Machinery",
+  "sub": "99",
+  "sub_name": "Other Machinery Service",
+  "prefix": "OTHER MACH SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "701",
+  "group_name": "Construction & Civil & Utility",
+  "sub": "01",
+  "sub_name": "Civil & Building Work",
+  "prefix": "CIVIL WORK",
+  "product_type": "Service"
+ },
+ {
+  "group": "701",
+  "group_name": "Construction & Civil & Utility",
+  "sub": "02",
+  "sub_name": "Utility System Work",
+  "prefix": "UTILITY WORK",
+  "product_type": "Service"
+ },
+ {
+  "group": "701",
+  "group_name": "Construction & Civil & Utility",
+  "sub": "03",
+  "sub_name": "Renovation & Improvement",
+  "prefix": "RENOVATION",
+  "product_type": "Service"
+ },
+ {
+  "group": "701",
+  "group_name": "Construction & Civil & Utility",
+  "sub": "04",
+  "sub_name": "Landscape & Exterior",
+  "prefix": "LANDSCAPE",
+  "product_type": "Service"
+ },
+ {
+  "group": "701",
+  "group_name": "Construction & Civil & Utility",
+  "sub": "99",
+  "sub_name": "Other Construction Service",
+  "prefix": "OTHER CIVIL SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "702",
+  "group_name": "Calibration & Certification Service",
+  "sub": "01",
+  "sub_name": "Instrument Calibration",
+  "prefix": "CALIBRATION",
+  "product_type": "Service"
+ },
+ {
+  "group": "702",
+  "group_name": "Calibration & Certification Service",
+  "sub": "02",
+  "sub_name": "Laboratory Analysis & Testing",
+  "prefix": "LAB TESTING",
+  "product_type": "Service"
+ },
+ {
+  "group": "702",
+  "group_name": "Calibration & Certification Service",
+  "sub": "03",
+  "sub_name": "System & Building Certification",
+  "prefix": "CERTIFICATION",
+  "product_type": "Service"
+ },
+ {
+  "group": "702",
+  "group_name": "Calibration & Certification Service",
+  "sub": "04",
+  "sub_name": "Machine / Equipment Inspection",
+  "prefix": "INSPECTION",
+  "product_type": "Service"
+ },
+ {
+  "group": "702",
+  "group_name": "Calibration & Certification Service",
+  "sub": "99",
+  "sub_name": "Other Calibration Service",
+  "prefix": "OTHER CAL SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "703",
+  "group_name": "Tools & Electrical Equip. Service",
+  "sub": "01",
+  "sub_name": "Hand / Power Tool Repair",
+  "prefix": "TOOL REPAIR",
+  "product_type": "Service"
+ },
+ {
+  "group": "703",
+  "group_name": "Tools & Electrical Equip. Service",
+  "sub": "02",
+  "sub_name": "Electrical Equipment Repair",
+  "prefix": "ELEC REPAIR",
+  "product_type": "Service"
+ },
+ {
+  "group": "703",
+  "group_name": "Tools & Electrical Equip. Service",
+  "sub": "03",
+  "sub_name": "Air Conditioning Service",
+  "prefix": "AIRCON SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "703",
+  "group_name": "Tools & Electrical Equip. Service",
+  "sub": "99",
+  "sub_name": "Other Equipment Repair Service",
+  "prefix": "OTHER EQP SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "704",
+  "group_name": "Safety & Environmental Service",
+  "sub": "01",
+  "sub_name": "Waste Disposal",
+  "prefix": "WASTE DISPOSAL",
+  "product_type": "Service"
+ },
+ {
+  "group": "704",
+  "group_name": "Safety & Environmental Service",
+  "sub": "02",
+  "sub_name": "Environmental Monitoring",
+  "prefix": "ENV MONITORING",
+  "product_type": "Service"
+ },
+ {
+  "group": "704",
+  "group_name": "Safety & Environmental Service",
+  "sub": "03",
+  "sub_name": "Pest Control",
+  "prefix": "PEST CONTROL",
+  "product_type": "Service"
+ },
+ {
+  "group": "704",
+  "group_name": "Safety & Environmental Service",
+  "sub": "04",
+  "sub_name": "Cleaning Service",
+  "prefix": "CLEANING SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "704",
+  "group_name": "Safety & Environmental Service",
+  "sub": "05",
+  "sub_name": "Security Service",
+  "prefix": "SECURITY SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "704",
+  "group_name": "Safety & Environmental Service",
+  "sub": "06",
+  "sub_name": "Hygiene & Sanitation Service",
+  "prefix": "HYGIENE SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "704",
+  "group_name": "Safety & Environmental Service",
+  "sub": "99",
+  "sub_name": "Other SHE Service",
+  "prefix": "OTHER SHE SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "705",
+  "group_name": "Rental",
+  "sub": "01",
+  "sub_name": "Building & Space Rental",
+  "prefix": "RENT SPACE",
+  "product_type": "Service"
+ },
+ {
+  "group": "705",
+  "group_name": "Rental",
+  "sub": "02",
+  "sub_name": "Machine & Equipment Rental",
+  "prefix": "RENT EQUIPMENT",
+  "product_type": "Service"
+ },
+ {
+  "group": "705",
+  "group_name": "Rental",
+  "sub": "03",
+  "sub_name": "Vehicle Rental",
+  "prefix": "RENT VEHICLE",
+  "product_type": "Service"
+ },
+ {
+  "group": "705",
+  "group_name": "Rental",
+  "sub": "99",
+  "sub_name": "Other Rental",
+  "prefix": "OTHER RENTAL",
+  "product_type": "Service"
+ },
+ {
+  "group": "706",
+  "group_name": "Marketing Service",
+  "sub": "01",
+  "sub_name": "Online & Digital Media",
+  "prefix": "MEDIA ONLINE",
+  "product_type": "Service"
+ },
+ {
+  "group": "706",
+  "group_name": "Marketing Service",
+  "sub": "02",
+  "sub_name": "Offline Media",
+  "prefix": "MEDIA OFFLINE",
+  "product_type": "Service"
+ },
+ {
+  "group": "706",
+  "group_name": "Marketing Service",
+  "sub": "03",
+  "sub_name": "Media Sponsorship",
+  "prefix": "SPONSORSHIP",
+  "product_type": "Service"
+ },
+ {
+  "group": "706",
+  "group_name": "Marketing Service",
+  "sub": "04",
+  "sub_name": "Content & Creative Production",
+  "prefix": "CONTENT PROD",
+  "product_type": "Service"
+ },
+ {
+  "group": "706",
+  "group_name": "Marketing Service",
+  "sub": "05",
+  "sub_name": "Agency & Management Fee",
+  "prefix": "AGENCY FEE",
+  "product_type": "Service"
+ },
+ {
+  "group": "706",
+  "group_name": "Marketing Service",
+  "sub": "06",
+  "sub_name": "Market Research & Analysis",
+  "prefix": "MKT RESEARCH",
+  "product_type": "Service"
+ },
+ {
+  "group": "706",
+  "group_name": "Marketing Service",
+  "sub": "07",
+  "sub_name": "Installation & Maintenance",
+  "prefix": "MKT INSTALL",
+  "product_type": "Service"
+ },
+ {
+  "group": "706",
+  "group_name": "Marketing Service",
+  "sub": "08",
+  "sub_name": "Labour Cost",
+  "prefix": "MKT LABOUR",
+  "product_type": "Service"
+ },
+ {
+  "group": "706",
+  "group_name": "Marketing Service",
+  "sub": "99",
+  "sub_name": "Other Marketing Service",
+  "prefix": "OTHER MKT SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "707",
+  "group_name": "IT Software & Service",
+  "sub": "01",
+  "sub_name": "Software License & Subscription",
+  "prefix": "SOFTWARE LIC",
+  "product_type": "Service"
+ },
+ {
+  "group": "707",
+  "group_name": "IT Software & Service",
+  "sub": "02",
+  "sub_name": "IT MA & Support Service",
+  "prefix": "IT SUPPORT",
+  "product_type": "Service"
+ },
+ {
+  "group": "707",
+  "group_name": "IT Software & Service",
+  "sub": "03",
+  "sub_name": "System Development & Implementation",
+  "prefix": "IT DEVELOPMENT",
+  "product_type": "Service"
+ },
+ {
+  "group": "707",
+  "group_name": "IT Software & Service",
+  "sub": "04",
+  "sub_name": "Cloud & Hosting",
+  "prefix": "CLOUD SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "707",
+  "group_name": "IT Software & Service",
+  "sub": "99",
+  "sub_name": "Other IT Service",
+  "prefix": "OTHER IT SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "708",
+  "group_name": "Generals Service",
+  "sub": "01",
+  "sub_name": "Professional & Consulting Service",
+  "prefix": "CONSULTING",
+  "product_type": "Service"
+ },
+ {
+  "group": "708",
+  "group_name": "Generals Service",
+  "sub": "02",
+  "sub_name": "Office Equipment & Furniture Repair",
+  "prefix": "OFFICE REPAIR",
+  "product_type": "Service"
+ },
+ {
+  "group": "708",
+  "group_name": "Generals Service",
+  "sub": "03",
+  "sub_name": "Document & Printing Service",
+  "prefix": "PRINTING SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "708",
+  "group_name": "Generals Service",
+  "sub": "04",
+  "sub_name": "Photography & Media Service",
+  "prefix": "PHOTO SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "708",
+  "group_name": "Generals Service",
+  "sub": "99",
+  "sub_name": "Other General Service",
+  "prefix": "OTHER GEN SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "709",
+  "group_name": "Logistic & Transport",
+  "sub": "01",
+  "sub_name": "Domestic Transport",
+  "prefix": "TRANSPORT",
+  "product_type": "Service"
+ },
+ {
+  "group": "709",
+  "group_name": "Logistic & Transport",
+  "sub": "02",
+  "sub_name": "Freight & Customs",
+  "prefix": "FREIGHT",
+  "product_type": "Service"
+ },
+ {
+  "group": "709",
+  "group_name": "Logistic & Transport",
+  "sub": "03",
+  "sub_name": "Packing & Handling",
+  "prefix": "PACKING SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "709",
+  "group_name": "Logistic & Transport",
+  "sub": "04",
+  "sub_name": "Cargo Insurance",
+  "prefix": "CARGO INSURANCE",
+  "product_type": "Service"
+ },
+ {
+  "group": "709",
+  "group_name": "Logistic & Transport",
+  "sub": "99",
+  "sub_name": "Other Logistic Service",
+  "prefix": "OTHER LOG SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "710",
+  "group_name": "Others Service",
+  "sub": "01",
+  "sub_name": "Service Charge",
+  "prefix": "SERVICE CHARGE",
+  "product_type": "Service"
+ },
+ {
+  "group": "710",
+  "group_name": "Others Service",
+  "sub": "02",
+  "sub_name": "Travel & Accommodation",
+  "prefix": "TRAVEL",
+  "product_type": "Service"
+ },
+ {
+  "group": "710",
+  "group_name": "Others Service",
+  "sub": "99",
+  "sub_name": "Other",
+  "prefix": "OTHER SVC",
+  "product_type": "Service"
+ },
+ {
+  "group": "900",
+  "group_name": "Spare Parts & Mechanical Parts",
+  "sub": "01",
+  "sub_name": "Bearing & Power Transmission",
+  "prefix": "BEARING",
+  "product_type": "Item"
+ },
+ {
+  "group": "900",
+  "group_name": "Spare Parts & Mechanical Parts",
+  "sub": "02",
+  "sub_name": "Seal, O-Ring & Gasket",
+  "prefix": "SEAL",
+  "product_type": "Item"
+ },
+ {
+  "group": "900",
+  "group_name": "Spare Parts & Mechanical Parts",
+  "sub": "03",
+  "sub_name": "Fastener",
+  "prefix": "FASTENER",
+  "product_type": "Item"
+ },
+ {
+  "group": "900",
+  "group_name": "Spare Parts & Mechanical Parts",
+  "sub": "04",
+  "sub_name": "Pipe, Fitting & Valve",
+  "prefix": "PIPE FITTING",
+  "product_type": "Item"
+ },
+ {
+  "group": "900",
+  "group_name": "Spare Parts & Mechanical Parts",
+  "sub": "05",
+  "sub_name": "Pneumatic & Hydraulic",
+  "prefix": "PNEU HYDRAULIC",
+  "product_type": "Item"
+ },
+ {
+  "group": "900",
+  "group_name": "Spare Parts & Mechanical Parts",
+  "sub": "06",
+  "sub_name": "Pump, Motor & Gearbox Part",
+  "prefix": "PUMP MOTOR",
+  "product_type": "Item"
+ },
+ {
+  "group": "900",
+  "group_name": "Spare Parts & Mechanical Parts",
+  "sub": "07",
+  "sub_name": "Conveyor & Material Handling Part",
+  "prefix": "CONVEYOR PART",
+  "product_type": "Item"
+ },
+ {
+  "group": "900",
+  "group_name": "Spare Parts & Mechanical Parts",
+  "sub": "08",
+  "sub_name": "Filling / Packing Machine Part",
+  "prefix": "PACK MACH PART",
+  "product_type": "Item"
+ },
+ {
+  "group": "900",
+  "group_name": "Spare Parts & Mechanical Parts",
+  "sub": "09",
+  "sub_name": "Forklift & Mobile Equipment Part",
+  "prefix": "FORKLIFT PART",
+  "product_type": "Item"
+ },
+ {
+  "group": "900",
+  "group_name": "Spare Parts & Mechanical Parts",
+  "sub": "10",
+  "sub_name": "Filter & Strainer",
+  "prefix": "FILTER",
+  "product_type": "Item"
+ },
+ {
+  "group": "900",
+  "group_name": "Spare Parts & Mechanical Parts",
+  "sub": "11",
+  "sub_name": "Machine Structure & Fabricated Part",
+  "prefix": "MACH STRUCTURE",
+  "product_type": "Item"
+ },
+ {
+  "group": "900",
+  "group_name": "Spare Parts & Mechanical Parts",
+  "sub": "99",
+  "sub_name": "Other Mechanical Part",
+  "prefix": "OTHER MECH PART",
+  "product_type": "Item"
+ },
+ {
+  "group": "901",
+  "group_name": "Electrical Parts",
+  "sub": "01",
+  "sub_name": "Sensor & Instrument",
+  "prefix": "SENSOR",
+  "product_type": "Item"
+ },
+ {
+  "group": "901",
+  "group_name": "Electrical Parts",
+  "sub": "02",
+  "sub_name": "Control & Automation",
+  "prefix": "CONTROL AUTO",
+  "product_type": "Item"
+ },
+ {
+  "group": "901",
+  "group_name": "Electrical Parts",
+  "sub": "03",
+  "sub_name": "Power Distribution",
+  "prefix": "POWER DIST",
+  "product_type": "Item"
+ },
+ {
+  "group": "901",
+  "group_name": "Electrical Parts",
+  "sub": "04",
+  "sub_name": "Lighting",
+  "prefix": "LIGHTING",
+  "product_type": "Item"
+ },
+ {
+  "group": "901",
+  "group_name": "Electrical Parts",
+  "sub": "05",
+  "sub_name": "Battery & Charger",
+  "prefix": "BATTERY",
+  "product_type": "Item"
+ },
+ {
+  "group": "901",
+  "group_name": "Electrical Parts",
+  "sub": "06",
+  "sub_name": "Motor & Electrical Drive",
+  "prefix": "ELEC DRIVE",
+  "product_type": "Item"
+ },
+ {
+  "group": "901",
+  "group_name": "Electrical Parts",
+  "sub": "99",
+  "sub_name": "Other Electrical Part",
+  "prefix": "OTHER ELEC PART",
+  "product_type": "Item"
+ },
+ {
+  "group": "902",
+  "group_name": "Lab Instruments",
+  "sub": "01",
+  "sub_name": "Glassware & Labware",
+  "prefix": "LABWARE",
+  "product_type": "Item"
+ },
+ {
+  "group": "902",
+  "group_name": "Lab Instruments",
+  "sub": "02",
+  "sub_name": "Lab Consumable",
+  "prefix": "LAB CONSUMABLE",
+  "product_type": "Item"
+ },
+ {
+  "group": "902",
+  "group_name": "Lab Instruments",
+  "sub": "03",
+  "sub_name": "Lab Instrument & Spare Part",
+  "prefix": "LAB INSTRUMENT",
+  "product_type": "Item"
+ },
+ {
+  "group": "902",
+  "group_name": "Lab Instruments",
+  "sub": "04",
+  "sub_name": "Microbiology Test Kit",
+  "prefix": "MICRO TEST KIT",
+  "product_type": "Item"
+ },
+ {
+  "group": "902",
+  "group_name": "Lab Instruments",
+  "sub": "05",
+  "sub_name": "Reference Standard & Calibration Material",
+  "prefix": "REF STANDARD",
+  "product_type": "Item"
+ },
+ {
+  "group": "902",
+  "group_name": "Lab Instruments",
+  "sub": "99",
+  "sub_name": "Other Lab Item",
+  "prefix": "OTHER LAB ITEM",
+  "product_type": "Item"
+ },
+ {
+  "group": "903",
+  "group_name": "Chemicals (Oil & Gas)",
+  "sub": "01",
+  "sub_name": "Lab Reagent & Analytical Chemical",
+  "prefix": "LAB REAGENT",
+  "product_type": "Item"
+ },
+ {
+  "group": "903",
+  "group_name": "Chemicals (Oil & Gas)",
+  "sub": "02",
+  "sub_name": "Process & Water-Treatment Chemical",
+  "prefix": "PROCESS CHEM",
+  "product_type": "Item"
+ },
+ {
+  "group": "903",
+  "group_name": "Chemicals (Oil & Gas)",
+  "sub": "03",
+  "sub_name": "Cleaning Chemical",
+  "prefix": "CLEANING CHEM",
+  "product_type": "Item"
+ },
+ {
+  "group": "903",
+  "group_name": "Chemicals (Oil & Gas)",
+  "sub": "04",
+  "sub_name": "Lubricant & Grease",
+  "prefix": "LUBRICANT",
+  "product_type": "Item"
+ },
+ {
+  "group": "903",
+  "group_name": "Chemicals (Oil & Gas)",
+  "sub": "05",
+  "sub_name": "Fuel & Industrial Gas",
+  "prefix": "INDUSTRIAL GAS",
+  "product_type": "Item"
+ },
+ {
+  "group": "903",
+  "group_name": "Chemicals (Oil & Gas)",
+  "sub": "06",
+  "sub_name": "Paint, Coating & Adhesive",
+  "prefix": "PAINT",
+  "product_type": "Item"
+ },
+ {
+  "group": "903",
+  "group_name": "Chemicals (Oil & Gas)",
+  "sub": "99",
+  "sub_name": "Other Chemical",
+  "prefix": "OTHER CHEMICAL",
+  "product_type": "Item"
+ },
+ {
+  "group": "904",
+  "group_name": "Construction Materials",
+  "sub": "01",
+  "sub_name": "Civil & Structural Material",
+  "prefix": "CIVIL MATERIAL",
+  "product_type": "Item"
+ },
+ {
+  "group": "904",
+  "group_name": "Construction Materials",
+  "sub": "02",
+  "sub_name": "Plumbing & Sanitary Material",
+  "prefix": "PLUMBING MAT",
+  "product_type": "Item"
+ },
+ {
+  "group": "904",
+  "group_name": "Construction Materials",
+  "sub": "03",
+  "sub_name": "Building Hardware & Finishing",
+  "prefix": "BUILDING HW",
+  "product_type": "Item"
+ },
+ {
+  "group": "904",
+  "group_name": "Construction Materials",
+  "sub": "04",
+  "sub_name": "Hand Tool & Power Tool",
+  "prefix": "HAND TOOL",
+  "product_type": "Item"
+ },
+ {
+  "group": "904",
+  "group_name": "Construction Materials",
+  "sub": "05",
+  "sub_name": "Welding & Metalwork Consumable",
+  "prefix": "WELDING",
+  "product_type": "Item"
+ },
+ {
+  "group": "904",
+  "group_name": "Construction Materials",
+  "sub": "99",
+  "sub_name": "Other Construction Material",
+  "prefix": "OTHER CONST MAT",
+  "product_type": "Item"
+ },
+ {
+  "group": "905",
+  "group_name": "Factory Consume",
+  "sub": "01",
+  "sub_name": "Production Consumable",
+  "prefix": "PROD CONSUMABLE",
+  "product_type": "Item"
+ },
+ {
+  "group": "905",
+  "group_name": "Factory Consume",
+  "sub": "02",
+  "sub_name": "Cleaning Equipment & Supply",
+  "prefix": "CLEANING SUPPLY",
+  "product_type": "Item"
+ },
+ {
+  "group": "905",
+  "group_name": "Factory Consume",
+  "sub": "03",
+  "sub_name": "Marking, Labeling & Printing Consumable",
+  "prefix": "MARKING SUPPLY",
+  "product_type": "Item"
+ },
+ {
+  "group": "905",
+  "group_name": "Factory Consume",
+  "sub": "04",
+  "sub_name": "Packing & Wrapping Material",
+  "prefix": "PACKING MAT",
+  "product_type": "Item"
+ },
+ {
+  "group": "905",
+  "group_name": "Factory Consume",
+  "sub": "05",
+  "sub_name": "Measuring & Inspection Tool",
+  "prefix": "MEASURING TOOL",
+  "product_type": "Item"
+ },
+ {
+  "group": "905",
+  "group_name": "Factory Consume",
+  "sub": "99",
+  "sub_name": "Other Factory Consumable",
+  "prefix": "OTHER FAC CONS",
+  "product_type": "Item"
+ },
+ {
+  "group": "906",
+  "group_name": "General Consume",
+  "sub": "01",
+  "sub_name": "Office Stationery & Paper",
+  "prefix": "STATIONERY",
+  "product_type": "Item"
+ },
+ {
+  "group": "906",
+  "group_name": "General Consume",
+  "sub": "02",
+  "sub_name": "Office Furniture & Equipment",
+  "prefix": "OFFICE FURNITURE",
+  "product_type": "Item"
+ },
+ {
+  "group": "906",
+  "group_name": "General Consume",
+  "sub": "03",
+  "sub_name": "PPE & Safety Equipment",
+  "prefix": "PPE",
+  "product_type": "Item"
+ },
+ {
+  "group": "906",
+  "group_name": "General Consume",
+  "sub": "04",
+  "sub_name": "Uniform & Employee Welfare",
+  "prefix": "UNIFORM",
+  "product_type": "Item"
+ },
+ {
+  "group": "906",
+  "group_name": "General Consume",
+  "sub": "05",
+  "sub_name": "Medical & First Aid",
+  "prefix": "MEDICAL",
+  "product_type": "Item"
+ },
+ {
+  "group": "906",
+  "group_name": "General Consume",
+  "sub": "06",
+  "sub_name": "Pantry & Housekeeping",
+  "prefix": "PANTRY",
+  "product_type": "Item"
+ },
+ {
+  "group": "906",
+  "group_name": "General Consume",
+  "sub": "99",
+  "sub_name": "Other General Consumable",
+  "prefix": "OTHER GEN CONS",
+  "product_type": "Item"
+ },
+ {
+  "group": "907",
+  "group_name": "IT Hardware & Accessories",
+  "sub": "01",
+  "sub_name": "Computer & Peripheral",
+  "prefix": "COMPUTER",
+  "product_type": "Item"
+ },
+ {
+  "group": "907",
+  "group_name": "IT Hardware & Accessories",
+  "sub": "02",
+  "sub_name": "Network & Communication Equipment",
+  "prefix": "NETWORK EQP",
+  "product_type": "Item"
+ },
+ {
+  "group": "907",
+  "group_name": "IT Hardware & Accessories",
+  "sub": "03",
+  "sub_name": "Printer & Printing Supply",
+  "prefix": "PRINTER SUPPLY",
+  "product_type": "Item"
+ },
+ {
+  "group": "907",
+  "group_name": "IT Hardware & Accessories",
+  "sub": "04",
+  "sub_name": "Storage & Memory",
+  "prefix": "STORAGE",
+  "product_type": "Item"
+ },
+ {
+  "group": "907",
+  "group_name": "IT Hardware & Accessories",
+  "sub": "05",
+  "sub_name": "IT Accessory & Cable",
+  "prefix": "IT ACCESSORY",
+  "product_type": "Item"
+ },
+ {
+  "group": "907",
+  "group_name": "IT Hardware & Accessories",
+  "sub": "99",
+  "sub_name": "Other IT Hardware",
+  "prefix": "OTHER IT HW",
+  "product_type": "Item"
+ },
+ {
+  "group": "908",
+  "group_name": "Marketing",
+  "sub": "01",
+  "sub_name": "Sticker & Wrap",
+  "prefix": "STICKER",
+  "product_type": "Item"
+ },
+ {
+  "group": "908",
+  "group_name": "Marketing",
+  "sub": "02",
+  "sub_name": "Light Box & Neon",
+  "prefix": "LIGHT BOX",
+  "product_type": "Item"
+ },
+ {
+  "group": "908",
+  "group_name": "Marketing",
+  "sub": "03",
+  "sub_name": "Printed Material",
+  "prefix": "PRINTED MAT",
+  "product_type": "Item"
+ },
+ {
+  "group": "908",
+  "group_name": "Marketing",
+  "sub": "04",
+  "sub_name": "Flag & Banner",
+  "prefix": "BANNER",
+  "product_type": "Item"
+ },
+ {
+  "group": "908",
+  "group_name": "Marketing",
+  "sub": "05",
+  "sub_name": "General Purpose Signage",
+  "prefix": "SIGNAGE",
+  "product_type": "Item"
+ },
+ {
+  "group": "908",
+  "group_name": "Marketing",
+  "sub": "06",
+  "sub_name": "Floor Standing & Display",
+  "prefix": "DISPLAY",
+  "product_type": "Item"
+ },
+ {
+  "group": "908",
+  "group_name": "Marketing",
+  "sub": "07",
+  "sub_name": "Garment & Apparel",
+  "prefix": "MKT APPAREL",
+  "product_type": "Item"
+ },
+ {
+  "group": "908",
+  "group_name": "Marketing",
+  "sub": "08",
+  "sub_name": "Premium & Gift",
+  "prefix": "PREMIUM",
+  "product_type": "Item"
+ },
+ {
+  "group": "908",
+  "group_name": "Marketing",
+  "sub": "09",
+  "sub_name": "Lighting & Electronics",
+  "prefix": "EVENT ELECTRONIC",
+  "product_type": "Item"
+ },
+ {
+  "group": "908",
+  "group_name": "Marketing",
+  "sub": "10",
+  "sub_name": "Structure & Furniture",
+  "prefix": "EVENT STRUCTURE",
+  "product_type": "Item"
+ },
+ {
+  "group": "908",
+  "group_name": "Marketing",
+  "sub": "11",
+  "sub_name": "Setup Material & Tool",
+  "prefix": "SETUP MAT",
+  "product_type": "Item"
+ },
+ {
+  "group": "908",
+  "group_name": "Marketing",
+  "sub": "12",
+  "sub_name": "Production Equipment",
+  "prefix": "PROD EQUIPMENT",
+  "product_type": "Item"
+ },
+ {
+  "group": "908",
+  "group_name": "Marketing",
+  "sub": "13",
+  "sub_name": "Appliance",
+  "prefix": "APPLIANCE",
+  "product_type": "Item"
+ },
+ {
+  "group": "908",
+  "group_name": "Marketing",
+  "sub": "99",
+  "sub_name": "Other Marketing Item",
+  "prefix": "OTHER MKT ITEM",
+  "product_type": "Item"
+ }
+]

@@ -31,18 +31,13 @@ def test_canonical_unique_case_insensitive_match(db_session):
 
 
 def test_merge_creates_alias_deactivates_and_rewrites_requests(db_session):
-    factory = db_session.scalar(select(Factory).where(Factory.code == "ACM"))
-    system = db_session.scalar(select(CodeSystem).where(CodeSystem.code == "D365_SERVICE"))
-    group = db_session.scalar(
-        select(CodeGroup).where(
-            CodeGroup.code_system_id == system.id, CodeGroup.code == "700",
-            CodeGroup.parent_id.is_(None),
-        )
-    )
+    from tests.conftest import central_ids
+
+    factory, system, group, sub = central_ids(db_session, "ACM", "700", "02")
     req = submit_request(
         db_session, requester_name="p", requester_email="p@x.com",
         factory_id=factory.id, code_system_id=system.id, group_id=group.id,
-        subgroup_id=None, item_name="งานซ่อมปั๊ม", uom="JOB",
+        subgroup_id=sub.id, item_name="งานซ่อมปั๊ม", uom="JOB",
     )
     assert req.uom == "JOB"
 

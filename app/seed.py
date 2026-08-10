@@ -5,10 +5,19 @@ safe to run repeatedly — inserts only what is missing, never deletes.
 Run: python -m app.seed
 """
 
+import json
+from pathlib import Path
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
+
+DATA_DIR = Path(__file__).parent / "data"
+
+
+def _load_json(name: str):
+    return json.loads((DATA_DIR / name).read_text(encoding="utf-8"))
 from app.models import (
     CodeGroup,
     CodeSystem,
@@ -16,6 +25,7 @@ from app.models import (
     FactoryCodeSystem,
     GroupExportMap,
     ProcurementCategory,
+    RunningRegister,
     SearchTerm,
     Uom,
 )
@@ -27,19 +37,30 @@ FACTORIES = [
     ("ACM", "Asia Can Manufacturing", "D365"),
 ]
 
+# Central group standard (Carabao_Group_Item_Master, approved Aug 2026):
+# one code for one item, whichever plant opens it.
+#   [Item Group 3][Sub-Category 2][Item Type 2 = 00][Running 4]
+# Sub-Category is always >= 01, so central codes can never collide with the
+# 11,377 legacy ACM/APM/APG codes, which all carry 0000 in digits 4-7.
+#
+# Legacy systems stay in the table but inactive: scope today is non-stock +
+# service only (stock 99xx/8xx belongs to the stock team). Re-activating one
+# is a config change, not a code change, when stock joins this portal later.
 SYSTEMS = [
-    ("CBD_STOCK", "CBD — Spare parts (Stock)", "9905{cat}{sub}{run:4}"),
-    ("CBD_NONSTOCK", "CBD — Non-Spare parts", "64{cat}{run:6}"),
-    ("D365_STOCK", "D365 — Stock", "{group}0000{run:4}"),
-    ("D365_NONSTOCK", "D365 — Non-Stock", "{group}0000{run:4}"),
-    ("D365_SERVICE", "D365 — Service", "{group}0000{run:4}"),
+    ("CENTRAL", "รหัสกลาง Carabao Group (Non-Stock + Service)", "{group}{sub}00{run:4}", True),
+    ("CBD_STOCK", "CBD — Spare parts (Stock) [เลิกใช้]", "9905{cat}{sub}{run:4}", False),
+    ("CBD_NONSTOCK", "CBD — Non-Spare parts [เลิกใช้]", "64{cat}{run:6}", False),
+    ("D365_STOCK", "D365 — Stock [ทีม Stock ดูแล]", "{group}0000{run:4}", False),
+    ("D365_NONSTOCK", "D365 — Non-Stock [เลิกใช้]", "{group}0000{run:4}", False),
+    ("D365_SERVICE", "D365 — Service [เลิกใช้]", "{group}0000{run:4}", False),
 ]
 
+# Every plant now requests against the one central system.
 FACTORY_SYSTEMS = {
-    "CBD": ["CBD_STOCK", "CBD_NONSTOCK"],
-    "APM": ["D365_STOCK", "D365_NONSTOCK", "D365_SERVICE"],
-    "APG": ["D365_STOCK", "D365_NONSTOCK", "D365_SERVICE"],
-    "ACM": ["D365_STOCK", "D365_NONSTOCK", "D365_SERVICE"],
+    "CBD": ["CENTRAL"],
+    "APM": ["CENTRAL"],
+    "APG": ["CENTRAL"],
+    "ACM": ["CENTRAL"],
 }
 
 D365_STOCK_GROUPS = [
@@ -213,12 +234,16 @@ def seed(db: Session) -> None:
         factories[code] = f
 
     systems: dict[str, CodeSystem] = {}
-    for code, name_th, tpl in SYSTEMS:
+    for code, name_th, tpl, active in SYSTEMS:
         s = db.scalar(select(CodeSystem).where(CodeSystem.code == code))
         if s is None:
-            s = CodeSystem(code=code, name_th=name_th, pattern_template=tpl)
+            s = CodeSystem(
+                code=code, name_th=name_th, pattern_template=tpl, active=active
+            )
             db.add(s)
             db.flush()
+        else:
+            s.name_th, s.pattern_template, s.active = name_th, tpl, active
         systems[code] = s
 
     for fcode, scodes in FACTORY_SYSTEMS.items():
@@ -241,6 +266,7 @@ def seed(db: Session) -> None:
         system: CodeSystem, code: str, name: str,
         scope: str | None = None, parent: CodeGroup | None = None,
         pattern_override: str | None = None,
+        name_prefix: str | None = None, product_type: str | None = None,
     ) -> CodeGroup:
         g = db.scalar(
             select(CodeGroup).where(
@@ -254,6 +280,7 @@ def seed(db: Session) -> None:
                 code_system_id=system.id, code=code, name=name,
                 scope_note=scope, parent_id=parent.id if parent else None,
                 pattern_override=pattern_override,
+                name_prefix=name_prefix, product_type=product_type,
             )
             db.add(g)
             db.flush()
@@ -261,32 +288,37 @@ def seed(db: Session) -> None:
             g.pattern_override = pattern_override
         return g
 
-    for code, name, scope in D365_STOCK_GROUPS:
-        override = "{group}{sub}{run:5}" if code == "806" else None
-        group = ensure_group(
-            systems["D365_STOCK"], code, name, scope, pattern_override=override
+    # --- Central taxonomy: 20 Item Groups / 130 Sub-Categories -------------
+    # Source of truth is app/data/taxonomy.json, extracted from the approved
+    # 'Taxonomy' sheet of Carabao_Group_Item_Master_Central.
+    central = systems["CENTRAL"]
+    for row in _load_json("taxonomy.json"):
+        grp = ensure_group(central, row["group"], row["group_name"])
+        sub = ensure_group(
+            central, row["sub"], row["sub_name"], parent=grp,
+            name_prefix=row["prefix"], product_type=row["product_type"],
         )
-        if code == "806":
-            for type_code, type_name in MOULD_TYPES:
-                ensure_group(
-                    systems["D365_STOCK"], type_code, type_name, parent=group
-                )
-    for code, name, scope in D365_NONSTOCK_GROUPS:
-        ensure_group(systems["D365_NONSTOCK"], code, name, scope)
-    for code, name, scope in D365_SERVICE_GROUPS:
-        ensure_group(systems["D365_SERVICE"], code, name, scope)
+        sub.name_prefix = row["prefix"]
+        sub.product_type = row["product_type"]
 
-    for cat_code, cat_name, subs in CBD_STOCK_CATS:
-        cat = ensure_group(systems["CBD_STOCK"], cat_code, cat_name)
-        for sub_code, sub_name in subs:
-            ensure_group(systems["CBD_STOCK"], sub_code, sub_name, parent=cat)
-        # Every category has a '99' catch-all subcategory in the real master
-        # (e.g. 99050599, 99059999) — seeded so codegen never dead-ends.
-        ensure_group(systems["CBD_STOCK"], "99", "อื่นๆ", parent=cat)
-
-    for code, name in CBD_NONSTOCK_CATS:
-        override = "64{cat}{run:4}" if code == "SVSP" else None
-        ensure_group(systems["CBD_NONSTOCK"], code, name, pattern_override=override)
+    # --- Central running register ------------------------------------------
+    # Seeded with the last number already issued per Category+Sub so the portal
+    # continues the group's series instead of restarting it.
+    for row in _load_json("running_register.json"):
+        reg = db.scalar(
+            select(RunningRegister).where(
+                RunningRegister.group_code == row["group"],
+                RunningRegister.sub_code == row["sub"],
+            )
+        )
+        if reg is None:
+            db.add(RunningRegister(
+                group_code=row["group"], sub_code=row["sub"],
+                last_running=int(row["last"]),
+            ))
+        elif reg.last_running < int(row["last"]):
+            # never move a counter backwards
+            reg.last_running = int(row["last"])
 
     for code, name in UOMS:
         if db.scalar(select(Uom).where(Uom.code == code)) is None:

@@ -21,18 +21,18 @@ from app.services.units import normalize_size
         ("4 inch", '4"'),
         ("4 IN", '4"'),
         ('4"', '4"'),
-        ("25 CM", "25cm"),
-        ("25cm.", "25cm"),
-        ("25 ซม.", "25cm"),
-        ("1000 มม.", "1000mm"),
-        ("2 ลิตร", "2L"),
-        ("500 มล.", "500ml"),
-        ("1.5 กก.", "1.5kg"),
+        ("25 CM", "25 cm"),
+        ("25cm.", "25 cm"),
+        ("25 ซม.", "25 cm"),
+        ("1000 มม.", "1000 mm"),
+        ("2 ลิตร", "2 L"),
+        ("500 มล.", "500 ml"),
+        ("1.5 กก.", "1.5 kg"),
         ("10 X 20", "10x20"),
         ("10*20", "10x20"),
         ("10 x 20 x 5", "10x20x5"),
-        ("10 mm. x 20 mm.", "10mmx20mm"),
-        ("  4  cm  ", "4cm"),
+        ("10 mm. x 20 mm.", "10x20 mm"),
+        ("  4  cm  ", "4 cm"),
         ("", ""),
         (None, ""),
     ],
@@ -103,20 +103,16 @@ def test_compound_term_beats_component_term(db_session):
 
 
 def test_submit_normalizes_size_in_name_and_field(db_session):
-    factory = db_session.scalar(select(Factory).where(Factory.code == "CBD"))
-    system = db_session.scalar(select(CodeSystem).where(CodeSystem.code == "CBD_NONSTOCK"))
-    group = db_session.scalar(
-        select(CodeGroup).where(
-            CodeGroup.code_system_id == system.id, CodeGroup.code == "FQ",
-            CodeGroup.parent_id.is_(None),
-        )
-    )
+    from tests.conftest import central_ids
+
+    # 904-05 Hardware & Fastener Material is where a นail belongs
+    factory, system, group, sub = central_ids(db_session, "CBD", "900", "03")
     req = submit_request(
         db_session, requester_name="p", requester_email="p@x.com",
         factory_id=factory.id, code_system_id=system.id, group_id=group.id,
-        subgroup_id=None, item_name="ตะปู", brand="XXX", model="#12345",
+        subgroup_id=sub.id, item_name="ตะปู", brand="XXX", model="#12345",
         size="4 นิ้ว", variant="ดำ",
     )
     assert req.size == '4"'
-    assert req.item_name == 'ตะปู XXX #12345 4" ดำ'
+    assert req.item_name == 'FASTENER - ตะปู XXX #12345 - 4" ดำ'
     assert req.search_name == "ตะปู"  # category, not 'XXX 12345'

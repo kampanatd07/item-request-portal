@@ -18,7 +18,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import ItemRequest, ItemSnapshot
+from app.models import ItemRequest, ItemSnapshot, RunningRegister
 from app.services.snapshots import source_for_factory
 
 RUN_RE = re.compile(r"\{run:(\d+)\}")
@@ -85,7 +85,48 @@ def next_running(db: Session, *, source: str, prefix: str, run_len: int) -> int:
     return best + 1
 
 
+def _allocate_from_register(db: Session, group_code: str, sub_code: str) -> int:
+    """Issue the next number for a Category+Sub pair from the central register.
+
+    This is the single place a central code may come from. The row is locked
+    for update so two approvals in the same second cannot take the same number;
+    the unique constraint on generated_code is the last line of defence.
+    """
+    stmt = select(RunningRegister).where(
+        RunningRegister.group_code == group_code,
+        RunningRegister.sub_code == sub_code,
+    )
+    if db.bind and db.bind.dialect.name != "sqlite":
+        stmt = stmt.with_for_update()
+    reg = db.scalar(stmt)
+    if reg is None:
+        # A sub-category that exists in the taxonomy but not yet in the
+        # register (new sub-category added later) starts its own series.
+        reg = RunningRegister(group_code=group_code, sub_code=sub_code, last_running=0)
+        db.add(reg)
+        db.flush()
+    reg.last_running += 1
+    db.flush()
+    return reg.last_running
+
+
 def generate_code(db: Session, request: ItemRequest) -> str:
+    system_code = request.code_system.code
+    if system_code == "CENTRAL":
+        group = request.group
+        sub = request.subgroup
+        if sub is None:
+            raise CodegenError("ต้องเลือกหมวดย่อยก่อนออกรหัสกลาง")
+        running = _allocate_from_register(db, group.code, sub.code)
+        if running > 9999:
+            raise CodegenError(
+                f"เลขรันของหมวด {group.code}-{sub.code} เต็มแล้ว (เกิน 9999) — "
+                "ต้องเปิดหมวดย่อยใหม่"
+            )
+        # [Group 3][Sub 2][Item Type 2 = 00][Running 4]
+        return f"{group.code}{sub.code}00{running:04d}"
+
+    # Legacy systems (inactive today, kept for the future stock scope).
     prefix, run_len = build_prefix_and_runlen(request)
     source = source_for_factory(db, request.factory_id)
     running = next_running(db, source=source, prefix=prefix, run_len=run_len)

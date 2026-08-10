@@ -92,17 +92,12 @@ def test_duplicates_fragment_carries_searchname_oob(client, db_session):
 
 
 def test_submit_autofills_search_name_when_blank(db_session):
-    factory = db_session.scalar(select(Factory).where(Factory.code == "APM"))
-    system = db_session.scalar(select(CodeSystem).where(CodeSystem.code == "D365_STOCK"))
-    group = db_session.scalar(
-        select(CodeGroup).where(
-            CodeGroup.code_system_id == system.id, CodeGroup.code == "800",
-            CodeGroup.parent_id.is_(None),
-        )
-    )
+    from tests.conftest import central_ids
+
+    factory, system, group, sub = central_ids(db_session, "APM")
     req = submit_request(
         db_session, requester_name="p", requester_email="p@x.com",
         factory_id=factory.id, code_system_id=system.id, group_id=group.id,
-        subgroup_id=None, item_name="Ball Bearing SKF 6205", search_name="",
+        subgroup_id=sub.id, item_name="Ball Bearing SKF 6205", search_name="",
     )
     assert req.search_name == "BALL BEARING"

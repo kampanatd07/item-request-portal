@@ -9,7 +9,8 @@ Canonical choices are taken from what actually dominates the real CBD master
   - metric -> lowercase mm / cm / m   ('mm' 1946x vs 'MM'/'มม.')
   - mass/volume -> kg, g, ml, L
   - dimensions -> compact 'x'  (10x20 appears 1710x vs 171 spaced, 347 'X')
-  - number and unit are joined: '4 mm' -> '4mm'
+  - number and unit separated by one space: '20 L' (group naming rule 4);
+    inch keeps the tight symbol form '4"'
 
 Dimension order is only rearranged when the user LABELS the dimensions
 (กว้าง/ยาว/สูง). Bare numbers are never reordered — 10x20 and 20x10 can mean
@@ -32,7 +33,8 @@ _UNIT_MAP: list[tuple[str, str]] = [
     (r"\bcm\b|\bCM\b|\bCm\b", "cm"),
     (r"\bkg\b|\bKG\b|\bKg\b", "kg"),
     (r"\bml\b|\bML\b|\bMl\b", "ml"),
-    (r"\bltr\b|\blitre\b|\bliter\b", "L"),
+    # no \b: there is no word boundary between a digit and a letter ('208LT')
+    (r"(?<![A-Za-z])(?:ltr|litre|liter|lt)(?![A-Za-z])", "L"),
 ]
 
 # Dimension labels -> canonical slot order: กว้าง(W) x ยาว(L) x สูง(H)
@@ -52,9 +54,22 @@ def _canonical_units(text: str) -> str:
     return text
 
 
-def _join_number_unit(text: str) -> str:
-    # '4 mm' -> '4mm' ; '4 "' -> '4"'
-    return re.sub(r'(\d)\s+(mm|cm|kg|ml|"|[LgmM]\b)', r"\1\2", text)
+def _dedupe_chain_unit(text: str) -> str:
+    """'10mmx20mm' -> '10x20mm'. A dimension chain states its unit once, at the
+    end — matching the standard's own example 'M12x1.75x40 mm'."""
+    for unit in ("mm", "cm", "kg", "ml", "L"):
+        pattern = rf"(?<=\d){unit}(?=x\d)"
+        if re.search(rf"{unit}(?=x\d)", text) and text.rstrip().endswith(unit):
+            text = re.sub(pattern, "", text)
+    return text
+
+
+def _space_number_unit(text: str) -> str:
+    """Group naming rule 4: one space between number and unit ('20 L', not '20L').
+    Inch keeps the tight form ('4"') — it is a symbol, not a unit word."""
+    text = re.sub(r'(\d)\s*"', r'\1"', text)  # 4 " -> 4"
+    text = re.sub(r"(\d)(mm|cm|kg|ml|[LgmM])(?![A-Za-z])", r"\1 \2", text)
+    return text
 
 
 def _normalize_separators(text: str) -> str:
@@ -92,8 +107,12 @@ def normalize_size(raw: str | None) -> str:
     if reordered:
         return reordered
 
-    # join number+unit first ('10 mm' -> '10mm') so the separator pass sees
-    # complete tokens on both sides of the x
-    text = _join_number_unit(text)
+    # compact first so the separator pass sees complete tokens on both sides
+    # of the x, then apply the mandated spacing
+    text = re.sub(r'(\d)\s+(mm|cm|kg|ml|"|[LgmM])(?![A-Za-z])', r"\1\2", text)
     text = _normalize_separators(text)
+    text = _dedupe_chain_unit(text)
+    text = _space_number_unit(text)
+    # trailing abbreviation dot left by inputs like '208LT.' / '20 ลิตร.'
+    text = re.sub(r'(?<=[A-Za-z"])\.(?!\w)', "", text)
     return " ".join(text.split())

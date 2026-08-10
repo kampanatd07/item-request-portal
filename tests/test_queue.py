@@ -1,19 +1,13 @@
 from sqlalchemy import select
 
-from app.models import CodeGroup, CodeSystem, Factory
 from app.services.requests import RequestError, change_status, submit_request
+from tests.conftest import central_ids
 
 import pytest
 
 
 def _make_request(db):
-    factory = db.scalar(select(Factory).where(Factory.code == "APM"))
-    system = db.scalar(select(CodeSystem).where(CodeSystem.code == "D365_STOCK"))
-    group = db.scalar(
-        select(CodeGroup).where(
-            CodeGroup.code_system_id == system.id, CodeGroup.code == "800"
-        )
-    )
+    factory, system, group, sub = central_ids(db)
     return submit_request(
         db,
         requester_name="ทดสอบ",
@@ -21,7 +15,7 @@ def _make_request(db):
         factory_id=factory.id,
         code_system_id=system.id,
         group_id=group.id,
-        subgroup_id=None,
+        subgroup_id=sub.id,
         item_name="Bearing 6205 SKF",
     )
 

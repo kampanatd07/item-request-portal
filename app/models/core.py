@@ -71,8 +71,13 @@ class CodeGroup(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     code_system_id: Mapped[int] = mapped_column(ForeignKey("code_systems.id"))
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("code_groups.id"), nullable=True)
-    code: Mapped[str] = mapped_column(String(10))  # '800', 'BD', '01' ...
+    code: Mapped[str] = mapped_column(String(10))  # '900', '01', 'BD' ...
     name: Mapped[str] = mapped_column(String(200))
+    # Group-standard naming prefix for sub-categories, e.g. 'BEARING'
+    # (used as the [CATEGORY] segment of the product name).
+    name_prefix: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # 'Item' | 'Service' — from the group taxonomy, drives export defaults.
+    product_type: Mapped[str | None] = mapped_column(String(10), nullable=True)
     scope_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Overrides the system's pattern_template for this group (e.g. SVSP, 806 Mould).
     pattern_override: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -128,6 +133,27 @@ class ItemRequest(Base):
     subgroup: Mapped["CodeGroup | None"] = relationship(foreign_keys=[subgroup_id])
     events: Mapped[list["RequestEvent"]] = relationship(
         back_populates="request", order_by="RequestEvent.id"
+    )
+
+
+class RunningRegister(Base):
+    """The central running-number register — one counter per Category+Sub pair.
+
+    The group's handover flags 'ทะเบียนเลขรันกลาง ยังไม่มีเจ้าของ' as the risk that
+    would make codes collide within the first month. This table IS that owner:
+    numbers are only ever issued by incrementing a row here, inside the same
+    transaction that stamps the request.
+    """
+
+    __tablename__ = "running_register"
+    __table_args__ = (UniqueConstraint("group_code", "sub_code"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    group_code: Mapped[str] = mapped_column(String(3))
+    sub_code: Mapped[str] = mapped_column(String(2))
+    last_running: Mapped[int] = mapped_column(default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
     )
 
 

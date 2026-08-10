@@ -32,13 +32,9 @@ def test_categories_scoped_by_source(db_session):
 
 
 def test_set_group_map_creates_then_updates(db_session):
-    system = db_session.scalar(select(CodeSystem).where(CodeSystem.code == "D365_STOCK"))
-    group = db_session.scalar(
-        select(CodeGroup).where(
-            CodeGroup.code_system_id == system.id, CodeGroup.code == "800",
-            CodeGroup.parent_id.is_(None),
-        )
-    )
+    from tests.conftest import central_ids
+
+    _f, system, group, _sub = central_ids(db_session)
     config_admin.set_group_map(
         db_session, group.id, item_group_id="SP", model_group_id="EN", group_type_code="SP"
     )

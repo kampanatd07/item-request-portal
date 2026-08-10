@@ -67,19 +67,6 @@ def submit_request(
     if not item_name.strip():
         raise RequestError("กรุณากรอกชื่อเรียกสินค้า")
 
-    # Compose the standard product name (แบบ B) — the requester's fields are
-    # structure, the name is an output, not an input.
-    from app.services.naming import NamingError, compose_name
-    from app.services.units import normalize_size
-
-    try:
-        composed_name = compose_name(
-            item_name, brand=brand, model=model,
-            size=normalize_size(size), detail=variant,
-        )
-    except NamingError as e:
-        raise RequestError(str(e)) from e
-
     group = db.get(CodeGroup, group_id)
     if group is None or group.code_system_id != code_system_id or not group.active:
         raise RequestError("หมวดสินค้าไม่ถูกต้องสำหรับระบบที่เลือก")
@@ -90,10 +77,27 @@ def submit_request(
     ).first()
     if children is not None and subgroup_id is None:
         raise RequestError("หมวดนี้ต้องเลือกหมวดย่อยด้วย")
+    sub = None
     if subgroup_id is not None:
         sub = db.get(CodeGroup, subgroup_id)
         if sub is None or sub.parent_id != group_id or not sub.active:
             raise RequestError("หมวดย่อยไม่ถูกต้อง")
+
+    # Compose the standard product name. The [CATEGORY] segment is the
+    # sub-category's taxonomy Name Prefix, so the name and the code always
+    # describe the same category. Runs after validation so the prefix is trusted.
+    from app.services.naming import NamingError, compose_name
+    from app.services.units import normalize_size
+
+    prefix_source = sub or group
+    try:
+        composed_name = compose_name(
+            item_name, brand=brand, model=model,
+            size=normalize_size(size), detail=variant,
+            category_prefix=prefix_source.name_prefix if prefix_source else None,
+        )
+    except NamingError as e:
+        raise RequestError(str(e)) from e
 
     req = ItemRequest(
         requester_name=requester_name.strip(),

@@ -90,12 +90,9 @@ def test_duplicate_fragment_and_submit_audit(client, db_session):
     assert resp.status_code == 200
     assert "80000000053" in resp.text
 
-    system = db_session.scalar(select(CodeSystem).where(CodeSystem.code == "D365_STOCK"))
-    group = db_session.scalar(
-        select(CodeGroup).where(
-            CodeGroup.code_system_id == system.id, CodeGroup.code == "800"
-        )
-    )
+    from tests.conftest import central_ids
+
+    factory, system, group, sub = central_ids(db_session, "APM")
     client.post(
         "/requests",
         data={
@@ -104,6 +101,7 @@ def test_duplicate_fragment_and_submit_audit(client, db_session):
             "factory_id": factory.id,
             "code_system_id": system.id,
             "group_id": group.id,
+            "subgroup_id": sub.id,
             "item_name": "Bearing 6204",
             "brand": "SKF",
         },
