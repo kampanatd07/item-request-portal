@@ -1,5 +1,31 @@
 # Decision Log
 
+## [2026-08-10] Adopt the Carabao Group central standard (supersedes earlier code/name rules)
+**Decision:** The portal issues one group-wide 11-digit code
+`[Group 3][Sub 2][00][Running 4]` for all four plants, names items as
+`[CATEGORY] - [ชื่อ] - [รายละเอียด]`, and owns the central running register.
+Taxonomy (20 groups / 130 sub-categories) and the register are embedded as
+`app/data/*.json`.
+**Supersedes:** the five per-plant code patterns and the space-joined name form
+(แบบ B) decided on 2026-07-24 and 2026-07-30.
+**Scope:** non-stock + service only. Stock (99xx / 8xx) stays with the stock
+team; its code systems remain seeded but `active = False` so it can be switched
+on later without a code change.
+**Conflict resolved:** the group standard mandates `20 L` (spaced) while the
+legacy master overwhelmingly used `20L`. Peter chose the standard — legacy data
+is being migrated anyway.
+**Revisit when:** stock joins the portal, or the group taxonomy is revised.
+
+## [2026-08-10] The portal is the owner of the central running register
+**Decision:** Numbers are only ever issued by incrementing a `running_register`
+row inside the approval transaction (row-locked on Postgres), never by scanning
+existing codes.
+**Why:** the handover lists 'ทะเบียนเลขรันกลาง ยังไม่มีเจ้าของ' as the risk that
+would make codes collide within the first month. Scanning also can't see codes
+issued outside the portal, while a register can be reconciled.
+**Revisit when:** a second system also needs to issue central codes — then the
+register must move to a shared service.
+
 ## [2026-07-30] Item names are composed, not typed (แบบ B)
 **Decision:** Product name = compose(ชื่อเรียก, แบรนด์, รุ่น, ขนาด, ชนิด/สี) in the
 company's documented convention order, with cleaning (whitespace, forbidden
