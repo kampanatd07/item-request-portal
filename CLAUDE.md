@@ -58,3 +58,17 @@ state in 2–3 lines first.
 - Reporting dashboards beyond the request queue
 - Stock items (CBD 99xx / 8xx) — owned by the stock team
 - Factories beyond CBD, APM, APG, ACM
+
+## Agent skills
+
+### Issue tracker
+
+One file per story: `docs/stories/STORY-NNN-slug.md`; sub-tickets in `docs/stories/STORY-NNN/NN-slug.md`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five roles, recorded on a `Triage:` line in each story/ticket. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` at root, decisions in `docs/decisions.md` only (no `docs/adr/`). See `docs/agents/domain.md`.

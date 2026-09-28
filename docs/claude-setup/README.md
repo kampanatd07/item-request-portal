@@ -62,7 +62,10 @@ Copy-Item docs\claude-setup\skills\carabao-item-master $HOME\.claude\skills\ -Re
 `/setup-matt-pocock-skills` ตอบดังนี้:
 - Issue tracker → **local files** ที่ `docs/stories/`
 - Triage labels → ใช้ค่าตั้งต้นของเขา
-- ที่เก็บเอกสาร → `docs/` (ADR ใหม่ไปที่ `docs/adr/`; `docs/decisions.md` เป็นบันทึกเก่า เก็บไว้อ่านอ้างอิง)
+- ที่เก็บเอกสาร → single-context (`CONTEXT.md` ที่ root) การตัดสินใจเก็บที่
+  `docs/decisions.md` ที่เดียว **ไม่มี `docs/adr/`**
+
+ผลลัพธ์อยู่ใน `docs/agents/` และหัวข้อ `## Agent skills` ใน `CLAUDE.md`
 
 **4.4 ทวนภาษาโปรเจกต์** — พิมพ์ `/grill-with-docs` แล้วบอกว่า
 "ทวน CONTEXT.md กับผม" มีร่างให้แล้ว คุณแค่ยืนยันหรือแก้คำที่ไม่ตรงกับที่ทีมเรียกจริง
