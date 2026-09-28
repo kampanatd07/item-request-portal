@@ -57,7 +57,7 @@ Source documents live in `docs/group-standard/`. The approved standard:
 ## 4. How to run (Windows)
 
 ```powershell
-cd C:\dev\item-request-portal          # NOT inside OneDrive — see trap 6.6
+cd D:\dev\item-request-portal          # NOT inside OneDrive — see trap 6.6
 .\.venv\Scripts\Activate.ps1           # if blocked: Set-ExecutionPolicy -Scope Process Bypass
 alembic upgrade head
 python -m app.seed                      # must print "Seed complete."
@@ -105,7 +105,7 @@ After first run, upload in **Snapshot** page:
    in `env.py`). Autogenerate on a stale DB can emit spurious `create_foreign_key`
    lines — read every generated migration before committing.
 6. **OneDrive breaks SQLite and git** (lock files, "Operation not permitted").
-   Work from `C:\dev\`.
+   Work from `D:\dev\` (outside OneDrive; C: is nearly full).
 7. **Services must not be classified as parts.** `งานซ่อมปั๊มน้ำ` matched pump
    parts and was auto-selected into 900-06 at full confidence. Service markers
    now exclude Item-type categories — keep that guard.

@@ -3,19 +3,28 @@
 ## 1. ย้ายโปรเจกต์ออกจาก OneDrive (ครั้งเดียว)
 
 OneDrive ทำให้ SQLite และ git พัง และ git worktree (ที่ใช้รันหลาย agent ขนานกัน)
-จะพังหนักกว่านี้อีก
+จะพังหนักกว่านี้อีก ใช้ `D:\dev` (ไดรฟ์ C พื้นที่ใกล้เต็ม) — จะไดรฟ์ไหนก็ได้
+ขอแค่**ไม่อยู่ใต้โฟลเดอร์ OneDrive**
 
 ```powershell
-mkdir C:\dev
-robocopy "D:\OneDrive - Carabao Tawandang Co.,Ltd\Kmapanat\Project - Plant\2026 - Item Createter\Rule of Item\item-request-portal" C:\dev\item-request-portal /E /XD .venv __pycache__ .pytest_cache /XF dev.db dev.db-journal
-cd C:\dev\item-request-portal
+mkdir D:\dev
+robocopy "D:\OneDrive - Carabao Tawandang Co.,Ltd\Kmapanat\Project - Plant\2026 - Item Createter\Rule of Item\item-request-portal" D:\dev\item-request-portal /E /XD .venv __pycache__ .pytest_cache /XF dev.db dev.db-journal
+cd D:\dev\item-request-portal
 ```
 
-แล้วสร้าง venv ใหม่ (venv ย้ายที่ไม่ได้):
+แล้วสร้าง venv ใหม่ (venv ย้ายที่ไม่ได้) — ตั้ง pip cache ไว้ที่ D ด้วย
+ไม่งั้น pip จะไปเก็บไฟล์ดาวน์โหลดไว้ที่ C:
 ```powershell
+$env:PIP_CACHE_DIR = "D:\dev\.pip-cache"
 & "C:\Users\kampanat.dae\AppData\Local\anaconda3\python.exe" -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
+
+venv อยู่ใน `D:\dev\item-request-portal\.venv` (~200 MB) ส่วน Python ของ Anaconda
+ยังอยู่ที่ C: เหมือนเดิม ไม่ต้องย้าย
+
+เมื่อย้ายเสร็จและรันได้แล้ว ลบ `.venv` ในโฟลเดอร์ OneDrive ทิ้งได้ (ประหยัดพื้นที่ sync)
+โฟลเดอร์ OneDrive เก็บไว้เป็นแค่ backup — **แก้งานที่ `D:\dev` ที่เดียว** ไม่งั้นจะมีสองชุดที่ไม่ตรงกัน
 
 ## 2. ขึ้น GitHub (private)
 
