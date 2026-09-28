@@ -65,8 +65,8 @@ uvicorn app.main:app --port 8000
 ```
 
 First-time setup: `python -m venv .venv` then `pip install -r requirements.txt`.
-Peter's Python is Anaconda at `C:\Users\kampanat.dae\AppData\Local\anaconda3\python.exe`;
-the bare `python` command is a Microsoft Store stub on his machine.
+Peter's machine has Python 3.13 from python.org on PATH (Sep 2026). If `python`
+prints nothing, it is the Microsoft Store stub — check with `where.exe python`.
 
 After first run, upload in **Snapshot** page:
 1. `Carabao_Group_Item_Master_Central_v4.xlsx` → "Master ที่จัดหมวดแล้ว" (enables category suggestion)

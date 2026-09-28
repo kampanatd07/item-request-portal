@@ -16,12 +16,12 @@ cd D:\dev\item-request-portal
 ไม่งั้น pip จะไปเก็บไฟล์ดาวน์โหลดไว้ที่ C:
 ```powershell
 $env:PIP_CACHE_DIR = "D:\dev\.pip-cache"
-& "C:\Users\kampanat.dae\AppData\Local\anaconda3\python.exe" -m venv .venv
+python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-venv อยู่ใน `D:\dev\item-request-portal\.venv` (~200 MB) ส่วน Python ของ Anaconda
-ยังอยู่ที่ C: เหมือนเดิม ไม่ต้องย้าย
+ใช้ Python 3.13 ที่ติดตั้งจาก python.org (`python --version` ต้องขึ้น 3.13.x)
+venv อยู่ใน `D:\dev\item-request-portal\.venv` (~200 MB) ส่วนตัว Python เองอยู่ที่ C: ไม่ต้องย้าย
 
 เมื่อย้ายเสร็จและรันได้แล้ว ลบ `.venv` ในโฟลเดอร์ OneDrive ทิ้งได้ (ประหยัดพื้นที่ sync)
 โฟลเดอร์ OneDrive เก็บไว้เป็นแค่ backup — **แก้งานที่ `D:\dev` ที่เดียว** ไม่งั้นจะมีสองชุดที่ไม่ตรงกัน
