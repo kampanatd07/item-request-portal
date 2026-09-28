@@ -58,3 +58,44 @@ HANDOFF §6.5 (batch mode migration), §6.8 (verify migration on fresh DB)
 _(filled by /to-spec + /to-tickets)_
 
 ## Notes
+
+### Grilling session 1 (2026-09-28) — paused, resume with `/grill-with-docs`
+Glossary updated in `CONTEXT.md` (Access: Account, Role, Administrator).
+
+Settled:
+- Q1 The login is an **Account** (one email, one Role). "user" stays avoided.
+- Q2 **Administrator** Role, can be more than one: Peter + one backup
+  (Governance §1: Data Steward 1 + backup 1). Superset of Procurement.
+- Q3 "My requests" page is in this story: read-only list of the Account's own
+  requests with Request Status and Central Code.
+- Q4 Procurement submitting on someone's behalf: the request is in the
+  Procurement Account's name; Procurement picks the Plant (a Requester cannot,
+  it is the Account's Plant); the originator's name goes in the note.
+- Q5 A Requester Account belongs to exactly one Plant (no many-to-many yet).
+- Q6 Accounts are deactivated, never deleted; email is not editable;
+  Administrator may change an Account's Plant (old requests keep their Plant).
+- Q7 Administrator sets a temporary password; forced change at first login;
+  self-service change-password page; minimum 12 characters.
+- Q8 Lock an email for 15 minutes after 10 consecutive failed logins, counter
+  stored in the DB; same Thai error message as AC6.
+
+Open (asked, not yet answered — recommendation in brackets):
+- Q9 Who may mint a Central Code? Governance §3 says only the central Data
+  Steward. In code, approve (`services/requests.py:167`), re-categorise after a
+  code exists (`requests.py:250`) and override code all consume the register,
+  and the matrix above gives them to Procurement.
+  [Only Administrator does those three; Procurement keeps review, name edit,
+  re-categorise before a code, needs_info, reject, export. Record in
+  `docs/decisions.md`.] → then fix Procurement's "Acts as the Data Steward"
+  line in `CONTEXT.md`.
+- Q10 Who resubmits after Needs Info? Glossary says the Requester; code has
+  Procurement do it; no requester edit form exists.
+  [Show `review_note` on "My requests"; Procurement edits and resubmits;
+  requester self-edit becomes a new story; fix glossary wording.]
+- Q11 Session lifetime. [8 hours from login, no "remember me"; password change
+  or deactivation invalidates existing sessions immediately.]
+- Q12 Plant Steward (Governance §2 preliminary check). [Not a Role in v1 —
+  "approval workflow beyond procurement" is out of scope; add to Out of scope.]
+
+Next after Q9–Q12: update the Authorisation matrix and acceptance criteria,
+then `/to-spec`.
