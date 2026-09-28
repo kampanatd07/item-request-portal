@@ -44,6 +44,6 @@ HANDOFF §6.1 (no `\b` near Thai in any new alias regex), §6.5, §6.8.
 `canonical_uom()` deliberately refuses to merge ambiguous look-alikes — keep that.
 
 ## Plan
-_(architect)_
+_(filled by /to-spec + /to-tickets)_
 
 ## Notes

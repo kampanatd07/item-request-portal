@@ -37,6 +37,6 @@ new templates, tests
 HANDOFF §6.4 — the register is the single owner of numbers.
 
 ## Plan
-_(architect)_
+_(filled by /to-spec + /to-tickets)_
 
 ## Notes

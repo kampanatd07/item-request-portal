@@ -1,6 +1,6 @@
 # HANDOFF — Item Request Portal
 
-> For any new Claude Code session or agent: read this file, `CLAUDE.md`, and
+> For any new Claude Code session or agent: read this file, `CLAUDE.md`, `CONTEXT.md`, and
 > `docs/decisions.md` before doing anything. If chat history contradicts these
 > files, the files win.
 >

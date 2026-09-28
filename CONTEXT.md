@@ -1,0 +1,165 @@
+# Item Request Portal
+
+Where plant staff at Carabao Group ask for a new non-stock or service purchase
+item, and procurement turns that ask into one standard item in the group master.
+
+## Language
+
+### The request
+
+**Item Request**:
+One requester's ask for a new purchase item, from submission until the item
+exists in AX/D365 and the requester is told.
+_Avoid_: form, ticket, order
+
+**Requester**:
+The plant employee who submits an Item Request.
+_Avoid_: user, customer
+
+**Procurement**:
+The central team (Peter + 1–2 people) that reviews requests, approves them, and
+imports the result into AX/D365. Acts as the Data Steward.
+_Avoid_: admin, approver, buyer
+
+**Plant**:
+One of CBD, APM, APG, ACM — the company whose AX/D365 environment the item is
+created in.
+_Avoid_: factory (in prose), site, company
+
+**Request Status**:
+The stage an Item Request is in: submitted → in_review / needs_info → approved
+or rejected → exported → created → notified.
+
+**Needs Info**:
+Procurement sent the request back to the Requester for missing detail; the
+Requester resubmits it.
+_Avoid_: returned, pending
+
+### The item
+
+**Base Name**:
+What the Requester calls the thing (ชื่อเรียก), before brand, model, size and
+variant are added.
+_Avoid_: item name, description
+
+**Item Name**:
+The full composed name `[CATEGORY] - [name] - [detail]`, ≤ 110 characters.
+Composed by the system, never typed by the Requester.
+_Avoid_: product name, description
+
+**Name Prefix**:
+The English CATEGORY word(s) at the front of an Item Name, owned by the
+Sub-Category.
+
+**Variant**:
+Type or colour that distinguishes otherwise identical items (ชนิด/สี).
+
+**Search Name**:
+The English item-type term AX uses for search and grouping (e.g. `BALL BEARING`),
+drawn from the Search Term dictionary.
+_Avoid_: short name, keyword
+
+**Service Item**:
+An item whose Product Type is Service (7xx groups): work done, not a thing
+delivered.
+_Avoid_: job item
+
+### Classification
+
+**Item Group**:
+Level-1 taxonomy node, 3 digits (7xx service, 9xx non-stock). 20 of them.
+_Avoid_: category (alone), group code
+
+**Sub-Category**:
+Level-2 taxonomy node, 2 digits (01–99) under an Item Group. 130 of them.
+_Avoid_: subgroup, class
+
+**Taxonomy**:
+The approved Item Group × Sub-Category tree of the group standard.
+
+**Product Type**:
+Item or Service, fixed per Sub-Category.
+
+**Category Suggestion**:
+The system's proposed Item Group + Sub-Category for a new request, with a
+confidence. Auto-selected only above the threshold; always editable before a
+code is issued.
+
+**Procurement Category**:
+The spend-reporting category AX needs on the import file. Separate from the
+Taxonomy.
+
+### Codes
+
+**Central Code**:
+The 11-digit group-wide item code `[Group 3][Sub 2][00][Running 4]`. One per
+item, same in every Plant.
+_Avoid_: item number, SKU, new code
+
+**Legacy Code**:
+An item code issued by a Plant's own scheme before the central standard
+(ACM/APM/APG 11-digit with `0000` in digits 4–7; CBD 10-character `64…`).
+_Avoid_: old code
+
+**Running Register**:
+The single table holding the last Running number issued per Item Group +
+Sub-Category. The only source of new Central Codes.
+_Avoid_: counter, sequence, max code
+
+**Running Number**:
+The last 4 digits of a Central Code.
+
+**Code System**:
+A code pattern the portal can issue (CENTRAL, plus legacy patterns kept
+inactive).
+
+**Stock Item**:
+An item held in inventory (CBD `99…`, future `8xx`). Owned by the stock team and
+out of this portal's scope.
+
+### Master data
+
+**Snapshot**:
+An uploaded copy of an item master used for duplicate checks and learning; the
+portal never reads AX/D365 live.
+_Avoid_: master, import (for this meaning)
+
+**Labeled Master**:
+A Snapshot whose items already carry Item Group + Sub-Category (the Central
+master file). Feeds the Category Suggestion.
+
+**Duplicate Check**:
+Fuzzy comparison of a new request against Snapshots to find an existing item
+before a new code is issued.
+
+**Unit of Measure (UoM)**:
+The unit an item is counted and bought in, from the group's 24-code list.
+_Avoid_: unit, UOM code
+
+**UoM Alias**:
+A spelling that maps to a canonical UoM (e.g. `pcs` → `EA`). Aliases are added
+by an explicit merge, never automatically.
+
+### Export
+
+**Export Batch**:
+A set of approved requests written into one Plant's AX/D365 import file at one
+time.
+_Avoid_: export job, upload
+
+**Import Template**:
+The exact column layout AX/D365 of a Plant accepts; one per Plant.
+
+## Relationships
+
+- An **Item Request** belongs to one **Plant** and, once approved, gets exactly
+  one **Central Code**.
+- A **Central Code** is minted from the **Running Register** row of its
+  **Item Group** + **Sub-Category**; changing either after that means a new code.
+- An **Export Batch** holds requests of one **Plant** only.
+
+## Flagged ambiguities
+
+- "category" alone is ambiguous: say **Sub-Category**, **Item Group**, or
+  **Procurement Category**.
+- "factory" appears in code (`Factory` model) where the language says **Plant**.

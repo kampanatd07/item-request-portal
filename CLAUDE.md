@@ -8,7 +8,10 @@ running register, and exports AX/D365 import files per plant.
 Users: factory requesters + procurement (Peter, 1–2 people)
 
 **Read `docs/HANDOFF.md` first** — status, how to run, and traps already hit.
+Domain language: `CONTEXT.md` — use its terms in code, tests and chat.
 Backlog: `docs/stories/`. Group standard: `docs/group-standard/`.
+Any change touching codes, names, categories, UoM, Thai text or exports: apply
+the `carabao-item-master` skill (source in `docs/claude-setup/skills/`).
 
 Status: core workflow built and tested (113 tests). Not yet open to plants —
 STORY-001 (login) must ship first.
@@ -27,7 +30,7 @@ FastAPI + SQLAlchemy + Alembic | SQLite (dev) / PostgreSQL (prod) | HTMX + Jinja
 
 ## Domain rules (details in HANDOFF §6)
 - Never `\b` next to Thai characters; never NFKC on Thai (use NFC + fix_thai)
-- Names: `[CATEGORY] - [name] - [detail]`, ≤ 110 chars, units spaced (`20 L`)
+- Names: `[CATEGORY] - [name] - [detail]`, ≤ 110 chars, units spaced (`20 L`, `250 mL`, `1 in`), no `,`
 - Service requests never get an Item-type category
 - Stock code systems stay inactive (out of scope)
 

@@ -37,6 +37,6 @@ migrated master.
 HANDOFF §6.5, §6.8
 
 ## Plan
-_(architect)_
+_(filled by /to-spec + /to-tickets)_
 
 ## Notes

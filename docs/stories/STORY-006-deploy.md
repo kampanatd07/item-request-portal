@@ -31,6 +31,6 @@ The app only runs on Peter's laptop. Plants need a URL.
 `.github/workflows/ci.yml`, `Dockerfile`, `README.md`, `docker-compose.yml`, tests
 
 ## Plan
-_(architect)_
+_(filled by /to-spec + /to-tickets)_
 
 ## Notes

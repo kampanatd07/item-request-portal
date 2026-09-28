@@ -55,6 +55,6 @@ new migration, `.env.example`, `requirements.txt`
 HANDOFF §6.5 (batch mode migration), §6.8 (verify migration on fresh DB)
 
 ## Plan
-_(architect)_
+_(filled by /to-spec + /to-tickets)_
 
 ## Notes

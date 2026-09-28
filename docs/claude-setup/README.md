@@ -34,43 +34,53 @@ git remote add origin https://github.com/<username>/item-request-portal.git
 git push -u origin master
 ```
 
-## 3. ติดตั้ง agent
+## 3. ความรู้ 3 ชั้น
 
-```powershell
-mkdir .claude\agents -Force
-copy docs\claude-setup\agents\*.md .claude\agents\
+| ชั้น | อยู่ที่ไหน | ใช้กับ |
+|---|---|---|
+| Skills ของ Matt Pocock (วิธีทำงาน) | plugin `mattpocock-skills` ระดับเครื่อง | ทุกโปรเจกต์ |
+| `carabao-item-master` (มาตรฐาน item master กลุ่ม + กับดักภาษาไทย) | `%USERPROFILE%\.claude\skills\` — ต้นฉบับอยู่ที่ `docs/claude-setup/skills/` | ทุกงานที่แตะรหัส/ชื่อ/หมวด/UoM/ข้อความไทย |
+| ภาษาและสถานะของโปรเจกต์นี้ | `CONTEXT.md`, `CLAUDE.md`, `docs/HANDOFF.md` | โปรเจกต์นี้เท่านั้น |
+
+ไม่แก้ skill ของ Matt — "สอน" โปรเจกต์ผ่านไฟล์ใน repo ที่ skill ของเขาอ่านเองอยู่แล้ว
+
+## 4. ติดตั้ง (ครั้งเดียว)
+
+**4.1 Skill ของ Matt** — เปิด Claude Code แล้วพิมพ์:
+```
+/plugin install mattpocock-skills
 ```
 
-ได้ agent 4 ตัว:
+**4.2 Skill มาตรฐานกลุ่ม** — ใน PowerShell ที่ `D:\dev\item-request-portal`:
+```powershell
+mkdir $HOME\.claude\skills -Force
+Copy-Item docs\claude-setup\skills\carabao-item-master $HOME\.claude\skills\ -Recurse -Force
+```
+เมื่อแก้มาตรฐาน ให้แก้ต้นฉบับใน repo แล้วรันคำสั่ง Copy-Item ซ้ำ
 
-| Agent | ทำอะไร | แก้โค้ดได้? |
-|---|---|---|
-| `architect` | อ่าน story แล้วเขียนแผนลงในไฟล์ story | ไม่ (แก้ได้แค่ไฟล์ story) |
-| `developer` | ทำตามแผนแบบ TDD — test ต้อง fail ก่อนเขียนโค้ด | ได้ |
-| `reviewer` | ตรวจ diff เทียบ acceptance criteria | ไม่ |
-| `item-master-steward` | ตรวจว่าไม่ขัดมาตรฐานกลุ่ม + กับดักภาษาไทย | ไม่ |
+**4.3 ตั้งค่า repo** — เปิด Claude Code ที่ `D:\dev\item-request-portal` แล้วพิมพ์
+`/setup-matt-pocock-skills` ตอบดังนี้:
+- Issue tracker → **local files** ที่ `docs/stories/`
+- Triage labels → ใช้ค่าตั้งต้นของเขา
+- ที่เก็บเอกสาร → `docs/` (ADR ใหม่ไปที่ `docs/adr/`; `docs/decisions.md` เป็นบันทึกเก่า เก็บไว้อ่านอ้างอิง)
 
-## 4. (แนะนำ) ติดตั้ง skills ของ Matt Pocock
-
-ดูวิธีติดตั้งล่าสุดที่ repo `mattpocock/skills` บน GitHub ตัวที่ใช้บ่อยกับโปรเจกต์นี้:
-- `/grill-me` — ให้ Claude สัมภาษณ์เราจนสเปคชัด ก่อนเขียน story ใหม่
-- `/tdd` — บังคับ red-green-refactor
+**4.4 ทวนภาษาโปรเจกต์** — พิมพ์ `/grill-with-docs` แล้วบอกว่า
+"ทวน CONTEXT.md กับผม" มีร่างให้แล้ว คุณแค่ยืนยันหรือแก้คำที่ไม่ตรงกับที่ทีมเรียกจริง
 
 ## 5. Workflow ต่อ 1 story
 
-เปิด Claude Code ในโฟลเดอร์โปรเจกต์ แล้วพิมพ์ทีละขั้น:
+| ขั้น | พิมพ์ | ได้อะไร |
+|---|---|---|
+| 1. ให้ชัดก่อน | `/grill-with-docs` + บอกว่าจะทำ STORY-001 | ตอบคำถามจนไม่เหลือจุดคลุมเครือ, CONTEXT.md อัปเดต |
+| 2. เป็นสเปค | `/to-spec` | สเปคจากสิ่งที่คุยกัน |
+| 3. แตกงาน | `/to-tickets` | ticket ย่อยที่รู้ลำดับว่าอะไรต้องทำก่อน |
+| 4. ลงมือ | `/implement` | ทำด้วย `/tdd` (test fail ก่อนเสมอ) แล้วปิดด้วย `/code-review` |
+| 5. ตรวจมาตรฐานกลุ่ม | "ตรวจ diff ด้วย carabao-item-master" | รายการที่ขัดมาตรฐาน พร้อม file:line |
+| 6. ตัดสิน | Peter อ่าน diff แล้ว merge | — |
 
-```
-1. ให้ architect วางแผน STORY-001
-      → อ่านแผนในไฟล์ story ถ้าไม่โอเคบอกให้แก้
-2. ให้ developer ทำ STORY-001
-      → ทำบน branch story/001-auth-roles
-3. ให้ reviewer และ item-master-steward ตรวจ STORY-001
-      → อ่าน section Review ท้ายไฟล์ story
-4. Peter ตัดสิน merge
-```
+ทำบน branch `story/NNN-short-name` เสมอ **Peter เป็นคนตัดสิน merge ทุกครั้ง**
 
-**Peter เป็นคนตัดสิน merge ทุกครั้ง** agent ไม่ merge เอง
+ไม่แน่ใจว่าควรใช้ skill ไหน → พิมพ์ `/ask-matt`
 
 ## 6. รันหลาย story พร้อมกัน
 
@@ -81,7 +91,7 @@ git worktree add ..\irp-story-003 -b story/003-uom-standard
 git worktree add ..\irp-story-004 -b story/004-item-attributes
 ```
 
-เปิด Claude Code แยกหน้าต่างในแต่ละโฟลเดอร์ แล้วสั่ง developer ทำ story ของโฟลเดอร์นั้น
+เปิด Claude Code แยกหน้าต่างในแต่ละโฟลเดอร์ แล้วทำ workflow ข้อ 5 ของ story นั้น
 
 **ข้อควรระวัง:** ทั้ง 003 และ 004 สร้าง migration — ถ้า merge ทั้งคู่จะได้ Alembic head
 สองตัว ให้ merge ทีละตัว แล้วตัวที่สองต้อง rebase และสร้าง migration ใหม่ต่อจากตัวแรก

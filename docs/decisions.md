@@ -1,5 +1,26 @@
 # Decision Log
 
+## [2026-09-28] "Other" (99) and possible fixed assets pass through with a flag
+**Decision:** Requesters may choose Sub-Category 99 but must give a reason; the
+request is flagged for procurement. Requests that look like fixed assets
+(machines, vehicles) are flagged, and procurement must confirm with Accounting
+before approving. Neither is blocked outright.
+**Why:** 99 is at 21.3% against a ≤ 15% KPI, and its reasons are what the yearly
+taxonomy review needs. Blocking would push requesters into wrong specific
+categories, which is worse than an honest "Other". Fixed-asset status is
+Accounting's call, not something the portal can decide.
+**Implemented by:** STORY-008. Rules in skill `carabao-item-master` §5.
+**Revisit when:** 99 drops below 15%, or Accounting provides an asset rule.
+
+## [2026-09-28] Names follow the standard's unit and punctuation forms exactly
+**Decision:** Millilitre is written `mL`, inch `N in` (not `N"`), and `,` never
+appears in a name. `/` is allowed only unspaced inside a spec (`208 L/Drum`).
+**Why:** the code had drifted from Restructure Proposal §2.3 (`ml`, `4"`, and
+only spaced ` , ` removed). Names that differ from the central master weaken
+duplicate detection; `"` also tends to break CSV/Excel import into AX.
+**Implemented by:** STORY-007. The rules live in skill `carabao-item-master` §3.
+**Revisit when:** the group naming standard is revised.
+
 ## [2026-08-10] Adopt the Carabao Group central standard (supersedes earlier code/name rules)
 **Decision:** The portal issues one group-wide 11-digit code
 `[Group 3][Sub 2][00][Running 4]` for all four plants, names items as

@@ -35,6 +35,6 @@ new `app/services/notify.py`, `app/services/requests.py` (status transitions),
 Keep business logic in services (CLAUDE.md layering rule).
 
 ## Plan
-_(architect)_
+_(filled by /to-spec + /to-tickets)_
 
 ## Notes

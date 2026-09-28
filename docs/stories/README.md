@@ -11,9 +11,11 @@ story file plus `docs/HANDOFF.md` alone, without chat history.
 | [004](STORY-004-item-attributes.md) | Legacy No., Scope Owner, Lifecycle State | — | 002, 003 |
 | [005](STORY-005-register-sync.md) | Re-sync running register from Decision Sheet | Peter fills D1–D4 | — |
 | [006](STORY-006-deploy.md) | Deploy to Render/Railway + Postgres | 001, 002 | — |
+| [007](STORY-007-naming-alignment.md) | Names: `mL`, `in`, no `,` (align with standard) | — | 002, 004 |
+| [008](STORY-008-classification-flags.md) | Flag Sub-Category 99 (reason required) and possible fixed assets | — | 002, 007 |
 
 ## Status values
-`todo` → `planned` (architect wrote a plan) → `in-progress` → `review` → `done`
+`todo` → `planned` (spec + tickets written) → `in-progress` → `review` → `done`
 
 ## Story file template
 ```
@@ -25,6 +27,6 @@ Status: todo
 ## Acceptance criteria   (checkable, each maps to at least one test)
 ## Files likely touched
 ## Domain rules that apply   (link HANDOFF §6 traps by number)
-## Plan          (filled in by architect)
+## Plan          (filled in by /to-spec + /to-tickets)
 ## Notes         (filled in during implementation)
 ```
