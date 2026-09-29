@@ -237,7 +237,7 @@ def role_app(db_session):
     def _client_for(role: str) -> TestClient:
         plant = _plant_id(db_session) if role == "requester" else None
         account = create_account(db_session, f"{role}@test.local", role, role,
-                                 TEST_PASSWORD, factory_id=plant)
+                                 TEST_PASSWORD, factory_id=plant, must_change_password=False)
         c = TestClient(mini)
         c.cookies.set(COOKIE_NAME, issue_session(account, utc_now()))
         return c

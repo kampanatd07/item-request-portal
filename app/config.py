@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     argon2_memory_cost: int = 65536  # KiB
     argon2_parallelism: int = 4
 
+    # A session ends this long after login, whatever happens in between
+    # (STORY-001). No "remember me".
+    session_max_hours: int = 8
+
     class Config:
         env_file = ".env"
 

@@ -10,7 +10,9 @@ from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
 from app.routes.deps import (
     LoginRequired,
+    PasswordChangeRequired,
     RoleForbidden,
+    CHANGE_PASSWORD_PATH,
     current_account,
     login_url,
     require_role,
@@ -18,6 +20,7 @@ from app.routes.deps import (
 from app.routes.exports import router as exports_router
 from app.routes.queue import router as queue_router
 from app.routes.requests import router as requests_router
+from app.services.sessions import COOKIE_NAME
 from app.templating import templates
 
 # App loggers (e.g. app.accounts, the Account admin log) at INFO. basicConfig is a
@@ -36,12 +39,25 @@ app = FastAPI(
 
 @app.exception_handler(LoginRequired)
 def _redirect_to_login(request: Request, exc: LoginRequired) -> Response:
-    target = login_url(exc.next_path)
+    target = login_url(exc.next_path, relogin=exc.stale)
     if request.headers.get("HX-Request"):
         # A 303 inside an HTMX swap would paste the login page into a fragment;
         # HX-Redirect makes htmx navigate the whole page instead.
-        return Response(status_code=401, headers={"HX-Redirect": target})
-    return RedirectResponse(target, status_code=303)
+        response: Response = Response(status_code=401, headers={"HX-Redirect": target})
+    else:
+        response = RedirectResponse(target, status_code=303)
+    if exc.stale:
+        # Drop the dead cookie so the "log in again" notice shows once, not forever.
+        response.delete_cookie(COOKIE_NAME, httponly=True, samesite="lax",
+                               secure=settings.cookie_secure)
+    return response
+
+
+@app.exception_handler(PasswordChangeRequired)
+def _redirect_to_change_password(request: Request, exc: PasswordChangeRequired) -> Response:
+    if request.headers.get("HX-Request"):
+        return Response(status_code=401, headers={"HX-Redirect": CHANGE_PASSWORD_PATH})
+    return RedirectResponse(CHANGE_PASSWORD_PATH, status_code=303)
 
 
 @app.exception_handler(RoleForbidden)

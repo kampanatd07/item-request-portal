@@ -3,6 +3,7 @@
 {% block content %}
 <div class="card" style="max-width: 420px; margin: 48px auto;">
   <h2 style="margin-top: 0;">เข้าสู่ระบบ</h2>
+  {% if relogin %}<div class="error" role="status">กรุณาเข้าสู่ระบบใหม่</div>{% endif %}
   <form method="post" action="/login">
     <input type="hidden" name="next" value="{{ next }}">
     <label for="email">อีเมล</label>
@@ -12,6 +13,7 @@
     {% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
     <button type="submit">เข้าสู่ระบบ</button>
   </form>
+  <p class="muted">ระบบจะออกจากระบบอัตโนมัติหลังเข้าใช้งาน {{ session_hours }} ชั่วโมง</p>
   <p class="muted">ยังไม่มีบัญชี หรือลืมรหัสผ่าน ติดต่อฝ่ายจัดซื้อ</p>
 </div>
 {% endblock %}

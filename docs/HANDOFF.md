@@ -33,11 +33,11 @@ there is no login, so anyone with the URL can approve and issue codes.
 | Naming standard `[CATEGORY] - [name] - [detail]` | done |
 | Export to 4 plant import templates | done — **never tested against real AX** |
 | Admin config pages | done |
-| Login / roles | **in progress — STORY-001** (tickets 01–04 done: login, role guards, Administrator-only register actions, Account admin page) |
+| Login / roles | **in progress — STORY-001** (tickets 01–05 done: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry) |
 | Email notification | **not started — STORY-002** |
 | Deployment | **not started — STORY-006** |
 
-Tests: 259 passing (`pytest`).
+Tests: 283 passing (`pytest`).
 
 ## 3. Group standard this app implements
 

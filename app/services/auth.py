@@ -133,6 +133,29 @@ def authenticate(db: Session, email: str, password: str) -> Account:
     return account
 
 
+def change_own_password(
+    db: Session, account: Account, *, current: str, new: str, confirm: str
+) -> None:
+    """An Account replaces its own password (also the forced first-login change).
+
+    Bumps the session version so every other session of the Account ends; the
+    caller re-issues the current session's cookie.
+    """
+    if not verify_password(account.password_hash, current):
+        raise AuthError("รหัสผ่านปัจจุบันไม่ถูกต้อง")
+    if new != confirm:
+        raise AuthError("รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน")
+    check_password_rules(new)
+    if new == current:
+        # Otherwise a forced change could just re-enter the temporary password.
+        raise AuthError("รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านปัจจุบัน")
+    account.password_hash = hash_password(new)
+    account.must_change_password = False
+    account.session_version += 1
+    db.commit()
+    _audit(account, "change_password", account)
+
+
 # --- Account administration (Administrator pages) --------------------------------
 
 def list_accounts(db: Session) -> list[Account]:

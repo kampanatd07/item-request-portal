@@ -64,7 +64,7 @@
 {% set account = request.state.account|default(none) %}
 <header>
   <strong>Item Request Portal</strong>
-  {% if account %}
+  {% if account and not account.must_change_password %}
   <a href="/">ส่งคำขอ</a>
   {% if has_role(account, "procurement") %}
   <a href="/queue">คิวจัดซื้อ</a>
@@ -75,6 +75,9 @@
   <a href="/admin/config">ตั้งค่า</a>
   <a href="/admin/accounts">บัญชีผู้ใช้</a>
   {% endif %}
+  <a href="/account/password">เปลี่ยนรหัสผ่าน</a>
+  {% endif %}
+  {% if account %}
   <span style="margin-left: auto;">{{ account.display_name }}</span>
   <form method="post" action="/logout" style="margin: 0;">
     <button type="submit" class="secondary" style="margin: 0; padding: 4px 12px;">ออกจากระบบ</button>

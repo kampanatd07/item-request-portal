@@ -1,12 +1,16 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.services.auth import AuthError, authenticate
+from app.models import Account
+from app.routes.deps import CHANGE_PASSWORD_PATH, session_account
+from app.services.auth import AuthError, authenticate, change_own_password
 from app.services.clock import Clock, get_clock
-from app.services.sessions import COOKIE_NAME, account_for_session, issue_session
+from app.services.sessions import COOKIE_NAME, account_for_session, issue_session, remaining
 from app.templating import templates
 
 router = APIRouter()
@@ -20,12 +24,32 @@ def _safe_next(next_path: str | None) -> str:
     return "/"
 
 
+def _set_session_cookie(response: Response, account: Account, login_at: datetime,
+                        now: datetime) -> None:
+    """Cookie lives only as long as the session has left (server checks too)."""
+    response.set_cookie(
+        COOKIE_NAME,
+        issue_session(account, login_at),
+        max_age=int(remaining(login_at, now).total_seconds()),
+        httponly=True,
+        samesite="lax",
+        secure=settings.cookie_secure,
+    )
+
+
 @router.get("/login", response_class=HTMLResponse)
-def login_page(request: Request, next: str | None = None, db: Session = Depends(get_db)):
-    if account_for_session(db, request.cookies.get(COOKIE_NAME)) is not None:
+def login_page(
+    request: Request,
+    next: str | None = None,
+    relogin: str | None = None,
+    db: Session = Depends(get_db),
+    clock: Clock = Depends(get_clock),
+):
+    if account_for_session(db, request.cookies.get(COOKIE_NAME), clock()) is not None:
         return RedirectResponse(_safe_next(next), status_code=303)
     return templates.TemplateResponse(
-        request, "login.html", {"next": _safe_next(next), "email": "", "error": None}
+        request, "login.html",
+        {"next": _safe_next(next), "email": "", "error": None, "relogin": bool(relogin)},
     )
 
 
@@ -43,17 +67,14 @@ def login(
     except AuthError as e:
         return templates.TemplateResponse(
             request, "login.html",
-            {"next": _safe_next(next), "email": email, "error": str(e)},
+            {"next": _safe_next(next), "email": email, "error": str(e), "relogin": False},
             status_code=401,
         )
-    response = RedirectResponse(_safe_next(next), status_code=303)
-    response.set_cookie(
-        COOKIE_NAME,
-        issue_session(account, clock()),
-        httponly=True,
-        samesite="lax",
-        secure=settings.cookie_secure,
-    )
+    # A temporary password must be replaced before anything else (AC11).
+    target = CHANGE_PASSWORD_PATH if account.must_change_password else _safe_next(next)
+    response = RedirectResponse(target, status_code=303)
+    now = clock()
+    _set_session_cookie(response, account, now, now)
     return response
 
 
@@ -62,4 +83,44 @@ def logout():
     response = RedirectResponse("/login", status_code=303)
     response.delete_cookie(COOKIE_NAME, httponly=True, samesite="lax",
                            secure=settings.cookie_secure)
+    return response
+
+
+@router.get(CHANGE_PASSWORD_PATH, response_class=HTMLResponse)
+def change_password_page(
+    request: Request,
+    done: str | None = None,
+    account: Account = Depends(session_account),
+):
+    return templates.TemplateResponse(
+        request, "change_password.html",
+        {"forced": account.must_change_password,
+         "done": bool(done) and not account.must_change_password},
+    )
+
+
+@router.post(CHANGE_PASSWORD_PATH, response_class=HTMLResponse)
+def change_password(
+    request: Request,
+    current_password: str = Form(""),
+    new_password: str = Form(""),
+    confirm_password: str = Form(""),
+    db: Session = Depends(get_db),
+    clock: Clock = Depends(get_clock),
+    account: Account = Depends(session_account),
+):
+    forced = account.must_change_password
+    try:
+        change_own_password(db, account, current=current_password, new=new_password,
+                            confirm=confirm_password)
+    except AuthError as e:
+        return templates.TemplateResponse(
+            request, "change_password.html", {"forced": forced, "error": str(e)},
+            status_code=422,
+        )
+    # Other sessions died with the version bump; this one carries on with a
+    # fresh cookie that keeps the original login time and expiry. Redirect
+    # (Post/Redirect/Get) so a refresh does not resend the old password.
+    response = RedirectResponse(f"{CHANGE_PASSWORD_PATH}?done=1", status_code=303)
+    _set_session_cookie(response, account, request.state.login_at, clock())
     return response

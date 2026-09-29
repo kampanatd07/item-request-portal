@@ -133,6 +133,36 @@ def client_as(app_db):
         c.__exit__(None, None, None)
 
 
+class FakeClock:
+    """Stands in for app.services.clock: tests move time instead of sleeping."""
+
+    def __init__(self, now):
+        self.now = now
+
+    def __call__(self):
+        return self.now
+
+    def advance(self, **delta) -> None:
+        from datetime import timedelta
+
+        self.now += timedelta(**delta)
+
+
+@pytest.fixture()
+def clock(app_db):
+    """A movable clock for every request (login time, session expiry, lockout).
+
+    Request it before `client`/`client_as` so logins are stamped with it too.
+    """
+    from datetime import datetime
+
+    from app.services.clock import get_clock
+
+    fake = FakeClock(datetime(2026, 9, 29, 8, 0, 0))
+    app.dependency_overrides[get_clock] = lambda: fake
+    yield fake
+
+
 @pytest.fixture()
 def client(client_as):
     """Logged in as an Administrator, who may do everything."""
