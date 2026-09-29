@@ -1,6 +1,6 @@
 # STORY-001: Login + roles
 
-Status: todo
+Status: planned
 Triage: ready-for-agent
 
 ## Why
@@ -299,7 +299,32 @@ lock the email temporarily.
 - Existing requests keep their free-text requester name and email; no backfill
   to Accounts.
 
-_(tickets: /to-tickets)_
+### Tickets (written by /to-tickets, 2026-09-29)
+All in `docs/stories/STORY-001/`. Work order: 01 → 03 → 02 → 07 → 04 → 05 → 06.
+
+| # | Ticket | Blocked by | ACs |
+|---|---|---|---|
+| [01](STORY-001/01-login-tracer-bullet.md) | Login tracer bullet (complete Account table, `require_role`) | — | 1, 5, 6, 7 |
+| [02](STORY-001/02-role-guards-requester-submission.md) | Role guards + Requester submission | 01 | 2, 3 |
+| [03](STORY-001/03-administrator-only-register.md) | Only Administrators consume the Running Register | 01 | 4, 8 |
+| [04](STORY-001/04-account-administration.md) | Account administration | 01 | 10 (deactivation) |
+| [05](STORY-001/05-password-lifecycle-session-expiry.md) | Password lifecycle + session expiry | 01 | 10, 11 |
+| [06](STORY-001/06-login-lockout.md) | Login lockout | 01 | 9 |
+| [07](STORY-001/07-my-requests-page.md) | "My requests" page | 02 | 12 |
+
+Rules agreed for this story:
+- **One migration only**, in 01, with every Account column. No other ticket
+  adds a migration.
+- `require_role` is built in 01, so 04 does not wait for 02.
+- 02 and 03 both change the queue and request routes; do not run them in
+  parallel worktrees.
+
+Merge flow: each ticket gets its own branch off `story/001-auth-roles`
+(`story/001-NN-short-name`, e.g. `story/001-01-login`; a branch cannot sit
+*under* `story/001-auth-roles/` because that name is already a branch), and
+merges back into `story/001-auth-roles` after Peter reviews it.
+`story/001-auth-roles` merges into `master` **once**, when all 7 tickets are
+done.
 
 ## Notes
 
@@ -344,5 +369,5 @@ Settled:
 Open (asked, not yet answered — recommendation in brackets):
 - none for this story.
 
-Matrix, scope and acceptance criteria updated 2026-09-29. Spec written in
-`## Plan`. Next: `/to-tickets`.
+Matrix, scope and acceptance criteria updated 2026-09-29. Spec and 7 tickets written in
+`## Plan`. Next: ticket 01.
