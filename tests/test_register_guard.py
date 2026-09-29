@@ -371,3 +371,26 @@ def test_cross_group_refusal_tells_to_reject_and_resubmit(db_session):
         change_category(db_session, req.id,
                         subgroup_id=central_ids(db_session, "APM", "901", "01")[3].id,
                         account=account_for(db_session, "administrator"))
+
+
+# --- Showing a burned code -----------------------------------------------------------
+
+def _reject_approved(db) -> ItemRequest:
+    req = _approved(db)
+    return change_status(db, req.id, new_status="rejected", note="ผิด Group",
+                         account=account_for(db, "administrator"))
+
+
+def test_burned_code_is_struck_through_on_detail_and_queue(client, app_db):
+    req = _reject_approved(app_db)
+    for page in (client.get(f"/queue/{req.id}").text, client.get("/queue").text):
+        assert f"<s><code>{req.generated_code}</code></s>" in page
+        assert "ยกเลิกแล้ว ห้ามใช้" in page
+        assert f'background:#e1f5ee; padding:2px 10px; border-radius:6px;">{req.generated_code}' not in page
+    assert "เหตุผล: ผิด Group" in client.get("/queue").text
+
+
+def test_usable_code_is_not_marked_cancelled(client, app_db):
+    req = _approved(app_db)
+    page = client.get(f"/queue/{req.id}").text
+    assert req.generated_code in page and "ยกเลิกแล้ว ห้ามใช้" not in page

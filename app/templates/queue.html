@@ -17,7 +17,7 @@
       <td><a href="/queue/{{ r.id }}">{{ r.item_name }}{% if r.brand %} {{ r.brand }}{% endif %}</a></td>
       <td>{{ r.factory.code }}</td>
       <td>{{ r.code_system.name_th }}</td>
-      <td>{% if r.generated_code %}<code>{{ r.generated_code }}</code>{% else %}-{% endif %}</td>
+      <td>{% with req=r, compact=true %}{% include "partials/item_code.html" %}{% endwith %}</td>
       <td>{{ r.requester_name }}</td>
       <td><span class="badge {{ r.status }}">{{ status_labels[r.status] }}</span></td>
       <td class="muted">{{ r.created_at.strftime("%d/%m/%Y %H:%M") }}</td>

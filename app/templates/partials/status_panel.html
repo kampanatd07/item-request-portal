@@ -1,6 +1,7 @@
 <h3>สถานะ: <span class="badge {{ req.status }}">{{ status_labels[req.status] }}</span></h3>
 {% if req.generated_code %}
-<p>Item code: <code style="font-size:18px; background:#e1f5ee; padding:2px 10px; border-radius:6px;">{{ req.generated_code }}</code></p>
+{# review_note is shown just below, so no reason here. #}
+<p>Item code: {% with show_reason=false %}{% include "partials/item_code.html" %}{% endwith %}</p>
 {% endif %}
 {% if req.review_note %}<p class="muted">หมายเหตุ: {{ req.review_note }}</p>{% endif %}
 {% set is_admin = has_role(request.state.account, "administrator") %}
