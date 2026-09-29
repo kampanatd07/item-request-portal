@@ -86,7 +86,7 @@ def test_neighbour_vote_learns_category_from_master(db_session):
         wb.active.append([code, name])
     buf = io.BytesIO()
     wb.save(buf)
-    import_snapshot(db_session, source="CBD", filename="m.xlsx", data=buf.getvalue())
+    import_snapshot(db_session, source="CBD", filename="m.xlsx", data=buf.getvalue(), uploaded_by="test@test.local")
 
     # the query itself contains no dictionary term — only the master's
     # neighbours know this is a ลูกปืน

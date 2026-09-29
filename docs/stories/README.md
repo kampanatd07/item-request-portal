@@ -15,6 +15,7 @@ story file plus `docs/HANDOFF.md` alone, without chat history.
 | [008](STORY-008-classification-flags.md) | Flag Sub-Category 99 (reason required) and possible fixed assets | — | 002, 007 |
 | [009](STORY-009-requester-resubmit.md) | Requester edits and resubmits a Needs Info request (before plants open) | 001 | 002 |
 | [010](STORY-010-validate-code-override.md) | Validate code override against the Running Register (before deploy) | 001 | 002, 003 |
+| [011](STORY-011-account-admin-audit.md) | Account admin audit trail in DB (lower priority) | 001 | any |
 
 ## Status values
 `todo` → `planned` (spec + tickets written) → `in-progress` → `review` → `done`

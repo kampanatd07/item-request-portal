@@ -44,8 +44,7 @@ def test_similarity_orders_close_names_higher():
 
 def test_import_and_search_happy_path(db_session):
     imp = import_snapshot(
-        db_session, source="D365", filename="master.xlsx", data=_xlsx(SAMPLE)
-    )
+        db_session, source="D365", filename="master.xlsx", data=_xlsx(SAMPLE), uploaded_by="test@test.local")
     assert imp.row_count == 4
 
     hits = search_similar(db_session, source="D365", query="bearing 6204 skf")
@@ -58,10 +57,9 @@ def test_import_and_search_happy_path(db_session):
 
 
 def test_reimport_replaces_source_rows(db_session):
-    import_snapshot(db_session, source="D365", filename="a.xlsx", data=_xlsx(SAMPLE))
+    import_snapshot(db_session, source="D365", filename="a.xlsx", data=_xlsx(SAMPLE), uploaded_by="test@test.local")
     import_snapshot(
-        db_session, source="D365", filename="b.xlsx", data=_xlsx(SAMPLE[:1])
-    )
+        db_session, source="D365", filename="b.xlsx", data=_xlsx(SAMPLE[:1]), uploaded_by="test@test.local")
     hits = search_similar(db_session, source="D365", query="webcam logitech")
     assert hits == []
 
@@ -72,7 +70,7 @@ def test_import_rejects_file_without_headers(db_session):
     buf = io.BytesIO()
     wb.save(buf)
     with pytest.raises(SnapshotError):
-        import_snapshot(db_session, source="D365", filename="bad.xlsx", data=buf.getvalue())
+        import_snapshot(db_session, source="D365", filename="bad.xlsx", data=buf.getvalue(), uploaded_by="test@test.local")
 
 
 def test_duplicate_fragment_and_submit_audit(client, db_session):
@@ -80,7 +78,7 @@ def test_duplicate_fragment_and_submit_audit(client, db_session):
 
     from app.models import CodeGroup, CodeSystem, Factory, RequestEvent
 
-    import_snapshot(db_session, source="D365", filename="m.xlsx", data=_xlsx(SAMPLE))
+    import_snapshot(db_session, source="D365", filename="m.xlsx", data=_xlsx(SAMPLE), uploaded_by="test@test.local")
     factory = db_session.scalar(select(Factory).where(Factory.code == "APM"))
 
     resp = client.post(

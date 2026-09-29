@@ -3,6 +3,8 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models import Account
+from app.routes.deps import current_account
 from app.services import config_admin, snapshots
 from app.services.config_admin import ConfigError
 from app.services.snapshots import SnapshotError
@@ -116,12 +118,15 @@ def snapshots_page(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/snapshots/labeled", response_class=HTMLResponse)
 async def upload_labeled_master(
-    request: Request, file: UploadFile = File(...), db: Session = Depends(get_db)
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    account: Account = Depends(current_account),
 ):
     data = await file.read()
     try:
         imp = snapshots.import_labeled_master(
-            db, filename=file.filename or "upload", data=data
+            db, filename=file.filename or "upload", data=data, uploaded_by=account.email
         )
     except SnapshotError as e:
         return templates.TemplateResponse(
@@ -138,11 +143,13 @@ async def upload_snapshot(
     source: str = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    account: Account = Depends(current_account),
 ):
     data = await file.read()
     try:
         imp = snapshots.import_snapshot(
-            db, source=source, filename=file.filename or "upload", data=data
+            db, source=source, filename=file.filename or "upload", data=data,
+            uploaded_by=account.email,
         )
     except SnapshotError as e:
         return templates.TemplateResponse(

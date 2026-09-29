@@ -46,8 +46,7 @@ CALIB = [
 
 def _load(db, rows=None):
     return import_labeled_master(
-        db, filename="master.xlsx", data=_labeled_xlsx(rows or BEARINGS + CALIB)
-    )
+        db, filename="master.xlsx", data=_labeled_xlsx(rows or BEARINGS + CALIB), uploaded_by="test@test.local")
 
 
 def test_import_labeled_master_strips_category_prefix(db_session):
@@ -68,7 +67,7 @@ def test_import_rejects_file_without_label_columns(db_session):
     buf = io.BytesIO()
     wb.save(buf)
     with pytest.raises(SnapshotError, match="Category Code"):
-        import_labeled_master(db_session, filename="bad.xlsx", data=buf.getvalue())
+        import_labeled_master(db_session, filename="bad.xlsx", data=buf.getvalue(), uploaded_by="test@test.local")
 
 
 def test_suggests_from_neighbours_with_evidence(db_session):

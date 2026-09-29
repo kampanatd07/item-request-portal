@@ -80,7 +80,7 @@ def test_duplicates_fragment_carries_searchname_oob(client, db_session):
     wb.active.append(["990501012260", "Bearing SKF 6205"])
     buf = io.BytesIO()
     wb.save(buf)
-    import_snapshot(db_session, source="CBD", filename="t.xlsx", data=buf.getvalue())
+    import_snapshot(db_session, source="CBD", filename="t.xlsx", data=buf.getvalue(), uploaded_by="test@test.local")
 
     cbd = db_session.scalar(select(Factory).where(Factory.code == "CBD"))
     resp = client.post(

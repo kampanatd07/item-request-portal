@@ -98,7 +98,7 @@ def _extract_labeled_rows(filename: str, data: bytes) -> list[dict]:
 
 
 def import_labeled_master(
-    db: Session, *, filename: str, data: bytes, uploaded_by: str = "procurement"
+    db: Session, *, filename: str, data: bytes, uploaded_by: str
 ) -> SnapshotImport:
     """Load the classified master as labelled training data for category
     suggestion. Replaces the previous CENTRAL load; LEARNED rows are untouched."""
@@ -180,7 +180,7 @@ def _extract_rows(filename: str, data: bytes) -> list[tuple[str, str, str | None
 
 
 def import_snapshot(
-    db: Session, *, source: str, filename: str, data: bytes, uploaded_by: str = "procurement"
+    db: Session, *, source: str, filename: str, data: bytes, uploaded_by: str
 ) -> SnapshotImport:
     if source not in SOURCES:
         raise SnapshotError("แหล่งข้อมูลไม่ถูกต้อง (CBD หรือ D365)")

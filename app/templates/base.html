@@ -73,6 +73,7 @@
   {% if has_role(account, "administrator") %}
   <a href="/admin/snapshots">Snapshot</a>
   <a href="/admin/config">ตั้งค่า</a>
+  <a href="/admin/accounts">บัญชีผู้ใช้</a>
   {% endif %}
   <span style="margin-left: auto;">{{ account.display_name }}</span>
   <form method="post" action="/logout" style="margin: 0;">

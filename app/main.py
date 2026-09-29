@@ -1,8 +1,11 @@
+import logging
+
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import RedirectResponse, Response
 
 from app.config import settings
 
+from app.routes.accounts import router as accounts_router
 from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
 from app.routes.deps import (
@@ -16,6 +19,10 @@ from app.routes.exports import router as exports_router
 from app.routes.queue import router as queue_router
 from app.routes.requests import router as requests_router
 from app.templating import templates
+
+# App loggers (e.g. app.accounts, the Account admin log) at INFO. basicConfig is a
+# no-op if a handler is already installed, so a deploy can configure its own.
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 # The API docs list every route; keep them to dev machines.
 _dev = settings.app_env == "dev"
@@ -52,3 +59,4 @@ app.include_router(requests_router, dependencies=[Depends(current_account)])
 app.include_router(queue_router, dependencies=[Depends(require_role("procurement"))])
 app.include_router(exports_router, dependencies=[Depends(require_role("procurement"))])
 app.include_router(admin_router, dependencies=[Depends(require_role("administrator"))])
+app.include_router(accounts_router, dependencies=[Depends(require_role("administrator"))])

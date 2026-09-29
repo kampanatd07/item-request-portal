@@ -28,7 +28,10 @@ The app only runs on Peter's laptop. Plants need a URL.
    re-categorise running at the same time as an export of the same request
    never races — the loser waits, re-checks status after the lock, and no
    exported request ends up with a code different from its export file
-   (locks added in STORY-001 ticket 03; SQLite tests cannot run this)
+   (locks added in STORY-001 ticket 03; SQLite tests cannot run this).
+   Same for Accounts: two Administrators deactivating or demoting each other
+   at the same moment must leave at least one active Administrator (lock on
+   active Administrator rows, taken in id order, STORY-001 ticket 04)
 5. **Before go-live:** confirm with Peter that the company data policy allows
    external hosting of item data (flagged in decisions.md 2026-07-24)
 
