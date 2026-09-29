@@ -4,7 +4,7 @@
 > `docs/decisions.md` before doing anything. If chat history contradicts these
 > files, the files win.
 >
-> Last updated: 2026-09-28 · Owner: Peter (Procurement Strategy, Carabao Group)
+> Last updated: 2026-09-29 · Owner: Peter (Procurement Strategy, Carabao Group)
 
 ---
 
@@ -33,11 +33,11 @@ there is no login, so anyone with the URL can approve and issue codes.
 | Naming standard `[CATEGORY] - [name] - [detail]` | done |
 | Export to 4 plant import templates | done — **never tested against real AX** |
 | Admin config pages | done |
-| Login / roles | **not started — STORY-001** |
+| Login / roles | **in progress — STORY-001** (ticket 01 login done; role guards not yet applied) |
 | Email notification | **not started — STORY-002** |
 | Deployment | **not started — STORY-006** |
 
-Tests: 113 passing (`pytest`).
+Tests: 149 passing (`pytest`).
 
 ## 3. Group standard this app implements
 
@@ -61,6 +61,7 @@ cd D:\dev\item-request-portal          # NOT inside OneDrive — see trap 6.6
 .\.venv\Scripts\Activate.ps1           # if blocked: Set-ExecutionPolicy -Scope Process Bypass
 alembic upgrade head
 python -m app.seed                      # must print "Seed complete."
+python -m app.create_admin              # first time only: your own Administrator login
 uvicorn app.main:app --port 8000
 ```
 

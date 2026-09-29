@@ -1,6 +1,6 @@
 # 01: Login tracer bullet
 
-Status: todo
+Status: done (awaiting Peter's review)
 Triage: ready-for-agent
 Parent: STORY-001
 Blocked by: None (can start immediately)
@@ -32,16 +32,16 @@ other STORY-001 ticket builds on:
 - Test fixtures: `client` logs in as an Administrator through the real login
   endpoint; `client_as(role, plant=None)`; `anon_client`.
 
-- [ ] Migration creates the complete Account table and runs cleanly with
+- [x] Migration creates the complete Account table and runs cleanly with
       `alembic upgrade head` on a fresh SQLite DB (HANDOFF §6 trap 8; batch
       mode, trap 5)
-- [ ] Anonymous request to any page except login redirects to login (AC1)
-- [ ] Stored password is a hash, never the plain text, and verifies (AC5)
-- [ ] Wrong password and unknown email show the same Thai error (AC6)
-- [ ] A deactivated Account, or a session whose version no longer matches,
+- [x] Anonymous request to any page except login redirects to login (AC1)
+- [x] Stored password is a hash, never the plain text, and verifies (AC5)
+- [x] Wrong password and unknown email show the same Thai error (AC6)
+- [x] A deactivated Account, or a session whose version no longer matches,
       is treated as logged out
-- [ ] `require_role` refuses a lower Role with 403 and lets Administrator
+- [x] `require_role` refuses a lower Role with 403 and lets Administrator
       through a Procurement check
-- [ ] `create_admin` creates an Administrator who can then log in
-- [ ] `SECRET_KEY` documented in `.env.example`; new packages in requirements
-- [ ] All 113 existing tests pass (AC7)
+- [x] `create_admin` creates an Administrator who can then log in
+- [x] `SECRET_KEY` documented in `.env.example`; new packages in requirements
+- [x] All 113 existing tests pass (AC7)

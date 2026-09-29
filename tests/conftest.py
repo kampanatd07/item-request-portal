@@ -1,12 +1,21 @@
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+import os
 
-from app.database import Base, get_db
-from app.main import app
-from app.seed import seed
+# Before any app import: Settings reads these once. Cheap Argon2 keeps the suite
+# fast (production cost is unchanged), and APP_ENV=dev whatever the local .env says.
+os.environ["APP_ENV"] = "dev"
+os.environ["ARGON2_TIME_COST"] = "1"
+os.environ["ARGON2_MEMORY_COST"] = "8"
+os.environ["ARGON2_PARALLELISM"] = "1"
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+from sqlalchemy.pool import StaticPool  # noqa: E402
+
+from app.database import Base, get_db  # noqa: E402
+from app.main import app  # noqa: E402
+from app.seed import seed  # noqa: E402
 
 
 @pytest.fixture()
@@ -50,12 +59,61 @@ def central_ids(db, factory_code: str = "APM", group_code: str = "900",
     return factory, system, group, sub
 
 
+TEST_PASSWORD = "test-password-123"
+
+
 @pytest.fixture()
-def client(db_session):
+def app_db(db_session):
+    """Point the app at the test DB for the duration of a test."""
     def _override_db():
         yield db_session
 
     app.dependency_overrides[get_db] = _override_db
+    yield db_session
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def anon_client(app_db):
     with TestClient(app) as c:
         yield c
-    app.dependency_overrides.clear()
+
+
+def login(c: TestClient, email: str, password: str = TEST_PASSWORD):
+    """Log in through the real endpoint; the client keeps the session cookie."""
+    return c.post("/login", data={"email": email, "password": password},
+                  follow_redirects=False)
+
+
+@pytest.fixture()
+def client_as(app_db):
+    """client_as(role, plant=None) -> a TestClient logged in as a new Account."""
+    from sqlalchemy import select
+
+    from app.models import Factory
+    from app.services.auth import create_account
+
+    clients: list[TestClient] = []
+
+    def _make(role: str, plant: str | None = None) -> TestClient:
+        factory_id = None
+        if plant is not None:
+            factory_id = app_db.scalar(select(Factory.id).where(Factory.code == plant))
+        email = f"{role}{len(clients)}@test.local"
+        create_account(app_db, email, f"Test {role}", role, TEST_PASSWORD,
+                       factory_id=factory_id, must_change_password=False)
+        c = TestClient(app)
+        c.__enter__()
+        clients.append(c)
+        assert login(c, email).status_code == 303
+        return c
+
+    yield _make
+    for c in clients:
+        c.__exit__(None, None, None)
+
+
+@pytest.fixture()
+def client(client_as):
+    """Logged in as an Administrator, who may do everything."""
+    return client_as("administrator")

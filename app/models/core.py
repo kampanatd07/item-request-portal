@@ -1,6 +1,14 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -285,3 +293,38 @@ class RequestEvent(Base):
     at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     request: Mapped[ItemRequest] = relationship(back_populates="events")
+
+
+# Account roles, lowest to highest. Administrator passes every Procurement check.
+ROLES = ["requester", "procurement", "administrator"]
+
+
+class Account(Base):
+    """One login to the portal. Deactivated, never deleted; email never changes."""
+
+    __tablename__ = "accounts"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('requester', 'procurement', 'administrator')", name="ck_accounts_role"
+        ),
+        # A Requester belongs to exactly one Plant; other Roles choose it per request.
+        CheckConstraint(
+            "role != 'requester' OR factory_id IS NOT NULL", name="ck_accounts_requester_plant"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(254), unique=True)  # stored lowercased
+    display_name: Mapped[str] = mapped_column(String(100))
+    role: Mapped[str] = mapped_column(String(20))
+    factory_id: Mapped[int | None] = mapped_column(ForeignKey("factories.id"), nullable=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    must_change_password: Mapped[bool] = mapped_column(default=True)
+    active: Mapped[bool] = mapped_column(default=True)
+    # Bumped on password change / deactivation so every existing session dies.
+    session_version: Mapped[int] = mapped_column(default=1)
+    failed_login_count: Mapped[int] = mapped_column(default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    factory: Mapped[Factory | None] = relationship()

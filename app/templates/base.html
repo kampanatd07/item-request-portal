@@ -34,13 +34,20 @@
   </style>
 </head>
 <body>
+{% set account = request.state.account|default(none) %}
 <header>
   <strong>Item Request Portal</strong>
+  {% if account %}
   <a href="/">ส่งคำขอ</a>
   <a href="/queue">คิวจัดซื้อ</a>
   <a href="/exports">Export</a>
   <a href="/admin/snapshots">Snapshot</a>
   <a href="/admin/config">ตั้งค่า</a>
+  <span style="margin-left: auto;">{{ account.display_name }}</span>
+  <form method="post" action="/logout" style="margin: 0;">
+    <button type="submit" class="secondary" style="margin: 0; padding: 4px 12px;">ออกจากระบบ</button>
+  </form>
+  {% endif %}
 </header>
 <main>{% block content %}{% endblock %}</main>
 </body>
