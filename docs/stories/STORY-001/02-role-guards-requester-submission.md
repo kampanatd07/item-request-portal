@@ -1,6 +1,6 @@
 # 02: Role guards + Requester submission
 
-Status: todo
+Status: done (awaiting Peter's review)
 Triage: ready-for-agent
 Parent: STORY-001
 Blocked by: 01
@@ -17,11 +17,18 @@ Administrator choose the Plant and submit in their own name (the originator
 goes in the note). The base layout shows who is logged in and hides links the
 Role cannot use. No migration.
 
-- [ ] Requester gets 403 on queue, exports and Administrator pages (AC2)
-- [ ] Procurement gets 403 on Snapshot upload, config pages and Account admin
-- [ ] A Requester posting another Plant never gets a request in the posted
+- [x] Requester gets 403 on queue, exports and Administrator pages (AC2)
+- [x] Procurement gets 403 on Snapshot upload, config pages and Account admin
+- [x] A Requester posting another Plant never gets a request in the posted
       Plant — it is stored for their own Plant or refused (AC3)
-- [ ] Posted requester name/email are ignored; the Account's are stored
-- [ ] Procurement can submit for any Plant; the request is in their name
-- [ ] Navigation shows only links the Role can use
-- [ ] New request tests use `central_ids()`
+- [x] Posted requester name/email are ignored; the Account's are stored
+- [x] Procurement can submit for any Plant; the request is in their name
+- [x] Navigation shows only links the Role can use
+- [x] New request tests use `central_ids()`
+
+Implementation notes (2026-09-29):
+- A Requester's posted Plant is ignored, not refused: the service always uses
+  the Account's Plant (Peter's call).
+- "On behalf of" is stored as a `ขอแทน: <name>` line in the `submitted`
+  RequestEvent's detail, never in `spec_note` (that is the item's spec); read
+  back with `originator_of()` and shown on the request detail page.

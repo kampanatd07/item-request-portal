@@ -39,6 +39,11 @@ def _dummy_hash(time_cost: int, memory_cost: int, parallelism: int) -> str:
     return _hasher(time_cost, memory_cost, parallelism).hash("dummy password for timing")
 
 
+def has_role(account: Account, minimum: str) -> bool:
+    """True if the Account's Role is `minimum` or higher (ROLES is lowest → highest)."""
+    return ROLES.index(account.role) >= ROLES.index(minimum)
+
+
 def hash_password(password: str) -> str:
     return _current_hasher().hash(password)
 

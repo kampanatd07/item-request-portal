@@ -7,13 +7,13 @@ from sqlalchemy import select
 from app.models import ItemRequest, RunningRegister
 from app.services.codegen import CodegenError, build_prefix_and_runlen
 from app.services.requests import RequestError, change_status, override_code, submit_request
-from tests.conftest import central_ids
+from tests.conftest import account_for, central_ids
 
 
 def _submit(db, factory_code="APM", group_code="900", sub_code="01", **kw):
     factory, system, group, sub = central_ids(db, factory_code, group_code, sub_code)
     kwargs = dict(
-        requester_name="ทดสอบ", requester_email="t@example.com",
+        account=account_for(db),
         factory_id=factory.id, code_system_id=system.id,
         group_id=group.id, subgroup_id=sub.id, item_name="Test item",
     )
@@ -79,7 +79,7 @@ def test_request_without_subcategory_is_rejected_at_submit(db_session):
     factory, system, group, _sub = central_ids(db_session)
     with pytest.raises(RequestError, match="หมวดย่อย"):
         submit_request(
-            db_session, requester_name="t", requester_email="t@x.com",
+            db_session, account=account_for(db_session),
             factory_id=factory.id, code_system_id=system.id,
             group_id=group.id, subgroup_id=None, item_name="No sub",
         )

@@ -62,6 +62,26 @@ def central_ids(db, factory_code: str = "APM", group_code: str = "900",
 TEST_PASSWORD = "test-password-123"
 
 
+def account_for(db, role: str = "procurement", plant: str | None = None):
+    """The test Account for a Role (and Plant, for a Requester); created once per DB.
+
+    Service-level tests pass it as the acting Account.
+    """
+    from sqlalchemy import select
+
+    from app.models import Account, Factory
+    from app.services.auth import create_account
+
+    email = f"{role}-{(plant or 'any').lower()}@test.local"
+    account = db.scalar(select(Account).where(Account.email == email))
+    if account is None:
+        factory_id = (db.scalar(select(Factory.id).where(Factory.code == plant))
+                      if plant else None)
+        account = create_account(db, email, f"Test {role}", role, TEST_PASSWORD,
+                                 factory_id=factory_id, must_change_password=False)
+    return account
+
+
 @pytest.fixture()
 def app_db(db_session):
     """Point the app at the test DB for the duration of a test."""

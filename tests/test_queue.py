@@ -1,7 +1,7 @@
 from sqlalchemy import select
 
 from app.services.requests import RequestError, change_status, submit_request
-from tests.conftest import central_ids
+from tests.conftest import account_for, central_ids
 
 import pytest
 
@@ -10,8 +10,7 @@ def _make_request(db):
     factory, system, group, sub = central_ids(db)
     return submit_request(
         db,
-        requester_name="ทดสอบ",
-        requester_email="t@example.com",
+        account=account_for(db),
         factory_id=factory.id,
         code_system_id=system.id,
         group_id=group.id,

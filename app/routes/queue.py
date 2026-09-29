@@ -10,6 +10,7 @@ from app.services.requests import (
     change_status,
     edit_name,
     list_queue,
+    originator_of,
     override_code,
 )
 from app.templating import templates
@@ -53,7 +54,9 @@ def _taxonomy(db: Session):
 def request_detail(request: Request, request_id: int, db: Session = Depends(get_db)):
     req = db.get(ItemRequest, request_id)
     return templates.TemplateResponse(
-        request, "request_detail.html", {"req": req, "taxonomy": _taxonomy(db)}
+        request, "request_detail.html",
+        {"req": req, "taxonomy": _taxonomy(db),
+         "originator": originator_of(req) if req else None},
     )
 
 

@@ -12,7 +12,15 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import ROLES, Account
+from app.services.auth import has_role
 from app.services.sessions import COOKIE_NAME, account_for_session
+
+
+class RoleForbidden(HTTPException):
+    """The Account's Role may not use this page; main.py renders it as a Thai page."""
+
+    def __init__(self) -> None:
+        super().__init__(status_code=403, detail="บัญชีนี้ไม่มีสิทธิ์ใช้งานหน้านี้")
 
 
 class LoginRequired(Exception):
@@ -41,11 +49,10 @@ def require_role(minimum: str) -> Callable[..., Account]:
     """Dependency allowing `minimum` and every higher Role (ROLES is lowest → highest)."""
     if minimum not in ROLES:
         raise ValueError(f"unknown role: {minimum}")
-    floor = ROLES.index(minimum)
 
     def _check(account: Account = Depends(current_account)) -> Account:
-        if ROLES.index(account.role) < floor:
-            raise HTTPException(status_code=403, detail="บัญชีนี้ไม่มีสิทธิ์ใช้งานหน้านี้")
+        if not has_role(account, minimum):
+            raise RoleForbidden()
         return account
 
     return _check

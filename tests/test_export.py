@@ -12,7 +12,7 @@ from app.models import CodeGroup, CodeSystem, ExportBatch, Factory, ItemRequest
 from app.services.exporter import build_workbook_bytes, export_pending
 from app.services.requests import change_status, submit_request
 from app.services.snapshots import import_snapshot
-from tests.conftest import central_ids
+from tests.conftest import account_for, central_ids
 
 TEMP_DIR = Path(__file__).resolve().parent / "fixtures"
 
@@ -40,7 +40,7 @@ def _headers(path, sheet, hdr_row):
 def _submit_approve(db, factory_code, group_code="900", sub_code="01", **extra):
     factory, system, group, sub = central_ids(db, factory_code, group_code, sub_code)
     req = submit_request(
-        db, requester_name="ทดสอบ", requester_email="t@example.com",
+        db, account=account_for(db),
         factory_id=factory.id, code_system_id=system.id, group_id=group.id,
         subgroup_id=sub.id, item_name=extra.get("name", "Test item"),
         uom=extra.get("uom", "EA"), procurement_category=extra.get("cat", ""),

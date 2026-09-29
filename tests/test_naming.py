@@ -5,7 +5,7 @@ import pytest
 from app.services.naming import NamingError, compose_name
 from app.services.requests import RequestError, change_status, edit_name, submit_request
 from app.services.exporter import export_pending
-from tests.conftest import central_ids
+from tests.conftest import account_for, central_ids
 
 
 def test_compose_convention_order():
@@ -38,7 +38,7 @@ def test_compose_empty_and_too_long_raise():
 def _submit(db, **overrides):
     factory, system, group, sub = central_ids(db)
     kwargs = dict(
-        requester_name="ทดสอบ", requester_email="t@example.com",
+        account=account_for(db),
         factory_id=factory.id, code_system_id=system.id, group_id=group.id,
         subgroup_id=sub.id, item_name="Ball Bearing", brand="SKF",
         model="6205-2Z", size="25 mm",

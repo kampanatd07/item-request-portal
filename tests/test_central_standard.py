@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.models import CodeGroup, CodeSystem, Factory, RunningRegister
 from app.services.naming import NamingError, compose_name
 from app.services.requests import change_status, submit_request
+from tests.conftest import account_for
 
 
 def _central(db):
@@ -37,7 +38,7 @@ def _submit(db, factory_code, group_code, sub_code, **kw):
     system = _central(db)
     grp, sub = _sub(db, group_code, sub_code)
     kwargs = dict(
-        requester_name="ทดสอบ", requester_email="t@example.com",
+        account=account_for(db),
         factory_id=factory.id, code_system_id=system.id,
         group_id=grp.id, subgroup_id=sub.id, item_name="Ball Bearing",
     )

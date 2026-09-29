@@ -2,6 +2,8 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
+from app.services.auth import has_role
+
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 STATUS_LABELS = {
@@ -15,3 +17,4 @@ STATUS_LABELS = {
     "notified": "แจ้งผู้ขอแล้ว",
 }
 templates.env.globals["status_labels"] = STATUS_LABELS
+templates.env.globals["has_role"] = has_role

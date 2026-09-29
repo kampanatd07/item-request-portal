@@ -129,12 +129,12 @@ def test_compound_term_beats_component_term(db_session):
 
 
 def test_submit_normalizes_size_in_name_and_field(db_session):
-    from tests.conftest import central_ids
+    from tests.conftest import account_for, central_ids
 
     # 904-05 Hardware & Fastener Material is where a นail belongs
     factory, system, group, sub = central_ids(db_session, "CBD", "900", "03")
     req = submit_request(
-        db_session, requester_name="p", requester_email="p@x.com",
+        db_session, account=account_for(db_session),
         factory_id=factory.id, code_system_id=system.id, group_id=group.id,
         subgroup_id=sub.id, item_name="ตะปู", brand="XXX", model="#12345",
         size="4 นิ้ว", variant="ดำ",

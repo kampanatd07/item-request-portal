@@ -5,10 +5,17 @@ from app.config import settings
 
 from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
-from app.routes.deps import LoginRequired, current_account, login_url
+from app.routes.deps import (
+    LoginRequired,
+    RoleForbidden,
+    current_account,
+    login_url,
+    require_role,
+)
 from app.routes.exports import router as exports_router
 from app.routes.queue import router as queue_router
 from app.routes.requests import router as requests_router
+from app.templating import templates
 
 # The API docs list every route; keep them to dev machines.
 _dev = settings.app_env == "dev"
@@ -30,11 +37,18 @@ def _redirect_to_login(request: Request, exc: LoginRequired) -> Response:
     return RedirectResponse(target, status_code=303)
 
 
-# Login is required at router level, so a new route added to these routers is
-# protected even if its author forgets. Only auth_router is public.
-_login_required = [Depends(current_account)]
+@app.exception_handler(RoleForbidden)
+def _forbidden_page(request: Request, exc: RoleForbidden) -> Response:
+    return templates.TemplateResponse(
+        request, "forbidden.html", {"message": exc.detail}, status_code=403
+    )
+
+
+# Guards sit at router level: each router is one row of the Authorisation
+# matrix (STORY-001), so a new route inherits its router's guard even if its
+# author forgets. Only auth_router is public.
 app.include_router(auth_router)
-app.include_router(requests_router, dependencies=_login_required)
-app.include_router(queue_router, dependencies=_login_required)
-app.include_router(admin_router, dependencies=_login_required)
-app.include_router(exports_router, dependencies=_login_required)
+app.include_router(requests_router, dependencies=[Depends(current_account)])
+app.include_router(queue_router, dependencies=[Depends(require_role("procurement"))])
+app.include_router(exports_router, dependencies=[Depends(require_role("procurement"))])
+app.include_router(admin_router, dependencies=[Depends(require_role("administrator"))])

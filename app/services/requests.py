@@ -2,7 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import CodeGroup, ItemRequest, RequestEvent
+from app.models import Account, CodeGroup, Factory, ItemRequest, RequestEvent
 from app.services import snapshots
 
 # Allowed status transitions: guards against double-clicks and stale queue pages.
@@ -16,8 +16,23 @@ TRANSITIONS: dict[str, set[str]] = {
 }
 
 
+# Marks the originator line in a "submitted" event's detail, when Procurement
+# submits for someone else. Stored in the audit trail, not in spec_note.
+ON_BEHALF_PREFIX = "ขอแทน: "
+
+
 class RequestError(Exception):
     """Domain error with a user-facing Thai message."""
+
+
+def originator_of(req: ItemRequest) -> str | None:
+    """Who really asked for this request, if it was submitted on their behalf."""
+    for event in req.events:
+        if event.action == "submitted" and event.detail:
+            for line in event.detail.splitlines():
+                if line.startswith(ON_BEHALF_PREFIX):
+                    return line.removeprefix(ON_BEHALF_PREFIX)
+    return None
 
 
 def _canonical_uom(db: Session, raw: str | None) -> str | None:
@@ -46,10 +61,9 @@ def _resolve_search_name(
 
 def submit_request(
     db: Session,
+    account: Account,
     *,
-    requester_name: str,
-    requester_email: str,
-    factory_id: int,
+    factory_id: int | None,
     code_system_id: int,
     group_id: int,
     subgroup_id: int | None,
@@ -63,9 +77,21 @@ def submit_request(
     search_name: str | None = None,
     purchase_price: str | None = None,
     procurement_category: str | None = None,
+    on_behalf_of: str | None = None,
 ) -> ItemRequest:
-    if not requester_name.strip():
-        raise RequestError("กรุณากรอกชื่อผู้ขอ")
+    """Submit a request in the Account's own name.
+
+    A Requester always submits for their own Plant, whatever `factory_id` says
+    (AC3); Procurement and Administrator choose it. `on_behalf_of` names who
+    really asked (e.g. someone who phoned Procurement); it is dropped for a
+    Requester and kept in the audit trail, not in the item's spec.
+    """
+    if account.role == "requester":
+        factory_id = account.factory_id
+        on_behalf_of = None
+    factory = db.get(Factory, factory_id) if factory_id is not None else None
+    if factory is None or not factory.active:
+        raise RequestError("กรุณาเลือกโรงงาน")
     if not item_name.strip():
         raise RequestError("กรุณากรอกชื่อเรียกสินค้า")
 
@@ -102,8 +128,8 @@ def submit_request(
         raise RequestError(str(e)) from e
 
     req = ItemRequest(
-        requester_name=requester_name.strip(),
-        requester_email=requester_email.strip(),
+        requester_name=account.display_name,
+        requester_email=account.email,
         factory_id=factory_id,
         code_system_id=code_system_id,
         group_id=group_id,
@@ -133,15 +159,18 @@ def submit_request(
     source = snapshots.source_for_factory(db, factory_id)
     query = " ".join(p for p in [item_name, brand or "", model or ""] if p)
     matches = snapshots.search_similar(db, source=source, query=query, limit=3)
-    detail = (
-        "duplicate candidates: "
-        + "; ".join(f"{i.item_number} {i.name[:60]} ({s:.0%})" for i, s in matches)
-        if matches
-        else None
-    )
+    lines = []
+    if on_behalf_of and on_behalf_of.strip():
+        lines.append(ON_BEHALF_PREFIX + " ".join(on_behalf_of.split()))
+    if matches:
+        lines.append(
+            "duplicate candidates: "
+            + "; ".join(f"{i.item_number} {i.name[:60]} ({s:.0%})" for i, s in matches)
+        )
     db.add(
         RequestEvent(
-            request_id=req.id, actor=requester_email, action="submitted", detail=detail
+            request_id=req.id, actor=account.email, action="submitted",
+            detail="\n".join(lines) or None,
         )
     )
     db.commit()

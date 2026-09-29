@@ -3,6 +3,8 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models import Account
+from app.routes.deps import current_account
 from app.services import catalog, snapshots
 from app.services.requests import RequestError, submit_request
 from app.templating import templates
@@ -11,10 +13,20 @@ router = APIRouter()
 
 
 @router.get("/", response_class=HTMLResponse)
-def request_form(request: Request, db: Session = Depends(get_db)):
+def request_form(
+    request: Request,
+    db: Session = Depends(get_db),
+    account: Account = Depends(current_account),
+):
+    # A Requester's Plant is fixed, so they are offered only that one.
+    if account.role == "requester":
+        factories = [account.factory]
+    else:
+        factories = catalog.list_factories(db)
     return templates.TemplateResponse(
         request, "request_form.html",
-        {"factories": catalog.list_factories(db), "uoms": catalog.list_uoms(db)},
+        {"factories": factories, "uoms": catalog.list_uoms(db),
+         "plant_locked": account.role == "requester"},
     )
 
 
@@ -145,9 +157,7 @@ def size_fragment(request: Request, size: str = Form("")):
 @router.post("/requests", response_class=HTMLResponse)
 def create_request(
     request: Request,
-    requester_name: str = Form(...),
-    requester_email: str = Form(...),
-    factory_id: int = Form(...),
+    factory_id: int | None = Form(None),
     code_system_id: int = Form(...),
     group_id: int = Form(...),
     subgroup_id: int | None = Form(None),
@@ -161,13 +171,16 @@ def create_request(
     search_name: str = Form(""),
     purchase_price: str = Form(""),
     procurement_category: str = Form(""),
+    on_behalf_of: str = Form(""),
     db: Session = Depends(get_db),
+    account: Account = Depends(current_account),
 ):
+    # Requester name/email are never read from the form: the request is always
+    # in the logged-in Account's name.
     try:
         req = submit_request(
             db,
-            requester_name=requester_name,
-            requester_email=requester_email,
+            account,
             factory_id=factory_id,
             code_system_id=code_system_id,
             group_id=group_id,
@@ -182,6 +195,7 @@ def create_request(
             search_name=search_name,
             purchase_price=purchase_price,
             procurement_category=procurement_category,
+            on_behalf_of=on_behalf_of,
         )
     except RequestError as e:
         return templates.TemplateResponse(

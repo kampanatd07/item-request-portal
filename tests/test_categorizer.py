@@ -14,7 +14,7 @@ from app.services.categorizer import (
 )
 from app.services.requests import RequestError, change_category, change_status, submit_request
 from app.services.snapshots import SnapshotError, import_labeled_master
-from tests.conftest import central_ids
+from tests.conftest import account_for, central_ids
 
 
 def _labeled_xlsx(rows: list[tuple[str, str, str, str]]) -> bytes:
@@ -162,7 +162,7 @@ def test_correction_is_remembered_for_next_time(db_session):
 def test_procurement_recategorise_feeds_the_learner(db_session):
     factory, system, group, sub = central_ids(db_session, "APM", "900", "99")
     req = submit_request(
-        db_session, requester_name="p", requester_email="p@x.com",
+        db_session, account=account_for(db_session),
         factory_id=factory.id, code_system_id=system.id, group_id=group.id,
         subgroup_id=sub.id, item_name="ชิ้นส่วนพิเศษ QX-1",
     )
@@ -179,7 +179,7 @@ def test_procurement_recategorise_feeds_the_learner(db_session):
 def test_category_locked_once_a_code_is_issued(db_session):
     factory, system, group, sub = central_ids(db_session, "APM", "900", "01")
     req = submit_request(
-        db_session, requester_name="p", requester_email="p@x.com",
+        db_session, account=account_for(db_session),
         factory_id=factory.id, code_system_id=system.id, group_id=group.id,
         subgroup_id=sub.id, item_name="Ball Bearing",
     )
