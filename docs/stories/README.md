@@ -13,6 +13,7 @@ story file plus `docs/HANDOFF.md` alone, without chat history.
 | [006](STORY-006-deploy.md) | Deploy to Render/Railway + Postgres | 001, 002 | — |
 | [007](STORY-007-naming-alignment.md) | Names: `mL`, `in`, no `,` (align with standard) | — | 002, 004 |
 | [008](STORY-008-classification-flags.md) | Flag Sub-Category 99 (reason required) and possible fixed assets | — | 002, 007 |
+| [009](STORY-009-requester-resubmit.md) | Requester edits and resubmits a Needs Info request (before plants open) | 001 | 002 |
 
 ## Status values
 `todo` → `planned` (spec + tickets written) → `in-progress` → `review` → `done`
