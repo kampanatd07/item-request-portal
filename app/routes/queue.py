@@ -3,9 +3,11 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import ItemRequest
+from app.models import Account, ItemRequest
+from app.routes.deps import current_account
 from app.services.requests import (
     RequestError,
+    RequestForbidden,
     change_category,
     change_status,
     edit_name,
@@ -16,6 +18,14 @@ from app.services.requests import (
 from app.templating import templates
 
 router = APIRouter(prefix="/queue")
+
+
+def _error(request: Request, e: RequestError) -> HTMLResponse:
+    # A Role refusal is 403 so it reads as "not allowed", not "bad input".
+    status = 403 if isinstance(e, RequestForbidden) else 422
+    return templates.TemplateResponse(
+        request, "partials/form_error.html", {"message": str(e)}, status_code=status
+    )
 
 
 @router.get("", response_class=HTMLResponse)
@@ -67,16 +77,14 @@ def update_status(
     new_status: str = Form(...),
     note: str = Form(""),
     db: Session = Depends(get_db),
+    account: Account = Depends(current_account),
 ):
-    # Actor is hardcoded until auth (slice 6); every change still lands in the audit trail.
     try:
         req = change_status(
-            db, request_id, new_status=new_status, actor="procurement", note=note or None
+            db, request_id, new_status=new_status, account=account, note=note or None
         )
     except RequestError as e:
-        return templates.TemplateResponse(
-            request, "partials/form_error.html", {"message": str(e)}, status_code=422
-        )
+        return _error(request, e)
     return templates.TemplateResponse(
         request, "partials/status_panel.html", {"req": req}
     )
@@ -88,13 +96,12 @@ def rename_item(
     request_id: int,
     new_name: str = Form(...),
     db: Session = Depends(get_db),
+    account: Account = Depends(current_account),
 ):
     try:
-        req = edit_name(db, request_id, new_name=new_name, actor="procurement")
+        req = edit_name(db, request_id, new_name=new_name, account=account)
     except RequestError as e:
-        return templates.TemplateResponse(
-            request, "partials/form_error.html", {"message": str(e)}, status_code=422
-        )
+        return _error(request, e)
     return templates.TemplateResponse(
         request, "partials/name_panel.html", {"req": req}
     )
@@ -106,15 +113,12 @@ def recategorise(
     request_id: int,
     subgroup_id: int = Form(...),
     db: Session = Depends(get_db),
+    account: Account = Depends(current_account),
 ):
     try:
-        req = change_category(
-            db, request_id, subgroup_id=subgroup_id, actor="procurement"
-        )
+        req = change_category(db, request_id, subgroup_id=subgroup_id, account=account)
     except RequestError as e:
-        return templates.TemplateResponse(
-            request, "partials/form_error.html", {"message": str(e)}, status_code=422
-        )
+        return _error(request, e)
     return templates.TemplateResponse(
         request, "partials/category_panel.html", {"req": req, "taxonomy": _taxonomy(db)}
     )
@@ -126,13 +130,12 @@ def edit_code(
     request_id: int,
     new_code: str = Form(...),
     db: Session = Depends(get_db),
+    account: Account = Depends(current_account),
 ):
     try:
-        req = override_code(db, request_id, new_code=new_code, actor="procurement")
+        req = override_code(db, request_id, new_code=new_code, account=account)
     except RequestError as e:
-        return templates.TemplateResponse(
-            request, "partials/form_error.html", {"message": str(e)}, status_code=422
-        )
+        return _error(request, e)
     return templates.TemplateResponse(
         request, "partials/status_panel.html", {"req": req}
     )

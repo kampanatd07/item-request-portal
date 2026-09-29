@@ -40,3 +40,9 @@ HANDOFF §6.4 — the register is the single owner of numbers.
 _(filled by /to-spec + /to-tickets)_
 
 ## Notes
+
+- 2026-09-29 (found in STORY-001 ticket 03, for Peter to confirm): the
+  "codes issued by the portal" report must also list **burned** numbers — the
+  old code of a `code_reissued` event and the code of a `code_burned` event
+  (approved request rejected by an Administrator). They were issued from the
+  register and must never be reissued by the group master either.

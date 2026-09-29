@@ -37,8 +37,10 @@ Owner of the standard: Peter (Procurement Strategy). Any rule marked
   item is blocked.
 - No pre-reserved blocks. (Legacy systems pre-generated 5,316 empty codes — the
   reason this rule exists.)
-- Moving an item to another Sub-Category or Group = a **new code**. Therefore
-  category is locked once a code is issued.
+- Moving an item to another Sub-Category or Group = a **new code**. Category is
+  locked once a code is issued, except by an Administrator (Data Steward) while
+  the request is still approved and not exported — that issues a new code from
+  the new Sub-Category's register and burns the old number (Governance §4).
 
 ## 3. Naming (approved)
 
@@ -155,7 +157,8 @@ environment). Merging is a deliberate, logged admin action.
 **Suggestions and duplicates**
 - Auto-select a suggestion only when confidence reflects *closeness* of the
   match, not just agreement among distant neighbours. Always editable until a
-  code is issued.
+  code is issued; after that only an Administrator may change the category,
+  before export, and doing so issues a new code (§2).
 - Duplicate merge is conservative: identical after normalization **and** same
   Sub-Category.
 

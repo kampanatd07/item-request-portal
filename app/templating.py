@@ -8,7 +8,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 STATUS_LABELS = {
     "submitted": "ส่งคำขอแล้ว",
-    "in_review": "กำลังตรวจสอบ",
+    "in_review": "ตรวจแล้ว รออนุมัติ",
     "needs_info": "ขอข้อมูลเพิ่ม",
     "approved": "อนุมัติแล้ว",
     "rejected": "ไม่อนุมัติ",

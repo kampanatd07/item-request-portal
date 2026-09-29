@@ -3,11 +3,20 @@
 <p>Item code: <code style="font-size:18px; background:#e1f5ee; padding:2px 10px; border-radius:6px;">{{ req.generated_code }}</code></p>
 {% endif %}
 {% if req.review_note %}<p class="muted">หมายเหตุ: {{ req.review_note }}</p>{% endif %}
-{% if req.status == "approved" %}
+{% set is_admin = has_role(request.state.account, "administrator") %}
+{% if req.status == "approved" and is_admin %}
 <form hx-post="/queue/{{ req.id }}/code" hx-target="#status-panel" hx-swap="innerHTML" style="max-width:340px;">
   <label class="muted">แก้รหัสเอง (กรณีพิเศษ — จะถูกบันทึกใน audit)</label>
   <input name="new_code" value="{{ req.generated_code }}">
   <button type="submit" class="secondary">บันทึกรหัสใหม่</button>
+</form>
+{% endif %}
+{% if req.status == "approved" and is_admin %}
+{# Rejecting after a code burns that number for good: reason required. #}
+<form hx-post="/queue/{{ req.id }}/status" hx-target="#status-panel" hx-swap="innerHTML" style="max-width:480px;">
+  <label>ไม่อนุมัติ (รหัส {{ req.generated_code }} จะถูกทิ้งถาวร) — เหตุผล *</label>
+  <input name="note" required>
+  <button name="new_status" value="rejected" class="danger">ไม่อนุมัติ</button>
 </form>
 {% endif %}
 {% if req.status in ["submitted", "in_review", "needs_info"] %}
@@ -17,7 +26,11 @@
   {% if req.status == "needs_info" %}
   <button name="new_status" value="submitted">ผู้ขอส่งข้อมูลแล้ว รับเข้าคิวใหม่</button>
   {% else %}
-  <button name="new_status" value="approved">อนุมัติ</button>
+  {# Approval issues a Running Number: Administrator only (Governance v1 §3). #}
+  {% if is_admin %}<button name="new_status" value="approved">อนุมัติ</button>{% endif %}
+  {% if req.status == "submitted" %}
+  <button name="new_status" value="in_review" class="secondary">ตรวจแล้ว ส่งรออนุมัติ</button>
+  {% endif %}
   <button name="new_status" value="needs_info" class="secondary">ขอข้อมูลเพิ่ม</button>
   {% endif %}
   <button name="new_status" value="rejected" class="danger">ไม่อนุมัติ</button>

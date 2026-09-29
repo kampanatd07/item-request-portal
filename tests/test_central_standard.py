@@ -86,7 +86,7 @@ def test_every_factory_uses_the_central_system(db_session):
 
 def test_code_is_group_sub_00_running(db_session):
     req = _submit(db_session, "CBD", "900", "01")
-    change_status(db_session, req.id, new_status="approved", actor="t")
+    change_status(db_session, req.id, new_status="approved", account=account_for(db_session, "administrator"))
     code = req.generated_code
     assert len(code) == 11 and code.isdigit()
     assert code[:3] == "900"       # Item Group
@@ -103,7 +103,7 @@ def test_running_continues_from_the_register(db_session):
     )
     before = reg.last_running
     req = _submit(db_session, "APM", "900", "01")
-    change_status(db_session, req.id, new_status="approved", actor="t")
+    change_status(db_session, req.id, new_status="approved", account=account_for(db_session, "administrator"))
     assert req.generated_code == f"90001{'00'}{before + 1:04d}"
     db_session.refresh(reg)
     assert reg.last_running == before + 1
@@ -113,7 +113,7 @@ def test_central_codes_never_collide_with_legacy_zero_zero_zero_zero(db_session)
     """Legacy ACM/APM/APG codes all carry 0000 in digits 4-7; central codes
     always carry a sub-category >= 01, so the two ranges are disjoint."""
     req = _submit(db_session, "ACM", "700", "02")
-    change_status(db_session, req.id, new_status="approved", actor="t")
+    change_status(db_session, req.id, new_status="approved", account=account_for(db_session, "administrator"))
     assert req.generated_code[3:7] != "0000"
 
 
@@ -123,7 +123,7 @@ def test_one_item_one_code_across_plants(db_session):
     codes = []
     for plant in ["CBD", "APM", "APG", "ACM"]:
         req = _submit(db_session, plant, "907", "01", item_name=f"Notebook {plant}")
-        change_status(db_session, req.id, new_status="approved", actor="t")
+        change_status(db_session, req.id, new_status="approved", account=account_for(db_session, "administrator"))
         codes.append(req.generated_code)
     assert len(set(codes)) == 4                     # all distinct
     assert len({c[:7] for c in codes}) == 1         # same group+sub prefix

@@ -4,13 +4,19 @@
   {{ req.subgroup.name if req.subgroup else req.group.name }}
   <span class="muted">({{ req.group.name }})</span>
 </p>
-{% if not req.generated_code %}
+{% set can_recode = req.status == "approved" and has_role(request.state.account, "administrator") %}
+{% if not req.generated_code or can_recode %}
 <form hx-post="/queue/{{ req.id }}/category" hx-target="#category-panel" hx-swap="innerHTML"
       style="max-width:520px;">
+  {% if req.generated_code %}
+  <label class="muted">แก้หมวด — จะออกรหัสใหม่จากหมวดใหม่ และเลข {{ req.generated_code }} จะถูกทิ้งถาวร</label>
+  {% else %}
   <label class="muted">แก้หมวด (ระบบจะจำไว้ใช้แนะนำครั้งหน้า)</label>
+  {% endif %}
   <select name="subgroup_id" required>
     <option value="" disabled selected>-- เลือกหมวดย่อย --</option>
-    {% for grp, subs in taxonomy %}
+    {# After a code, only Sub-Categories of the same Item Group (Governance §4). #}
+    {% for grp, subs in taxonomy if not req.generated_code or grp.id == req.group_id %}
     <optgroup label="{{ grp.code }} {{ grp.name }}">
       {% for s in subs %}
       <option value="{{ s.id }}" {% if req.subgroup and s.id == req.subgroup.id %}selected{% endif %}>
@@ -23,5 +29,5 @@
   <button type="submit" class="secondary">บันทึกหมวดใหม่</button>
 </form>
 {% else %}
-<p class="muted">ออกรหัสแล้ว — เปลี่ยนหมวดไม่ได้ เพราะรหัสอิงหมวด</p>
+<p class="muted">ออกรหัสแล้ว — เปลี่ยนหมวดได้เฉพาะผู้ดูแลระบบ ก่อน export</p>
 {% endif %}

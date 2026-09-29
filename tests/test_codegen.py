@@ -22,7 +22,7 @@ def _submit(db, factory_code="APM", group_code="900", sub_code="01", **kw):
 
 
 def _approve(db, req):
-    return change_status(db, req.id, new_status="approved", actor="test")
+    return change_status(db, req.id, new_status="approved", account=account_for(db, "administrator"))
 
 
 def test_two_approvals_same_subcategory_get_consecutive_codes(db_session):
@@ -60,10 +60,10 @@ def test_register_is_the_only_source_of_numbers(db_session):
 def test_override_code_logs_and_rejects_duplicates(db_session):
     r1 = _approve(db_session, _submit(db_session, group_code="907", sub_code="01"))
     r2 = _approve(db_session, _submit(db_session, group_code="907", sub_code="01"))
-    override_code(db_session, r2.id, new_code="90701009999", actor="test")
+    override_code(db_session, r2.id, new_code="90701009999", account=account_for(db_session, "administrator"))
     assert r2.generated_code == "90701009999"
     with pytest.raises(RequestError):
-        override_code(db_session, r1.id, new_code="90701009999", actor="test")
+        override_code(db_session, r1.id, new_code="90701009999", account=account_for(db_session, "administrator"))
     assert [e.action for e in r2.events][-1] == "code_overridden"
 
 

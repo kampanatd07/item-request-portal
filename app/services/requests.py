@@ -4,13 +4,15 @@ from sqlalchemy.orm import Session
 
 from app.models import Account, CodeGroup, Factory, ItemRequest, RequestEvent
 from app.services import snapshots
+from app.services.auth import has_role
 
 # Allowed status transitions: guards against double-clicks and stale queue pages.
 TRANSITIONS: dict[str, set[str]] = {
     "submitted": {"in_review", "approved", "rejected", "needs_info"},
     "in_review": {"approved", "rejected", "needs_info"},
     "needs_info": {"submitted", "rejected"},
-    "approved": {"exported"},
+    # approved -> rejected: Administrator only, reason required, code burned.
+    "approved": {"exported", "rejected"},
     "exported": {"created"},
     "created": {"notified"},
 }
@@ -23,6 +25,38 @@ ON_BEHALF_PREFIX = "ขอแทน: "
 
 class RequestError(Exception):
     """Domain error with a user-facing Thai message."""
+
+
+class RequestForbidden(RequestError):
+    """The acting Account's Role may not do this; routes answer 403."""
+
+
+def _get_locked(db: Session, request_id: int) -> ItemRequest | None:
+    """Load a request with its row locked until commit (Postgres; SQLite ignores it).
+
+    Every change to a request goes through here, and export locks the same rows,
+    so two actions on one request run one after the other. Each caller checks
+    status only after this returns, i.e. after it holds the lock and sees the
+    latest committed row — e.g. a re-categorise and an export racing on an
+    approved request can no longer leave an exported request with a new code.
+    """
+    return db.scalar(
+        select(ItemRequest)
+        .where(ItemRequest.id == request_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+
+
+def _require_administrator(account: Account) -> None:
+    """Guard for the actions that consume the Running Register.
+
+    Governance v1 §3: only the Data Steward (Administrator) issues running
+    numbers, and an issued number is used forever. Callers check this before
+    touching the register, so a refused attempt never burns a number.
+    """
+    if not has_role(account, "administrator"):
+        raise RequestForbidden("เฉพาะผู้ดูแลระบบ (Data Steward) เท่านั้นที่ทำรายการนี้ได้")
 
 
 def originator_of(req: ItemRequest) -> str | None:
@@ -178,9 +212,13 @@ def submit_request(
 
 
 def change_status(
-    db: Session, request_id: int, *, new_status: str, actor: str, note: str | None = None
+    db: Session, request_id: int, *, new_status: str, account: Account,
+    note: str | None = None,
 ) -> ItemRequest:
-    req = db.get(ItemRequest, request_id)
+    # Approval mints a code from the register: Administrator only.
+    if new_status == "approved":
+        _require_administrator(account)
+    req = _get_locked(db, request_id)
     if req is None:
         raise RequestError("ไม่พบคำขอนี้")
     allowed = TRANSITIONS.get(req.status, set())
@@ -188,10 +226,27 @@ def change_status(
         raise RequestError(
             f"เปลี่ยนสถานะจาก {req.status} เป็น {new_status} ไม่ได้"
         )
+    # Rejecting an approved request throws away an issued number for good, so
+    # only the Data Steward may do it (checked after the lock, on fresh status),
+    # and must say why.
+    burned_code = None
+    if req.status == "approved" and new_status == "rejected":
+        _require_administrator(account)
+        if not (note or "").strip():
+            raise RequestError("กรุณาระบุเหตุผลที่ไม่อนุมัติคำขอที่ออกรหัสแล้ว")
+        burned_code = req.generated_code
     req.status = new_status
     if note:
         req.review_note = note
-    db.add(RequestEvent(request_id=req.id, actor=actor, action=new_status, detail=note))
+    db.add(RequestEvent(request_id=req.id, actor=account.email, action=new_status,
+                        detail=note))
+    if burned_code:
+        # The code stays on the request (and its unique constraint), so the
+        # number can never be issued or overridden onto another item.
+        db.add(RequestEvent(
+            request_id=req.id, actor=account.email, action="code_burned",
+            detail=f"code {burned_code} ถูกทิ้งถาวร (ไม่อนุมัติหลังออกรหัส)",
+        ))
 
     # Approval mints the item code in the same transaction; the unique
     # constraint on generated_code is the last line of defense against races.
@@ -206,7 +261,8 @@ def change_status(
         req.generated_code = code
         db.add(
             RequestEvent(
-                request_id=req.id, actor=actor, action="code_generated", detail=code
+                request_id=req.id, actor=account.email, action="code_generated",
+                detail=code,
             )
         )
     try:
@@ -219,9 +275,11 @@ def change_status(
     return req
 
 
-def edit_name(db: Session, request_id: int, *, new_name: str, actor: str) -> ItemRequest:
+def edit_name(
+    db: Session, request_id: int, *, new_name: str, account: Account
+) -> ItemRequest:
     """Procurement-only override of the composed product name, before export."""
-    req = db.get(ItemRequest, request_id)
+    req = _get_locked(db, request_id)
     if req is None:
         raise RequestError("ไม่พบคำขอนี้")
     if req.status in {"exported", "created", "notified"}:
@@ -235,7 +293,7 @@ def edit_name(db: Session, request_id: int, *, new_name: str, actor: str) -> Ite
     req.item_name = new_name
     db.add(
         RequestEvent(
-            request_id=req.id, actor=actor, action="name_edited",
+            request_id=req.id, actor=account.email, action="name_edited",
             detail=f"{old} -> {new_name}",
         )
     )
@@ -244,20 +302,39 @@ def edit_name(db: Session, request_id: int, *, new_name: str, actor: str) -> Ite
 
 
 def change_category(
-    db: Session, request_id: int, *, subgroup_id: int, actor: str
+    db: Session, request_id: int, *, subgroup_id: int, account: Account
 ) -> ItemRequest:
-    """Procurement re-categorises a request before a code is issued, and the
-    correction is fed back so similar future requests start out right."""
-    req = db.get(ItemRequest, request_id)
+    """Re-categorise a request; the correction is fed back so similar future
+    requests start out right.
+
+    Before a code: Procurement may do it, to any Group. After a code
+    (Administrator only, only while still `approved`, i.e. not yet in AX, and
+    only within the same Item Group): the code encodes the category, so a new
+    code is issued from the new sub-category's register and the old number is
+    burned for good.
+    """
+    req = _get_locked(db, request_id)
     if req is None:
         raise RequestError("ไม่พบคำขอนี้")
     if req.generated_code:
-        raise RequestError("เปลี่ยนหมวดไม่ได้หลังออกรหัสแล้ว — รหัสอิงหมวด")
+        _require_administrator(account)
+        if req.status != "approved":
+            raise RequestError("เปลี่ยนหมวดไม่ได้หลัง export แล้ว — รหัสอยู่ใน AX แล้ว")
 
     sub = db.get(CodeGroup, subgroup_id)
     if sub is None or sub.parent_id is None or not sub.active:
         raise RequestError("หมวดย่อยไม่ถูกต้อง")
     parent = db.get(CodeGroup, sub.parent_id)
+    if parent.code_system_id != req.code_system_id:
+        raise RequestError("หมวดย่อยไม่ถูกต้องสำหรับระบบรหัสของคำขอนี้")
+    # Governance §4: the Data Steward may move a coded item between
+    # Sub-Categories, but moving it to another Item Group needs the Data Owner,
+    # an approval step outside v1. Before a code, any move is fine.
+    if req.generated_code and parent.id != req.group_id:
+        raise RequestError(
+            "ย้ายข้าม Item Group หลังออกรหัสแล้วต้องให้ Data Owner อนุมัติ "
+            "(Governance §4) — ให้กด 'ไม่อนุมัติ' คำขอนี้ แล้วส่งคำขอใหม่ในหมวดที่ถูกต้อง"
+        )
     old = f"{req.group.code}-{req.subgroup.code}" if req.subgroup else req.group.code
     new = f"{parent.code}-{sub.code}"
     if old == new:
@@ -267,24 +344,49 @@ def change_category(
     req.subgroup_id = sub.id
     db.add(
         RequestEvent(
-            request_id=req.id, actor=actor, action="category_changed",
+            request_id=req.id, actor=account.email, action="category_changed",
             detail=f"{old} -> {new}",
         )
     )
-    db.commit()
+    if req.generated_code:
+        from app.services.codegen import CodegenError, generate_code
+
+        db.flush()
+        db.refresh(req)  # load the new group/subgroup for the code prefix
+        old_code = req.generated_code
+        try:
+            new_code = generate_code(db, req)
+        except CodegenError as e:
+            db.rollback()
+            raise RequestError(str(e)) from e
+        req.generated_code = new_code
+        db.add(
+            RequestEvent(
+                request_id=req.id, actor=account.email, action="code_reissued",
+                detail=f"{old_code} -> {new_code}",
+            )
+        )
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        raise RequestError("ออกรหัสใหม่ชนกับคำขออื่น — ลองอีกครั้ง") from e
 
     from app.services.categorizer import learn_from_correction
 
     learn_from_correction(
-        db, name=req.item_name, group_code=parent.code, sub_code=sub.code, actor=actor
+        db, name=req.item_name, group_code=parent.code, sub_code=sub.code,
+        actor=account.email,
     )
     return req
 
 
 def override_code(
-    db: Session, request_id: int, *, new_code: str, actor: str
+    db: Session, request_id: int, *, new_code: str, account: Account
 ) -> ItemRequest:
-    req = db.get(ItemRequest, request_id)
+    # Not yet validated against the register — see STORY-010.
+    _require_administrator(account)
+    req = _get_locked(db, request_id)
     if req is None:
         raise RequestError("ไม่พบคำขอนี้")
     if req.status not in {"approved"}:
@@ -296,7 +398,7 @@ def override_code(
     req.generated_code = new_code
     db.add(
         RequestEvent(
-            request_id=req.id, actor=actor, action="code_overridden",
+            request_id=req.id, actor=account.email, action="code_overridden",
             detail=f"{old} -> {new_code}",
         )
     )

@@ -1,6 +1,6 @@
 # STORY-006: Deploy for the 4 plants
 
-Status: todo · Depends on: STORY-001, STORY-002
+Status: todo · Depends on: STORY-001, STORY-002, STORY-010 (code override must be validated before deploy)
 
 ## Why
 The app only runs on Peter's laptop. Plants need a URL.
@@ -24,7 +24,12 @@ The app only runs on Peter's laptop. Plants need a URL.
 2. Two simultaneous approvals in the same sub-category on Postgres get distinct
    consecutive codes
 3. README "When things break" section has real log/backup/restore locations
-4. **Before go-live:** confirm with Peter that the company data policy allows
+4. Row locks (`FOR UPDATE`) tested on real Postgres: an approval or a
+   re-categorise running at the same time as an export of the same request
+   never races — the loser waits, re-checks status after the lock, and no
+   exported request ends up with a code different from its export file
+   (locks added in STORY-001 ticket 03; SQLite tests cannot run this)
+5. **Before go-live:** confirm with Peter that the company data policy allows
    external hosting of item data (flagged in decisions.md 2026-07-24)
 
 ## Files likely touched

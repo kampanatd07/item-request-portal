@@ -12,7 +12,12 @@ from app.services.categorizer import (
     learn_from_correction,
     suggest_category,
 )
-from app.services.requests import RequestError, change_category, change_status, submit_request
+from app.services.requests import (
+    RequestForbidden,
+    change_category,
+    change_status,
+    submit_request,
+)
 from app.services.snapshots import SnapshotError, import_labeled_master
 from tests.conftest import account_for, central_ids
 
@@ -154,7 +159,8 @@ def test_correction_is_remembered_for_next_time(db_session):
     name = "อะไหล่พิเศษ ZX-9000"
     assert suggest_category(db_session, name) == []
 
-    learn_from_correction(db_session, name=name, group_code="900", sub_code="99")
+    learn_from_correction(db_session, name=name, group_code="900", sub_code="99",
+                          actor="t@test.local")
     out = suggest_category(db_session, "อะไหล่พิเศษ ZX-9000")
     assert (out[0].group.code, out[0].sub.code) == ("900", "99")
 
@@ -167,7 +173,7 @@ def test_procurement_recategorise_feeds_the_learner(db_session):
         subgroup_id=sub.id, item_name="ชิ้นส่วนพิเศษ QX-1",
     )
     _f, _s, right_group, right_sub = central_ids(db_session, "APM", "900", "01")
-    change_category(db_session, req.id, subgroup_id=right_sub.id, actor="procurement")
+    change_category(db_session, req.id, subgroup_id=right_sub.id, account=account_for(db_session))
 
     assert req.group_id == right_group.id and req.subgroup_id == right_sub.id
     assert [e.action for e in req.events][-1] == "category_changed"
@@ -176,14 +182,14 @@ def test_procurement_recategorise_feeds_the_learner(db_session):
     assert (out[0].group.code, out[0].sub.code) == ("900", "01")
 
 
-def test_category_locked_once_a_code_is_issued(db_session):
+def test_procurement_cannot_recategorise_once_a_code_is_issued(db_session):
     factory, system, group, sub = central_ids(db_session, "APM", "900", "01")
     req = submit_request(
         db_session, account=account_for(db_session),
         factory_id=factory.id, code_system_id=system.id, group_id=group.id,
         subgroup_id=sub.id, item_name="Ball Bearing",
     )
-    change_status(db_session, req.id, new_status="approved", actor="t")
+    change_status(db_session, req.id, new_status="approved", account=account_for(db_session, "administrator"))
     _f, _s, _g, other_sub = central_ids(db_session, "APM", "900", "02")
-    with pytest.raises(RequestError, match="รหัส"):
-        change_category(db_session, req.id, subgroup_id=other_sub.id, actor="p")
+    with pytest.raises(RequestForbidden):
+        change_category(db_session, req.id, subgroup_id=other_sub.id, account=account_for(db_session))

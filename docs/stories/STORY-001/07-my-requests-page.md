@@ -18,3 +18,7 @@ STORY-009, not this ticket. No migration.
 - [ ] Review note and Central Code show when present
 - [ ] Requester lands here after login
 - [ ] Available to every Role
+- [ ] A rejected request that still carries a code (Administrator rejected it
+      after approval, `code_burned` event) never shows that code as usable:
+      it is shown struck through with "ยกเลิกแล้ว ห้ามใช้" and the reason
+      from `review_note` (added 2026-09-29, Peter)
