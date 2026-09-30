@@ -1,4 +1,5 @@
 from app.models.core import (
+    RETIRE_REASONS,
     ROLES,
     Account,
     CodeGroup,
@@ -11,6 +12,7 @@ from app.models.core import (
     ItemSnapshot,
     ProcurementCategory,
     RequestEvent,
+    RetiredCode,
     RunningRegister,
     SearchTerm,
     SnapshotImport,
@@ -19,6 +21,7 @@ from app.models.core import (
 )
 
 __all__ = [
+    "RETIRE_REASONS",
     "ROLES",
     "Account",
     "CodeGroup",
@@ -31,6 +34,7 @@ __all__ = [
     "ItemSnapshot",
     "ProcurementCategory",
     "RequestEvent",
+    "RetiredCode",
     "RunningRegister",
     "SearchTerm",
     "SnapshotImport",

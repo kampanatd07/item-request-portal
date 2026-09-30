@@ -18,7 +18,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import ItemRequest, ItemSnapshot, RunningRegister
+from app.models import RETIRE_REASONS, ItemRequest, ItemSnapshot, RetiredCode, RunningRegister
 from app.services.snapshots import source_for_factory
 
 RUN_RE = re.compile(r"\{run:(\d+)\}")
@@ -26,6 +26,34 @@ RUN_RE = re.compile(r"\{run:(\d+)\}")
 
 class CodegenError(Exception):
     """Domain error with a user-facing Thai message."""
+
+
+def is_retired(db: Session, code: str) -> bool:
+    """True if `code` was issued once and thrown away (never usable again),
+    including one retired earlier in this still-open transaction."""
+    if any(isinstance(o, RetiredCode) and o.code == code for o in db.new):
+        return True
+    # No autoflush: the caller may hold unflushed changes (e.g. a new code on the
+    # request) whose own errors must surface at the caller's commit, not here.
+    with db.no_autoflush:
+        return db.scalar(select(RetiredCode.id).where(RetiredCode.code == code)) is not None
+
+
+def retire_code(db: Session, code: str, *, request_id: int | None, reason: str,
+                actor: str) -> RetiredCode:
+    """Record that an issued Central Code is thrown away for good.
+
+    The only writer of retired_codes. Adds to the caller's session without
+    committing, so it lands in the same transaction as the change that burned
+    the number; the unique constraint on `code` backs this check up at commit.
+    """
+    if reason not in RETIRE_REASONS:
+        raise ValueError(f"unknown retire reason: {reason}")
+    if is_retired(db, code):
+        raise CodegenError(f"รหัส {code} ถูกทิ้งไปแล้ว — ใช้ซ้ำไม่ได้")
+    retired = RetiredCode(code=code, request_id=request_id, reason=reason, actor=actor)
+    db.add(retired)
+    return retired
 
 
 def build_prefix_and_runlen(request: ItemRequest) -> tuple[str, int]:

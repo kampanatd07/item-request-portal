@@ -328,3 +328,31 @@ class Account(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     factory: Mapped[Factory | None] = relationship()
+
+
+# Why a Central Code was thrown away (STORY-010).
+RETIRE_REASONS = ["reissued", "overridden", "rejected", "skipped"]
+
+
+class RetiredCode(Base):
+    """A Central Code that was issued and then thrown away: never usable again.
+
+    Governance v1 §3: an issued number is used forever. The unique `code` is the
+    DB-level guarantee, so nothing has to parse event text to know it.
+    """
+
+    __tablename__ = "retired_codes"
+    __table_args__ = (
+        CheckConstraint(
+            "reason IN ('reissued', 'overridden', 'rejected', 'skipped')",
+            name="ck_retired_codes_reason",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(11), unique=True)
+    request_id: Mapped[int | None] = mapped_column(ForeignKey("item_requests.id"), nullable=True)
+    reason: Mapped[str] = mapped_column(String(20))
+    actor: Mapped[str] = mapped_column(String(254))
+    at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+

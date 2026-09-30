@@ -31,6 +31,17 @@ class RequestForbidden(RequestError):
     """The acting Account's Role may not do this; routes answer 403."""
 
 
+def _retire(db: Session, code: str, req: ItemRequest, reason: str, account: Account) -> None:
+    """Retire a thrown-away code in the caller's transaction; a refusal undoes it all."""
+    from app.services.codegen import CodegenError, retire_code
+
+    try:
+        retire_code(db, code, request_id=req.id, reason=reason, actor=account.email)
+    except CodegenError as e:
+        db.rollback()
+        raise RequestError(str(e)) from e
+
+
 def _get_locked(db: Session, request_id: int) -> ItemRequest | None:
     """Load a request with its row locked until commit (Postgres; SQLite ignores it).
 
@@ -241,12 +252,13 @@ def change_status(
     db.add(RequestEvent(request_id=req.id, actor=account.email, action=new_status,
                         detail=note))
     if burned_code:
-        # The code stays on the request (and its unique constraint), so the
-        # number can never be issued or overridden onto another item.
+        # The code also stays on the request (and its unique constraint); the
+        # Retired Code is what later checks read (STORY-010).
         db.add(RequestEvent(
             request_id=req.id, actor=account.email, action="code_burned",
             detail=f"code {burned_code} ถูกทิ้งถาวร (ไม่อนุมัติหลังออกรหัส)",
         ))
+        _retire(db, burned_code, req, "rejected", account)
 
     # Approval mints the item code in the same transaction; the unique
     # constraint on generated_code is the last line of defense against races.
@@ -366,6 +378,7 @@ def change_category(
                 detail=f"{old_code} -> {new_code}",
             )
         )
+        _retire(db, old_code, req, "reissued", account)
     try:
         db.commit()
     except IntegrityError as e:
@@ -395,6 +408,16 @@ def override_code(
     if not new_code:
         raise RequestError("กรุณากรอกรหัส")
     old = req.generated_code
+    if new_code == old:
+        return req
+    # A thrown-away number is never used again. Checked here already (the rest
+    # of the override rules are STORY-010 ticket 03): without it, overriding
+    # A -> B -> A would leave the request carrying a retired A that no later
+    # reject/re-categorise/override could retire again, so only export remained.
+    from app.services.codegen import is_retired
+
+    if is_retired(db, new_code):
+        raise RequestError(f"รหัส {new_code} ถูกทิ้งไปแล้ว — ใช้ซ้ำไม่ได้")
     req.generated_code = new_code
     db.add(
         RequestEvent(
@@ -402,6 +425,7 @@ def override_code(
             detail=f"{old} -> {new_code}",
         )
     )
+    _retire(db, old, req, "overridden", account)
     try:
         db.commit()
     except IntegrityError as e:
