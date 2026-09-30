@@ -10,7 +10,10 @@ The app only runs on Peter's laptop. Plants need a URL.
 - CI also runs `alembic upgrade head` against a fresh Postgres service container
   (catches trap HANDOFF §6.8, which SQLite tests miss)
 - Deploy the existing `Dockerfile` to Render or Railway with managed Postgres
-- `DATABASE_URL`, `SECRET_KEY`, SMTP settings as platform secrets
+- `DATABASE_URL`, `SECRET_KEY`, SMTP settings as platform secrets. Leave
+  `APP_ENV` **unset** (or `production`): the app then requires a real
+  `SECRET_KEY`, marks the session cookie Secure and hides `/docs`. Never set
+  `APP_ENV=dev` on the platform (STORY-001 pre-merge hardening)
 - Daily DB backup (platform snapshot) + documented restore steps in README
 - Postgres row lock on register allocation is already implemented
   (`with_for_update` in codegen.py) — verify with a concurrency test on Postgres

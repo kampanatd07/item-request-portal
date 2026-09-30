@@ -3,6 +3,10 @@ REM One-click local runner for the Item Request Portal.
 REM Assumes a .venv already exists in this folder (created with Anaconda python).
 cd /d "%~dp0"
 
+REM Local machine: without this the app assumes production and refuses the
+REM placeholder SECRET_KEY (app/config.py fails closed).
+set APP_ENV=dev
+
 if not exist ".venv\Scripts\python.exe" (
     echo .venv not found. Create it first with:
     echo    "C:\Users\kampanat.dae\AppData\Local\anaconda3\python.exe" -m venv .venv

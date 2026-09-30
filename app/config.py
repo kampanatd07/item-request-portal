@@ -10,7 +10,9 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./dev.db"
     secret_key: str = "dev-only-change-me"
-    app_env: str = "dev"
+    # Fail closed: an unset APP_ENV means production (real SECRET_KEY required,
+    # Secure cookie, no /docs). Dev machines set APP_ENV=dev explicitly.
+    app_env: str = "production"
 
     # Argon2 cost parameters. Defaults are argon2-cffi's RFC 9106 profile;
     # tests lower them through env vars so the suite stays fast.

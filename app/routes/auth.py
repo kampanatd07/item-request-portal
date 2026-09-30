@@ -7,21 +7,18 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.models import Account
-from app.routes.deps import CHANGE_PASSWORD_PATH, MY_REQUESTS_PATH, session_account
+from app.routes.deps import (
+    CHANGE_PASSWORD_PATH,
+    MY_REQUESTS_PATH,
+    safe_next,
+    session_account,
+)
 from app.services.auth import AuthError, authenticate, change_own_password
 from app.services.clock import Clock, get_clock
 from app.services.sessions import COOKIE_NAME, account_for_session, issue_session, remaining
 from app.templating import templates
 
 router = APIRouter()
-
-
-def _safe_next(next_path: str | None) -> str:
-    # Only same-site paths; "//evil.com" or "https://..." would be an open redirect.
-    if next_path and next_path.startswith("/") and not next_path.startswith("//") \
-            and "\\" not in next_path:
-        return next_path
-    return "/"
 
 
 def _landing(account: Account, next_path: str | None) -> str:
@@ -33,7 +30,7 @@ def _landing(account: Account, next_path: str | None) -> str:
     """
     if account.must_change_password:
         return CHANGE_PASSWORD_PATH
-    target = _safe_next(next_path)
+    target = safe_next(next_path)
     if target == "/" and account.role == "requester":
         return MY_REQUESTS_PATH
     return target
@@ -65,7 +62,7 @@ def login_page(
         return RedirectResponse(_landing(account, next), status_code=303)
     return templates.TemplateResponse(
         request, "login.html",
-        {"next": _safe_next(next), "email": "", "error": None, "relogin": bool(relogin)},
+        {"next": safe_next(next), "email": "", "error": None, "relogin": bool(relogin)},
     )
 
 
@@ -83,7 +80,7 @@ def login(
     except AuthError as e:
         return templates.TemplateResponse(
             request, "login.html",
-            {"next": _safe_next(next), "email": email, "error": str(e), "relogin": False},
+            {"next": safe_next(next), "email": email, "error": str(e), "relogin": False},
             status_code=401,
         )
     response = RedirectResponse(_landing(account, next), status_code=303)

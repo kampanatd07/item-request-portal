@@ -37,7 +37,7 @@ there is no login, so anyone with the URL can approve and issue codes.
 | Email notification | **not started — STORY-002** |
 | Deployment | **not started — STORY-006** |
 
-Tests: 325 passing (`pytest`).
+Tests: 341 passing (`pytest`).
 
 Queued chore (after STORY-001 ships, Peter 2026-09-30): speed up the suite.
 Every test rebuilds its SQLite DB with `create_all` + `seed` (~0.35 s each,
@@ -66,6 +66,7 @@ Source documents live in `docs/group-standard/`. The approved standard:
 ```powershell
 cd D:\dev\item-request-portal          # NOT inside OneDrive — see trap 6.6
 .\.venv\Scripts\Activate.ps1           # if blocked: Set-ExecutionPolicy -Scope Process Bypass
+$env:APP_ENV = "dev"                    # required locally: unset means production (fails closed)
 alembic upgrade head
 python -m app.seed                      # must print "Seed complete."
 python -m app.create_admin              # first time only: your own Administrator login

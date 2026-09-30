@@ -371,3 +371,17 @@ Open (asked, not yet answered — recommendation in brackets):
 
 Matrix, scope and acceptance criteria updated 2026-09-29. Spec and 7 tickets written in
 `## Plan`. Next: ticket 01.
+
+### Pre-merge decisions (2026-09-30, Peter)
+- **AC11 exception, confirmed:** the first Administrator created with
+  `python -m app.create_admin` is not forced to change the password at first
+  login. That person types their own password twice at the command line
+  (getpass), so it is not a temporary password anyone else has seen; forcing a
+  change would add a step without protecting anything. Every Account created
+  or reset from the web gets a random temporary password and must change it.
+- Pre-merge hardening after the whole-branch review: `APP_ENV` defaults to
+  production (fail closed); the return page after an expired HTMX request
+  comes from `HX-Current-URL` (same site only, path + query, through
+  `safe_next`); email/display-name lengths are checked against the columns;
+  AC4 tests cover every event action.
+

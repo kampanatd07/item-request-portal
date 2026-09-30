@@ -21,6 +21,8 @@ from app.models import ROLES, Account, Factory
 from app.services.clock import utc_now
 
 MIN_PASSWORD_LENGTH = 12
+MAX_EMAIL_LENGTH = 254  # accounts.email
+MAX_DISPLAY_NAME_LENGTH = 100  # accounts.display_name
 TEMPORARY_PASSWORD_BYTES = 12  # token_urlsafe -> 16 characters
 # 10 consecutive wrong passwords lock the email for 15 minutes (STORY-001 AC9).
 MAX_FAILED_LOGINS = 10
@@ -95,8 +97,14 @@ def create_account(
     display_name = display_name.strip()
     if not _EMAIL_RE.fullmatch(email):
         raise AuthError("รูปแบบอีเมลไม่ถูกต้อง")
+    # Column limits (accounts.email 254, display_name 100): PostgreSQL would
+    # raise instead of truncating, and the page would answer 500.
+    if len(email) > MAX_EMAIL_LENGTH:
+        raise AuthError(f"อีเมลยาวเกิน {MAX_EMAIL_LENGTH} ตัวอักษร")
     if not display_name:
         raise AuthError("กรุณาระบุชื่อ")
+    if len(display_name) > MAX_DISPLAY_NAME_LENGTH:
+        raise AuthError(f"ชื่อยาวเกิน {MAX_DISPLAY_NAME_LENGTH} ตัวอักษร")
     if role not in ROLES:
         raise AuthError("บทบาทไม่ถูกต้อง")
     if role == "requester":
