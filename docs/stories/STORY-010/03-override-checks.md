@@ -47,4 +47,11 @@ that re-runs it under the row lock and applies. The register row is locked
       re-checks rather than trusting an earlier preview
 - [ ] Register and request rows are locked (Postgres); add the race to
       STORY-006 AC4
+- [ ] **Minting guard (added by Peter 2026-09-30):** `generate_code` checks,
+      before issuing, that the next number is neither a Retired Code nor on
+      another request. If it is, it refuses clearly — never skips ahead on its
+      own — with a Thai message naming the Group + Sub-Category whose register
+      is behind, asking the Administrator to check whether codes were issued
+      outside the portal (STORY-005 register sync). Test: the register does
+      not move when minting is refused (Approval and re-issue both)
 - [ ] Service-level tests with `central_ids()` and `account_for(db, "administrator")`
