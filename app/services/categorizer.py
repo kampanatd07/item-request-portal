@@ -202,7 +202,7 @@ def suggest_category(db: Session, name: str, *, llm=None) -> list[Suggestion]:
 
 
 def learn_from_correction(
-    db: Session, *, name: str, group_code: str, sub_code: str, actor: str = "procurement"
+    db: Session, *, name: str, group_code: str, sub_code: str, actor: str
 ) -> None:
     """Remember a human decision so similar future requests start out right.
 

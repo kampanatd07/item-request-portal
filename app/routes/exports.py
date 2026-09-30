@@ -4,7 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import ExportBatch, Factory, ItemRequest
+from app.models import Account, ExportBatch, Factory, ItemRequest
+from app.routes.deps import current_account
 from app.services import catalog
 from app.services.exporter import ExportError, build_workbook_bytes, export_pending
 from app.services.requests import RequestError, change_status
@@ -41,9 +42,14 @@ def exports_page(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/{factory_id}", response_class=HTMLResponse)
-def create_export(request: Request, factory_id: int, db: Session = Depends(get_db)):
+def create_export(
+    request: Request,
+    factory_id: int,
+    db: Session = Depends(get_db),
+    account: Account = Depends(current_account),
+):
     try:
-        batch = export_pending(db, factory_id)
+        batch = export_pending(db, factory_id, account=account)
     except ExportError as e:
         return templates.TemplateResponse(
             request, "partials/form_error.html", {"message": str(e)}, status_code=422
@@ -71,7 +77,12 @@ def download_export(batch_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{batch_id}/mark-created", response_class=HTMLResponse)
-def mark_created(request: Request, batch_id: int, db: Session = Depends(get_db)):
+def mark_created(
+    request: Request,
+    batch_id: int,
+    db: Session = Depends(get_db),
+    account: Account = Depends(current_account),
+):
     reqs = list(
         db.scalars(
             select(ItemRequest).where(
@@ -82,7 +93,7 @@ def mark_created(request: Request, batch_id: int, db: Session = Depends(get_db))
     )
     try:
         for req in reqs:
-            change_status(db, req.id, new_status="created", actor="procurement")
+            change_status(db, req.id, new_status="created", account=account)
     except RequestError as e:
         return templates.TemplateResponse(
             request, "partials/form_error.html", {"message": str(e)}, status_code=422

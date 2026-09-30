@@ -31,11 +31,11 @@ def test_canonical_unique_case_insensitive_match(db_session):
 
 
 def test_merge_creates_alias_deactivates_and_rewrites_requests(db_session):
-    from tests.conftest import central_ids
+    from tests.conftest import account_for, central_ids
 
     factory, system, group, sub = central_ids(db_session, "ACM", "700", "02")
     req = submit_request(
-        db_session, requester_name="p", requester_email="p@x.com",
+        db_session, account=account_for(db_session),
         factory_id=factory.id, code_system_id=system.id, group_id=group.id,
         subgroup_id=sub.id, item_name="งานซ่อมปั๊ม", uom="JOB",
     )

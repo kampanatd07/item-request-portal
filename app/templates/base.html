@@ -5,6 +5,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Item Request Portal{% endblock %}</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.12/htmx.min.js"></script>
+  <script>
+    // htmx 1.9 drops 4xx responses, so Thai validation (422) and permission
+    // (403) messages never reached the screen. Show them — but if the swap
+    // target contains the form that sent the request (the queue panels), put
+    // the message in an error slot inside that form, so the form survives and
+    // the user can correct and resend.
+    document.addEventListener("htmx:beforeRequest", function (e) {
+      e.detail.xhr._source = e.detail.elt;
+    });
+    document.addEventListener("htmx:beforeSwap", function (e) {
+      var status = e.detail.xhr.status;
+      if (status !== 422 && status !== 403) return;
+      e.detail.shouldSwap = true;
+      e.detail.isError = false;
+      var source = e.detail.xhr._source;
+      var form = source && (source.closest("form") || source);
+      if (form && e.detail.target && e.detail.target.contains(form)) {
+        var slot = form.querySelector(".error-slot");
+        if (!slot) {
+          slot = document.createElement("div");
+          slot.className = "error-slot";
+          form.appendChild(slot);
+        }
+        e.detail.target = slot;
+      }
+    });
+  </script>
   <style>
     :root { --accent: #0F6E56; --border: #ddd; --muted: #666; }
     * { box-sizing: border-box; }
@@ -34,13 +61,29 @@
   </style>
 </head>
 <body>
+{% set account = request.state.account|default(none) %}
 <header>
   <strong>Item Request Portal</strong>
+  {% if account and not account.must_change_password %}
   <a href="/">ส่งคำขอ</a>
+  <a href="/my-requests">คำขอของฉัน</a>
+  {% if has_role(account, "procurement") %}
   <a href="/queue">คิวจัดซื้อ</a>
   <a href="/exports">Export</a>
+  {% endif %}
+  {% if has_role(account, "administrator") %}
   <a href="/admin/snapshots">Snapshot</a>
   <a href="/admin/config">ตั้งค่า</a>
+  <a href="/admin/accounts">บัญชีผู้ใช้</a>
+  {% endif %}
+  <a href="/account/password">เปลี่ยนรหัสผ่าน</a>
+  {% endif %}
+  {% if account %}
+  <span style="margin-left: auto;">{{ account.display_name }}</span>
+  <form method="post" action="/logout" style="margin: 0;">
+    <button type="submit" class="secondary" style="margin: 0; padding: 4px 12px;">ออกจากระบบ</button>
+  </form>
+  {% endif %}
 </header>
 <main>{% block content %}{% endblock %}</main>
 </body>

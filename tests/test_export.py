@@ -12,7 +12,7 @@ from app.models import CodeGroup, CodeSystem, ExportBatch, Factory, ItemRequest
 from app.services.exporter import build_workbook_bytes, export_pending
 from app.services.requests import change_status, submit_request
 from app.services.snapshots import import_snapshot
-from tests.conftest import central_ids
+from tests.conftest import account_for, central_ids
 
 TEMP_DIR = Path(__file__).resolve().parent / "fixtures"
 
@@ -40,13 +40,13 @@ def _headers(path, sheet, hdr_row):
 def _submit_approve(db, factory_code, group_code="900", sub_code="01", **extra):
     factory, system, group, sub = central_ids(db, factory_code, group_code, sub_code)
     req = submit_request(
-        db, requester_name="ทดสอบ", requester_email="t@example.com",
+        db, account=account_for(db),
         factory_id=factory.id, code_system_id=system.id, group_id=group.id,
         subgroup_id=sub.id, item_name=extra.get("name", "Test item"),
         uom=extra.get("uom", "EA"), procurement_category=extra.get("cat", ""),
         purchase_price=extra.get("price", ""),
     )
-    return change_status(db, req.id, new_status="approved", actor="test")
+    return change_status(db, req.id, new_status="approved", account=account_for(db, "administrator"))
 
 
 @pytest.mark.parametrize("factory_code", ["CBD", "APM", "ACM"])
@@ -90,7 +90,7 @@ def test_export_pending_marks_exported_and_batches(db_session):
     factory, _s, _g, _sub = central_ids(db_session, "APM")
     r1 = _submit_approve(db_session, "APM", name="A")
     r2 = _submit_approve(db_session, "APM", name="B")
-    batch = export_pending(db_session, factory.id)
+    batch = export_pending(db_session, factory.id, account=account_for(db_session))
     assert batch.item_count == 2
     db_session.refresh(r1)
     db_session.refresh(r2)
@@ -98,19 +98,19 @@ def test_export_pending_marks_exported_and_batches(db_session):
     # nothing left pending -> second export raises
     from app.services.exporter import ExportError
     with pytest.raises(ExportError):
-        export_pending(db_session, factory.id)
+        export_pending(db_session, factory.id, account=account_for(db_session))
 
 
 def test_exported_then_created_flow(db_session):
     factory, _s, _g, _sub = central_ids(db_session, "APG")
     _submit_approve(db_session, "APG", name="Bearing")
-    batch = export_pending(db_session, factory.id)
+    batch = export_pending(db_session, factory.id, account=account_for(db_session))
     reqs = list(
         db_session.scalars(
             select(ItemRequest).where(ItemRequest.export_batch_id == batch.id)
         )
     )
     for r in reqs:
-        change_status(db_session, r.id, new_status="created", actor="test")
+        change_status(db_session, r.id, new_status="created", account=account_for(db_session))
     db_session.refresh(reqs[0])
     assert reqs[0].status == "created"

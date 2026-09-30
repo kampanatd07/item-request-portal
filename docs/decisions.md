@@ -1,5 +1,20 @@
 # Decision Log
 
+## [2026-09-29] Only Administrators consume the running register
+**Decision:** Approving a request, re-categorising a request that already has a
+code, and overriding a code are Administrator-only (the Data Steward + one
+backup). Procurement keeps review, name edit, re-categorise before a code,
+Needs Info, reject and export.
+**Why:** Governance v1 §3 says only the central Data Steward issues running
+numbers, and an issued number is used forever. All three actions consume the
+register, so giving them to every Procurement Account would let 3–4 people
+burn numbers that cannot be reclaimed.
+**Alternatives considered:** keep STORY-001's original matrix (Procurement
+approves) — rejected: contradicts Governance for no gain, since Procurement
+still does most of the work.
+**Implemented by:** STORY-001.
+**Revisit when:** Governance changes who may issue codes.
+
 ## [2026-09-28] "Other" (99) and possible fixed assets pass through with a flag
 **Decision:** Requesters may choose Sub-Category 99 but must give a reason; the
 request is flagged for procurement. Requests that look like fixed assets

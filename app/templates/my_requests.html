@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}คำขอของฉัน{% endblock %}
+{% block content %}
+{% set can_open_queue = has_role(request.state.account, "procurement") %}
+<div class="card">
+  <h2 style="margin-top:0;">คำขอของฉัน</h2>
+  {% if not requests %}
+  <p>ยังไม่มีคำขอ — <a href="/">ส่งคำขอใหม่</a></p>
+  {% else %}
+  <table>
+    <tr><th>วันที่ส่ง</th><th>ชื่อสินค้า</th><th>โรงงาน</th><th>สถานะ</th><th>หมายเหตุจากจัดซื้อ</th><th>รหัส</th></tr>
+    {% for r in requests %}
+    <tr>
+      <td class="muted" style="white-space:nowrap;">{{ r.created_at | thai_time("%d/%m/%Y %H:%M") }}</td>
+      <td>{% if can_open_queue %}<a href="/queue/{{ r.id }}">{{ r.item_name }}</a>{% else %}{{ r.item_name }}{% endif %}</td>
+      <td>{{ r.factory.code }}</td>
+      <td><span class="badge {{ r.status }}">{{ status_labels[r.status] }}</span></td>
+      <td>{{ r.review_note or "" }}</td>
+      <td>
+        {# The reason for a burned code is in the note column, so not repeated here. #}
+        {% with req=r, compact=true, show_reason=false %}{% include "partials/item_code.html" %}{% endwith %}
+        {# Approved/exported: the code exists but the item is not in AX yet. #}
+        {% if r.generated_code and r.status in ["approved", "exported"] %}
+        <br><span class="muted">รอสร้างใน AX — ยังสั่งซื้อไม่ได้</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+{% endblock %}

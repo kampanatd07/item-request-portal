@@ -17,7 +17,7 @@ from openpyxl import Workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import ExportBatch, GroupExportMap, ItemRequest
+from app.models import Account, ExportBatch, GroupExportMap, ItemRequest
 
 FILENAME_HINT = {
     "CBD": "CBD_ReleasedProduct",
@@ -229,7 +229,7 @@ def build_workbook_bytes(db: Session, factory_code: str, requests: list[ItemRequ
     return buf.getvalue()
 
 
-def export_pending(db: Session, factory_id: int, *, actor: str = "procurement") -> ExportBatch:
+def export_pending(db: Session, factory_id: int, *, account: Account) -> ExportBatch:
     """Export all approved-but-not-exported requests for a factory into one file."""
     from datetime import datetime
 
@@ -238,29 +238,36 @@ def export_pending(db: Session, factory_id: int, *, actor: str = "procurement") 
     factory = db.get(Factory, factory_id)
     if factory is None:
         raise ExportError("ไม่พบโรงงาน")
-    reqs = list(
-        db.scalars(
-            select(ItemRequest).where(
-                ItemRequest.factory_id == factory_id,
-                ItemRequest.status == "approved",
-                ItemRequest.export_batch_id.is_(None),
-            )
+    # Lock the rows (Postgres) so a concurrent re-categorise or code override
+    # cannot change a code between this read and the export commit; see
+    # requests._get_locked for the other side.
+    locked = db.scalars(
+        select(ItemRequest)
+        .where(
+            ItemRequest.factory_id == factory_id,
+            ItemRequest.status == "approved",
+            ItemRequest.export_batch_id.is_(None),
         )
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
+    # Re-check after the lock: a row may have changed while we waited for it.
+    reqs = [r for r in locked if r.status == "approved" and r.export_batch_id is None]
     if not reqs:
         raise ExportError("ไม่มีคำขอที่อนุมัติแล้วรอ export สำหรับโรงงานนี้")
 
     ts = datetime.now().strftime("%Y%m%d_%H%M")
     filename = f"{FILENAME_HINT.get(factory.code, factory.code)}_{ts}.xlsx"
     batch = ExportBatch(
-        factory_id=factory_id, filename=filename, item_count=len(reqs), created_by=actor
+        factory_id=factory_id, filename=filename, item_count=len(reqs),
+        created_by=account.email,
     )
     db.add(batch)
     db.flush()
     for req in reqs:
         req.status = "exported"
         req.export_batch_id = batch.id
-        db.add(RequestEvent(request_id=req.id, actor=actor, action="exported",
+        db.add(RequestEvent(request_id=req.id, actor=account.email, action="exported",
                             detail=filename))
     db.commit()
     return batch

@@ -17,9 +17,32 @@ The plant employee who submits an Item Request.
 _Avoid_: user, customer
 
 **Procurement**:
-The central team (Peter + 1–2 people) that reviews requests, approves them, and
-imports the result into AX/D365. Acts as the Data Steward.
+The central team (Peter + 1–2 people) that reviews requests, readies them for
+Approval, exports them and imports the result into AX/D365. Only its
+Administrators (the Data Steward and backup) may approve.
 _Avoid_: admin, approver, buyer
+
+**Approval**:
+The Administrator's decision that accepts an Item Request and mints its Central
+Code from the Running Register. Cannot be undone: the Running Number stays used.
+_Avoid_: sign-off, confirm
+
+### Access
+
+**Account**:
+One login to the portal, tied to one email and one Role. A Requester Account
+belongs to exactly one Plant. Accounts are deactivated, never deleted, and
+their email never changes, because Request history names the Account by email.
+_Avoid_: user, login, profile
+
+**Role**:
+What an Account may do: Requester, Procurement or Administrator. One Role per
+Account.
+
+**Administrator**:
+The Role for the central Data Steward and their backup (Peter + one). Can do
+everything Procurement can, plus manage Accounts, Snapshots and reference data.
+_Avoid_: admin (in prose), superuser
 
 **Plant**:
 One of CBD, APM, APG, ACM — the company whose AX/D365 environment the item is
@@ -29,6 +52,11 @@ _Avoid_: factory (in prose), site, company
 **Request Status**:
 The stage an Item Request is in: submitted → in_review / needs_info → approved
 or rejected → exported → created → notified.
+
+**In Review**:
+Procurement has checked the request and it waits for an Administrator's
+Approval. An Administrator may also approve straight from submitted.
+_Avoid_: pending, under review (it means review is done, not ongoing)
 
 **Needs Info**:
 Procurement sent the request back to the Requester for missing detail; the
@@ -157,9 +185,15 @@ The exact column layout AX/D365 of a Plant accepts; one per Plant.
 - A **Central Code** is minted from the **Running Register** row of its
   **Item Group** + **Sub-Category**; changing either after that means a new code.
 - An **Export Batch** holds requests of one **Plant** only.
+- An **Item Request** is submitted by one **Account**, which is its Requester.
+  A Requester Account can only submit for its own **Plant**; Procurement picks
+  the Plant and stays the Requester even when asking on someone's behalf.
 
 ## Flagged ambiguities
 
 - "category" alone is ambiguous: say **Sub-Category**, **Item Group**, or
   **Procurement Category**.
+- "Requester" names both a Role and the submitter of one Item Request. When
+  Procurement submits, it is that request's Requester without holding the
+  Requester Role.
 - "factory" appears in code (`Factory` model) where the language says **Plant**.

@@ -8,6 +8,7 @@
   <h2>คำขอ #{{ req.id }} — {{ req.item_name }}</h2>
   <table>
     <tr><th>ผู้ขอ</th><td>{{ req.requester_name }} ({{ req.requester_email }})</td></tr>
+    {% if originator %}<tr><th>ขอแทน</th><td>{{ originator }}</td></tr>{% endif %}
     <tr><th>โรงงาน</th><td>{{ req.factory.code }} — {{ req.factory.name }}</td></tr>
     <tr><th>ระบบรหัส</th><td>{{ req.code_system.name_th }}</td></tr>
     <tr><th>หมวด</th><td>{{ req.group.code }} — {{ req.group.name }}</td></tr>
@@ -15,7 +16,7 @@
     <tr><th>แบรนด์ / รุ่น / ขนาด</th><td>{{ req.brand or "-" }} / {{ req.model or "-" }} / {{ req.size or "-" }}</td></tr>
     <tr><th>หน่วยนับ</th><td>{{ req.uom or "-" }}</td></tr>
     <tr><th>สเปคเพิ่มเติม</th><td>{{ req.spec_note or "-" }}</td></tr>
-    {% if req.generated_code %}<tr><th>Item code</th><td><strong>{{ req.generated_code }}</strong></td></tr>{% endif %}
+    {% if req.generated_code %}<tr><th>Item code</th><td>{% with compact=true %}{% include "partials/item_code.html" %}{% endwith %}</td></tr>{% endif %}
   </table>
 </div>
 

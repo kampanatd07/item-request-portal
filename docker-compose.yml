@@ -16,6 +16,8 @@ services:
     build: .
     environment:
       DATABASE_URL: postgresql+psycopg://app:app@db:5432/itemportal
+      # Local compose only; a real deploy leaves APP_ENV unset (= production).
+      APP_ENV: dev
     ports:
       - "8000:8000"
     depends_on:

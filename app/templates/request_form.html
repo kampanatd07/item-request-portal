@@ -4,31 +4,44 @@
 <div class="card">
   <h2>ส่งคำขอสร้าง Item</h2>
   <form hx-post="/requests" hx-target="#form-result" hx-swap="innerHTML">
+    {% set account = request.state.account %}
     <div class="row">
       <div>
-        <label>ชื่อผู้ขอ *</label>
-        <input name="requester_name" required>
+        <label>ผู้ขอ</label>
+        <div>{{ account.display_name }} <span class="muted">({{ account.email }})</span></div>
       </div>
+      {% if not plant_locked %}
       <div>
-        <label>Email ผู้ขอ *</label>
-        <input name="requester_email" type="email" required>
+        <label for="on_behalf_of">ขอแทน (ถ้ามี)</label>
+        <input id="on_behalf_of" name="on_behalf_of" placeholder="ชื่อผู้ขอจริง เช่น คนที่โทรมาแจ้ง">
       </div>
+      {% endif %}
     </div>
 
     <div class="row">
       <div>
         <label>โรงงาน *</label>
+        {# A Requester gets only their own Plant, preselected; the server uses
+           the Account's Plant whatever is posted. #}
         <select name="factory_id" required
-                hx-get="/fragments/systems" hx-target="#system-slot" hx-swap="innerHTML">
+                hx-get="/fragments/systems" hx-target="#system-slot" hx-swap="innerHTML"
+                hx-trigger="{{ 'load, change' if plant_locked else 'change' }}">
+          {% if not plant_locked %}
           <option value="" disabled selected>-- เลือกโรงงาน --</option>
+          {% endif %}
           {% for f in factories %}
-          <option value="{{ f.id }}">{{ f.code }} — {{ f.name }}</option>
+          <option value="{{ f.id }}" {{ "selected" if plant_locked }}>{{ f.code }} — {{ f.name }}</option>
           {% endfor %}
         </select>
         <script>
-        document.querySelector('select[name=factory_id]').addEventListener('change', function(e){
-          htmx.ajax('GET','/fragments/categories?factory_id='+e.target.value,{target:'#category-slot',swap:'innerHTML'});
-        });
+        (function(){
+          var plant = document.querySelector('select[name=factory_id]');
+          function loadCategories(){
+            htmx.ajax('GET','/fragments/categories?factory_id='+plant.value,{target:'#category-slot',swap:'innerHTML'});
+          }
+          plant.addEventListener('change', loadCategories);
+          {% if plant_locked %}document.addEventListener('DOMContentLoaded', loadCategories);{% endif %}
+        })();
         </script>
       </div>
       <div>

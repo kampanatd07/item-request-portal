@@ -1,7 +1,7 @@
 from sqlalchemy import select
 
 from app.services.requests import RequestError, change_status, submit_request
-from tests.conftest import central_ids
+from tests.conftest import account_for, central_ids
 
 import pytest
 
@@ -10,8 +10,7 @@ def _make_request(db):
     factory, system, group, sub = central_ids(db)
     return submit_request(
         db,
-        requester_name="ทดสอบ",
-        requester_email="t@example.com",
+        account=account_for(db),
         factory_id=factory.id,
         code_system_id=system.id,
         group_id=group.id,
@@ -46,14 +45,14 @@ def test_approve_flow_and_double_approve_blocked(client, db_session):
 
 def test_invalid_transition_raises(db_session):
     req = _make_request(db_session)
-    change_status(db_session, req.id, new_status="rejected", actor="test")
+    change_status(db_session, req.id, new_status="rejected", account=account_for(db_session))
     with pytest.raises(RequestError):
-        change_status(db_session, req.id, new_status="approved", actor="test")
+        change_status(db_session, req.id, new_status="approved", account=account_for(db_session, "administrator"))
 
 
 def test_needs_info_roundtrip(db_session):
     req = _make_request(db_session)
-    change_status(db_session, req.id, new_status="needs_info", actor="test", note="ขอสเปค")
-    change_status(db_session, req.id, new_status="submitted", actor="test")
+    change_status(db_session, req.id, new_status="needs_info", account=account_for(db_session), note="ขอสเปค")
+    change_status(db_session, req.id, new_status="submitted", account=account_for(db_session))
     assert req.status == "submitted"
     assert [e.action for e in req.events] == ["submitted", "needs_info", "submitted"]

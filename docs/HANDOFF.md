@@ -4,7 +4,7 @@
 > `docs/decisions.md` before doing anything. If chat history contradicts these
 > files, the files win.
 >
-> Last updated: 2026-09-28 · Owner: Peter (Procurement Strategy, Carabao Group)
+> Last updated: 2026-09-29 · Owner: Peter (Procurement Strategy, Carabao Group)
 
 ---
 
@@ -33,11 +33,18 @@ there is no login, so anyone with the URL can approve and issue codes.
 | Naming standard `[CATEGORY] - [name] - [detail]` | done |
 | Export to 4 plant import templates | done — **never tested against real AX** |
 | Admin config pages | done |
-| Login / roles | **not started — STORY-001** |
+| Login / roles | **in progress — STORY-001** (all 7 tickets built: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry, lockout, My requests; awaiting Peter's merge) |
 | Email notification | **not started — STORY-002** |
 | Deployment | **not started — STORY-006** |
 
-Tests: 113 passing (`pytest`).
+Tests: 341 passing (`pytest`).
+
+Queued chore (after STORY-001 ships, Peter 2026-09-30): speed up the suite.
+Every test rebuilds its SQLite DB with `create_all` + `seed` (~0.35 s each,
+~100 s for 300 tests). Seed one template DB per session and copy it into each
+test with the SQLite backup API; expected ~20–30 s. `pytest.ini` sets
+`timeout = 60` (pytest-timeout, in `requirements-dev.txt`) so a hung test
+fails with stack traces instead of stalling the run.
 
 ## 3. Group standard this app implements
 
@@ -59,8 +66,10 @@ Source documents live in `docs/group-standard/`. The approved standard:
 ```powershell
 cd D:\dev\item-request-portal          # NOT inside OneDrive — see trap 6.6
 .\.venv\Scripts\Activate.ps1           # if blocked: Set-ExecutionPolicy -Scope Process Bypass
+$env:APP_ENV = "dev"                    # required locally: unset means production (fails closed)
 alembic upgrade head
 python -m app.seed                      # must print "Seed complete."
+python -m app.create_admin              # first time only: your own Administrator login
 uvicorn app.main:app --port 8000
 ```
 

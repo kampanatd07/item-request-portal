@@ -5,7 +5,7 @@ import pytest
 from app.services.naming import NamingError, compose_name
 from app.services.requests import RequestError, change_status, edit_name, submit_request
 from app.services.exporter import export_pending
-from tests.conftest import central_ids
+from tests.conftest import account_for, central_ids
 
 
 def test_compose_convention_order():
@@ -38,7 +38,7 @@ def test_compose_empty_and_too_long_raise():
 def _submit(db, **overrides):
     factory, system, group, sub = central_ids(db)
     kwargs = dict(
-        requester_name="ทดสอบ", requester_email="t@example.com",
+        account=account_for(db),
         factory_id=factory.id, code_system_id=system.id, group_id=group.id,
         subgroup_id=sub.id, item_name="Ball Bearing", brand="SKF",
         model="6205-2Z", size="25 mm",
@@ -57,16 +57,16 @@ def test_procurement_can_edit_name_before_export(db_session):
     req = _submit(db_session)
     edit_name(db_session, req.id,
               new_name="BEARING - Ball Bearing SKF 6205-2Z C3 - 25 mm",
-              actor="procurement")
+              account=account_for(db_session))
     assert req.item_name == "BEARING - Ball Bearing SKF 6205-2Z C3 - 25 mm"
     assert [e.action for e in req.events][-1] == "name_edited"
 
 
 def test_name_locked_after_export(db_session):
     req = _submit(db_session)
-    change_status(db_session, req.id, new_status="approved", actor="test")
+    change_status(db_session, req.id, new_status="approved", account=account_for(db_session, "administrator"))
     factory, _s, _g, _sub = central_ids(db_session)
-    export_pending(db_session, factory.id)
+    export_pending(db_session, factory.id, account=account_for(db_session))
     db_session.refresh(req)
     with pytest.raises(RequestError):
-        edit_name(db_session, req.id, new_name="New name", actor="procurement")
+        edit_name(db_session, req.id, new_name="New name", account=account_for(db_session))

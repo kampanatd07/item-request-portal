@@ -1,0 +1,20 @@
+{#- The one way a request's code is shown, so a burned code never looks usable.
+    A rejected request that still carries a code was rejected after approval:
+    that number is thrown away for good (code_burned event).
+    Context: req; optional compact (table cell), show_reason (default true). -#}
+{%- set burned = req.status == "rejected" and req.generated_code -%}
+{%- if not req.generated_code -%}
+  {%- if compact %}-{% endif -%}
+{%- elif burned -%}
+  <span class="code-burned">
+    <s><code>{{ req.generated_code }}</code></s>
+    <span class="badge rejected">ยกเลิกแล้ว ห้ามใช้</span>
+    {%- if show_reason is not defined or show_reason %}
+      {%- if req.review_note %} <span class="muted">เหตุผล: {{ req.review_note }}</span>{% endif %}
+    {%- endif %}
+  </span>
+{%- elif compact -%}
+  <code>{{ req.generated_code }}</code>
+{%- else -%}
+  <code style="font-size:18px; background:#e1f5ee; padding:2px 10px; border-radius:6px;">{{ req.generated_code }}</code>
+{%- endif -%}
