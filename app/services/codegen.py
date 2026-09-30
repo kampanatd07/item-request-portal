@@ -113,19 +113,21 @@ def next_running(db: Session, *, source: str, prefix: str, run_len: int) -> int:
     return best + 1
 
 
-def _allocate_from_register(db: Session, group_code: str, sub_code: str) -> int:
-    """Issue the next number for a Category+Sub pair from the central register.
+def central_code(group_code: str, sub_code: str, running: int) -> str:
+    """[Group 3][Sub 2][Item Type 2 = 00][Running 4]"""
+    return f"{group_code}{sub_code}00{running:04d}"
 
-    This is the single place a central code may come from. The row is locked
-    for update so two approvals in the same second cannot take the same number;
-    the unique constraint on generated_code is the last line of defence.
+
+def lock_register(db: Session, group_code: str, sub_code: str) -> RunningRegister:
+    """The register row for a Category+Sub pair, locked until commit (Postgres).
+
+    Lock order everywhere is request row first (requests._get_locked), then
+    this register row, so Approval, re-issue and override cannot deadlock.
     """
     stmt = select(RunningRegister).where(
         RunningRegister.group_code == group_code,
         RunningRegister.sub_code == sub_code,
-    )
-    if db.bind and db.bind.dialect.name != "sqlite":
-        stmt = stmt.with_for_update()
+    ).with_for_update().execution_options(populate_existing=True)
     reg = db.scalar(stmt)
     if reg is None:
         # A sub-category that exists in the taxonomy but not yet in the
@@ -133,9 +135,98 @@ def _allocate_from_register(db: Session, group_code: str, sub_code: str) -> int:
         reg = RunningRegister(group_code=group_code, sub_code=sub_code, last_running=0)
         db.add(reg)
         db.flush()
-    reg.last_running += 1
+    return reg
+
+
+def retired_among(db: Session, codes) -> set[str]:
+    """Which of `codes` are Retired Codes — one query per 500, for a whole range."""
+    codes = list(codes)
+    found = {o.code for o in db.new if isinstance(o, RetiredCode) and o.code in set(codes)}
+    with db.no_autoflush:
+        for i in range(0, len(codes), 500):
+            found.update(db.scalars(select(RetiredCode.code)
+                                    .where(RetiredCode.code.in_(codes[i:i + 500]))))
+    return found
+
+
+def on_requests_among(db: Session, codes) -> set[str]:
+    """Which of `codes` some request carries — one query per 500."""
+    codes = list(codes)
+    found: set[str] = set()
+    with db.no_autoflush:
+        for i in range(0, len(codes), 500):
+            found.update(db.scalars(select(ItemRequest.generated_code)
+                                    .where(ItemRequest.generated_code.in_(codes[i:i + 500]))))
+    return found
+
+
+def retire_many(db: Session, codes: list[str], *, request_id: int | None, reason: str,
+                actor: str) -> None:
+    """retire_code for a whole range (numbers skipped by a register jump), checked
+    with one query instead of one per number, so a big confirmed jump stays fast
+    while the request and register rows are locked."""
+    if reason not in RETIRE_REASONS:
+        raise ValueError(f"unknown retire reason: {reason}")
+    already = retired_among(db, codes)
+    if already:
+        raise CodegenError(f"รหัส {sorted(already)[0]} ถูกทิ้งไปแล้ว — ใช้ซ้ำไม่ได้")
+    db.add_all(RetiredCode(code=c, request_id=request_id, reason=reason, actor=actor)
+               for c in codes)
+
+
+def code_on_request(db: Session, code: str, *, other_than: int | None = None) -> bool:
+    """True if a request (other than `other_than`) carries `code`."""
+    stmt = select(ItemRequest.id).where(ItemRequest.generated_code == code)
+    if other_than is not None:
+        stmt = stmt.where(ItemRequest.id != other_than)
+    with db.no_autoflush:
+        return db.scalar(stmt) is not None
+
+
+def master_loaded(db: Session) -> bool:
+    """Whether the classified master (the group's Central Codes) is uploaded."""
+    return db.scalar(select(ItemSnapshot.id).where(ItemSnapshot.source == "CENTRAL")
+                     .limit(1)) is not None
+
+
+def master_codes(db: Session, codes) -> dict[str, str]:
+    """Which of `codes` the group master holds, mapped to their item names."""
+    codes = list(codes)
+    found: dict[str, str] = {}
+    for i in range(0, len(codes), 500):  # keep the IN list small
+        for number, name in db.execute(
+            select(ItemSnapshot.item_number, ItemSnapshot.name).where(
+                ItemSnapshot.source == "CENTRAL",
+                ItemSnapshot.item_number.in_(codes[i:i + 500]))):
+            found[number] = name
+    return found
+
+
+def _allocate_from_register(db: Session, group_code: str, sub_code: str) -> int:
+    """Issue the next number for a Category+Sub pair from the central register.
+
+    This is the single place a central code may come from. Before taking the
+    number it checks that nobody holds it already — a Retired Code, another
+    request, or the group master. If someone does, the register is behind:
+    refuse, never skip ahead silently, and leave the register as it was.
+    """
+    reg = lock_register(db, group_code, sub_code)
+    running = reg.last_running + 1
+    if running > 9999:
+        raise CodegenError(
+            f"เลขรันของหมวด {group_code}-{sub_code} เต็มแล้ว (เกิน 9999) — "
+            "ต้องเปิดหมวดย่อยใหม่"
+        )
+    code = central_code(group_code, sub_code, running)
+    if is_retired(db, code) or code_on_request(db, code) or master_codes(db, [code]):
+        raise CodegenError(
+            f"ออกรหัสไม่ได้: เลขถัดไปของหมวด {group_code}-{sub_code} ({code}) "
+            "ถูกใช้หรือถูกทิ้งไปแล้ว — Running Register ของหมวดนี้ตามหลัง "
+            "ให้ผู้ดูแลระบบตรวจว่ามีรหัสถูกออกนอก portal หรือไม่ (STORY-005)"
+        )
+    reg.last_running = running
     db.flush()
-    return reg.last_running
+    return running
 
 
 def generate_code(db: Session, request: ItemRequest) -> str:
@@ -146,13 +237,7 @@ def generate_code(db: Session, request: ItemRequest) -> str:
         if sub is None:
             raise CodegenError("ต้องเลือกหมวดย่อยก่อนออกรหัสกลาง")
         running = _allocate_from_register(db, group.code, sub.code)
-        if running > 9999:
-            raise CodegenError(
-                f"เลขรันของหมวด {group.code}-{sub.code} เต็มแล้ว (เกิน 9999) — "
-                "ต้องเปิดหมวดย่อยใหม่"
-            )
-        # [Group 3][Sub 2][Item Type 2 = 00][Running 4]
-        return f"{group.code}{sub.code}00{running:04d}"
+        return central_code(group.code, sub.code, running)
 
     # Legacy systems (inactive today, kept for the future stock scope).
     prefix, run_len = build_prefix_and_runlen(request)

@@ -17,7 +17,7 @@ from app.services.requests import (
     override_code,
     submit_request,
 )
-from tests.conftest import account_for, central_ids
+from tests.conftest import account_for, central_ids, load_master, next_code
 
 
 def _approved(db, sub_code: str = "01"):
@@ -57,7 +57,9 @@ def test_override_retires_the_replaced_code(db_session):
     admin = account_for(db_session, "administrator")
     req = _approved(db_session)
     old = req.generated_code
-    override_code(db_session, req.id, new_code="90001009999", account=admin)
+    x = next_code(db_session)
+    load_master(db_session, [x])
+    override_code(db_session, req.id, new_code=x, reason="มีใน master แล้ว", account=admin)
     assert _retired(db_session) == [(old, "overridden", req.id, admin.email)]
 
 
@@ -94,8 +96,9 @@ def test_failed_change_rolls_back_the_retired_code_too(db_session):
     # request refuses it, and the Retired Code of the replaced number must go too.
     first, second = _approved(db_session), _approved(db_session)
     kept = second.generated_code
+    load_master(db_session, [first.generated_code])
     with pytest.raises(RequestError, match="ถูกใช้"):
-        override_code(db_session, second.id, new_code=first.generated_code,
+        override_code(db_session, second.id, new_code=first.generated_code, reason="ทดสอบ",
                       account=account_for(db_session, "administrator"))
     assert _retired(db_session) == []
     db_session.refresh(second)
@@ -241,15 +244,16 @@ def test_events_still_record_the_burn_for_people_to_read(db_session):
 def test_override_back_onto_a_retired_code_is_refused(db_session):
     admin = account_for(db_session, "administrator")
     req = _approved(db_session)
-    a = req.generated_code
-    override_code(db_session, req.id, new_code="90001009999", account=admin)  # A retired
+    a, x = req.generated_code, next_code(db_session)
+    load_master(db_session, [a, x])
+    override_code(db_session, req.id, new_code=x, reason="มีใน master", account=admin)  # A retired
     with pytest.raises(RequestError, match="ถูกทิ้งไปแล้ว"):
-        override_code(db_session, req.id, new_code=a, account=admin)
+        override_code(db_session, req.id, new_code=a, reason="กลับ", account=admin)
     db_session.refresh(req)
-    assert req.generated_code == "90001009999"
+    assert req.generated_code == x
     # ...so the request can still leave the normal way.
     change_status(db_session, req.id, new_status="rejected", note="ซ้ำ", account=admin)
-    assert ("90001009999", "rejected") in {(c, r) for c, r, _, _ in _retired(db_session)}
+    assert (x, "rejected") in {(c, r) for c, r, _, _ in _retired(db_session)}
 
 
 def test_backfill_prefers_the_rejection_as_the_reason(tmp_path, monkeypatch):

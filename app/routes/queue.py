@@ -129,11 +129,14 @@ def edit_code(
     request: Request,
     request_id: int,
     new_code: str = Form(...),
+    reason: str = Form(""),
+    confirm_skip: str = Form(""),
     db: Session = Depends(get_db),
     account: Account = Depends(current_account),
 ):
     try:
-        req = override_code(db, request_id, new_code=new_code, account=account)
+        req = override_code(db, request_id, new_code=new_code, account=account,
+                            reason=reason, confirm_skip=bool(confirm_skip))
     except RequestError as e:
         return _error(request, e)
     return templates.TemplateResponse(

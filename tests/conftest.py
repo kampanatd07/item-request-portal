@@ -140,6 +140,33 @@ def central_ids(db, factory_code: str = "APM", group_code: str = "900",
 TEST_PASSWORD = "test-password-123"
 
 
+def load_master(db, codes, name: str = "TEST - Item in group master"):
+    """Put `codes` into the classified master (ItemSnapshot source CENTRAL), as if
+    uploaded from "Master ที่จัดหมวดแล้ว". Code override only accepts these."""
+    from app.models import ItemSnapshot, SnapshotImport
+
+    imp = SnapshotImport(source="CENTRAL", filename="master.xlsx", row_count=len(codes),
+                         uploaded_by="test@test.local")
+    db.add(imp)
+    db.flush()
+    for code in codes:
+        db.add(ItemSnapshot(source="CENTRAL", item_number=code, name=f"{name} {code}",
+                            normalized_name=code, group_code=code[:3], sub_code=code[3:5],
+                            import_id=imp.id))
+    db.commit()
+
+
+def next_code(db, group: str = "900", sub: str = "01", ahead: int = 1) -> str:
+    """The Central Code `ahead` numbers past the register (1 = the next one)."""
+    from sqlalchemy import select
+
+    from app.models import RunningRegister
+
+    last = db.scalar(select(RunningRegister.last_running).where(
+        RunningRegister.group_code == group, RunningRegister.sub_code == sub)) or 0
+    return f"{group}{sub}00{last + ahead:04d}"
+
+
 def account_for(db, role: str = "procurement", plant: str | None = None):
     """The test Account for a Role (and Plant, for a Requester); created once per DB.
 

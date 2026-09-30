@@ -9,6 +9,12 @@
 <form hx-post="/queue/{{ req.id }}/code" hx-target="#status-panel" hx-swap="innerHTML" style="max-width:340px;">
   <label class="muted">แก้รหัสเอง (กรณีพิเศษ — จะถูกบันทึกใน audit)</label>
   <input name="new_code" value="{{ req.generated_code }}">
+  {# Interim fields (STORY-010 ticket 03); ticket 04 replaces this form with a
+     check-then-confirm screen. #}
+  <label class="muted">เหตุผล *</label>
+  <input name="reason" required>
+  <label class="muted"><input type="checkbox" name="confirm_skip" value="1" style="width:auto;">
+    ยืนยันแม้จะมีเลขถูกทิ้งเกิน 10 ตัว</label>
   <button type="submit" class="secondary">บันทึกรหัสใหม่</button>
 </form>
 {% endif %}

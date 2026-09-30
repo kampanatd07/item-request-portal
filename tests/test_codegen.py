@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app.models import ItemRequest, RunningRegister
 from app.services.codegen import CodegenError, build_prefix_and_runlen
 from app.services.requests import RequestError, change_status, override_code, submit_request
-from tests.conftest import account_for, central_ids
+from tests.conftest import account_for, central_ids, load_master, next_code
 
 
 def _submit(db, factory_code="APM", group_code="900", sub_code="01", **kw):
@@ -60,10 +60,14 @@ def test_register_is_the_only_source_of_numbers(db_session):
 def test_override_code_logs_and_rejects_duplicates(db_session):
     r1 = _approve(db_session, _submit(db_session, group_code="907", sub_code="01"))
     r2 = _approve(db_session, _submit(db_session, group_code="907", sub_code="01"))
-    override_code(db_session, r2.id, new_code="90701009999", account=account_for(db_session, "administrator"))
-    assert r2.generated_code == "90701009999"
-    with pytest.raises(RequestError):
-        override_code(db_session, r1.id, new_code="90701009999", account=account_for(db_session, "administrator"))
+    x = next_code(db_session, "907", "01")
+    load_master(db_session, [x])
+    override_code(db_session, r2.id, new_code=x, reason="มีใน master แล้ว",
+                  account=account_for(db_session, "administrator"))
+    assert r2.generated_code == x
+    with pytest.raises(RequestError, match="ถูกใช้กับคำขออื่น"):
+        override_code(db_session, r1.id, new_code=x, reason="ซ้ำ",
+                      account=account_for(db_session, "administrator"))
     assert [e.action for e in r2.events][-1] == "code_overridden"
 
 

@@ -1,8 +1,19 @@
+import re
+from dataclasses import dataclass, field
+
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Account, CodeGroup, Factory, ItemRequest, RequestEvent
+from app.models import (
+    Account,
+    CodeGroup,
+    Factory,
+    ItemRequest,
+    ItemSnapshot,
+    RequestEvent,
+    RunningRegister,
+)
 from app.services import snapshots
 from app.services.auth import has_role
 
@@ -394,10 +405,140 @@ def change_category(
     return req
 
 
+# More numbers than this thrown away by one override need explicit confirmation
+# (STORY-010 grilling Q4): a one-digit typo must not burn thousands silently.
+SKIP_CONFIRM_LIMIT = 10
+
+
+@dataclass
+class OverrideCheck:
+    """What overriding a request's code with `code` would do (read-only).
+
+    Numbers skipped when the register moves up are split: those the group
+    master holds are real codes in use and are left alone; the rest would be
+    thrown away (Retired Codes, reason `skipped`).
+    """
+
+    code: str
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    item_name: str | None = None
+    register_last: int | None = None
+    to_retire: list[str] = field(default_factory=list)
+    skipped_in_master: int = 0
+    skipped_already_used: int = 0
+
+    @property
+    def ok(self) -> bool:
+        return not self.errors
+
+    @property
+    def advances_register(self) -> bool:
+        return self.register_last is not None and int(self.code[7:]) > self.register_last
+
+    @property
+    def needs_confirmation(self) -> bool:
+        return len(self.to_retire) > SKIP_CONFIRM_LIMIT
+
+
+def check_override(db: Session, req: ItemRequest, code: str) -> OverrideCheck:
+    """Every STORY-010 rule for putting `code` on `req`, without changing anything.
+
+    Override is for one case: the item already has Central Code X in the group
+    master but not yet in this Plant's AX. The screen shows this before saving;
+    override_code runs it again under the locks.
+    """
+    from app.services.codegen import (
+        central_code,
+        code_on_request,
+        is_retired,
+        master_codes,
+        master_loaded,
+        on_requests_among,
+        retired_among,
+    )
+
+    code = (code or "").strip()
+    check = OverrideCheck(code=code)
+    if req.status != "approved":
+        check.errors.append("แก้รหัสได้เฉพาะคำขอที่อนุมัติแล้วและยังไม่ export")
+        return check
+    group = req.group.code
+    sub = req.subgroup.code if req.subgroup else None
+    if not re.fullmatch(r"[0-9]{11}", code):
+        check.errors.append("รหัสต้องเป็นตัวเลข 11 หลัก")
+        return check
+    if sub is None or code[:3] != group or code[3:5] != sub:
+        check.errors.append(
+            f"รหัส {code} ไม่ตรงกับหมวดของคำขอ ({group}-{sub or '??'}) — "
+            "หลัก 1–5 ต้องเป็นหมวดและหมวดย่อยเดียวกัน")
+        return check
+    if code[5:7] != "00":
+        check.errors.append("หลัก 6–7 ของรหัสต้องเป็น 00")
+        return check
+    if not master_loaded(db):
+        check.errors.append("ยังไม่มี Master ที่จัดหมวดแล้ว — อัปโหลดในหน้า Snapshot ก่อน")
+        return check
+    found = master_codes(db, [code])
+    if code not in found:
+        check.errors.append(f"ไม่พบรหัส {code} ใน Master ของกลุ่ม — ใช้ได้เฉพาะรหัสที่กลุ่มออกแล้ว")
+        return check
+    check.item_name = found[code]
+
+    source = snapshots.source_for_factory(db, req.factory_id)
+    if snapshots.latest_import(db, source) is None:
+        check.warnings.append(
+            f"ยังไม่มี snapshot ของโรงงาน {req.factory.code} — ตรวจไม่ได้ว่ามีรหัสนี้ใน AX แล้วหรือไม่")
+    elif db.scalar(select(ItemSnapshot.id).where(
+            ItemSnapshot.source == source, ItemSnapshot.item_number == code)) is not None:
+        check.errors.append(
+            f"รหัส {code} มีอยู่ในระบบของโรงงาน {req.factory.code} แล้ว — "
+            f"ให้ไม่อนุมัติคำขอนี้พร้อมเหตุผล \"ซ้ำกับ {code}\" แทน")
+        return check
+
+    if is_retired(db, code):
+        check.errors.append(f"รหัส {code} ถูกทิ้งไปแล้ว — ใช้ซ้ำไม่ได้")
+        return check
+    if code_on_request(db, code, other_than=req.id):
+        check.errors.append(f"รหัส {code} ถูกใช้กับคำขออื่นแล้ว")
+        return check
+
+    reg = db.scalar(select(RunningRegister).where(
+        RunningRegister.group_code == group, RunningRegister.sub_code == sub))
+    check.register_last = reg.last_running if reg else 0
+    running = int(code[7:])
+    if running > check.register_last:
+        between = [central_code(group, sub, n)
+                   for n in range(check.register_last + 1, running)]
+        # One query per kind for the whole range: a big jump must stay fast
+        # while the request and register rows are locked.
+        in_master = master_codes(db, between)
+        used = retired_among(db, between) | on_requests_among(db, between)
+        for c in between:
+            if c in in_master:
+                check.skipped_in_master += 1
+            elif c in used:
+                check.skipped_already_used += 1
+            else:
+                check.to_retire.append(c)
+        if check.needs_confirmation:
+            check.warnings.append(
+                f"Register หมวด {group}-{sub} จะขยับจาก {check.register_last} เป็น {running} "
+                f"และเลข {len(check.to_retire)} ตัวจะถูกทิ้งถาวร — ต้องยืนยันก่อน")
+    return check
+
+
 def override_code(
-    db: Session, request_id: int, *, new_code: str, account: Account
+    db: Session, request_id: int, *, new_code: str, account: Account,
+    reason: str = "", confirm_skip: bool = False,
 ) -> ItemRequest:
-    # Not yet validated against the register — see STORY-010.
+    """Put the group master's Central Code X on an approved request (STORY-010).
+
+    All rules are in check_override, re-run here under the locks (request row,
+    then register row — the same order as Approval and re-issue). If X is above
+    the register, the register moves up to it and every skipped number the
+    group master does not hold is retired. The replaced code is retired too.
+    """
     _require_administrator(account)
     req = _get_locked(db, request_id)
     if req is None:
@@ -410,21 +551,38 @@ def override_code(
     old = req.generated_code
     if new_code == old:
         return req
-    # A thrown-away number is never used again. Checked here already (the rest
-    # of the override rules are STORY-010 ticket 03): without it, overriding
-    # A -> B -> A would leave the request carrying a retired A that no later
-    # reject/re-categorise/override could retire again, so only export remained.
-    from app.services.codegen import is_retired
+    reason = " ".join((reason or "").split())
+    if not reason:
+        raise RequestError("กรุณาระบุเหตุผลที่แก้รหัส")
 
-    if is_retired(db, new_code):
-        raise RequestError(f"รหัส {new_code} ถูกทิ้งไปแล้ว — ใช้ซ้ำไม่ได้")
+    from app.services.codegen import lock_register, retire_many
+
+    reg = lock_register(db, req.group.code, req.subgroup.code) if req.subgroup else None
+    check = check_override(db, req, new_code)
+    if not check.ok:
+        db.rollback()
+        raise RequestError(check.errors[0])
+    if check.needs_confirmation and not confirm_skip:
+        db.rollback()
+        raise RequestError(
+            f"รหัสนี้จะทำให้เลข {len(check.to_retire)} ตัวถูกทิ้งถาวร — ต้องติ๊กยืนยันก่อนบันทึก")
+
+    if check.advances_register:
+        running = int(new_code[7:])
+        db.add(RequestEvent(
+            request_id=req.id, actor=account.email, action="register_advanced",
+            detail=(f"{req.group.code}-{req.subgroup.code}: {reg.last_running} -> {running} "
+                    f"(ทิ้ง {len(check.to_retire)}, มีใน Master {check.skipped_in_master}, "
+                    f"ใช้อยู่แล้ว {check.skipped_already_used})"),
+        ))
+        reg.last_running = running
+        retire_many(db, check.to_retire, request_id=req.id, reason="skipped",
+                    actor=account.email)
     req.generated_code = new_code
-    db.add(
-        RequestEvent(
-            request_id=req.id, actor=account.email, action="code_overridden",
-            detail=f"{old} -> {new_code}",
-        )
-    )
+    db.add(RequestEvent(
+        request_id=req.id, actor=account.email, action="code_overridden",
+        detail=f"{old} -> {new_code} · เหตุผล: {reason}",
+    ))
     _retire(db, old, req, "overridden", account)
     try:
         db.commit()
