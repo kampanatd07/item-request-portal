@@ -33,11 +33,11 @@ there is no login, so anyone with the URL can approve and issue codes.
 | Naming standard `[CATEGORY] - [name] - [detail]` | done |
 | Export to 4 plant import templates | done — **never tested against real AX** |
 | Admin config pages | done |
-| Login / roles | **in progress — STORY-001** (tickets 01–06 done: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry, lockout; 07 My requests left) |
+| Login / roles | **in progress — STORY-001** (all 7 tickets built: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry, lockout, My requests; awaiting Peter's merge) |
 | Email notification | **not started — STORY-002** |
 | Deployment | **not started — STORY-006** |
 
-Tests: 302 passing (`pytest`).
+Tests: 325 passing (`pytest`).
 
 Queued chore (after STORY-001 ships, Peter 2026-09-30): speed up the suite.
 Every test rebuilds its SQLite DB with `create_all` + `seed` (~0.35 s each,

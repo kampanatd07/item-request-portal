@@ -66,6 +66,7 @@
   <strong>Item Request Portal</strong>
   {% if account and not account.must_change_password %}
   <a href="/">ส่งคำขอ</a>
+  <a href="/my-requests">คำขอของฉัน</a>
   {% if has_role(account, "procurement") %}
   <a href="/queue">คิวจัดซื้อ</a>
   <a href="/exports">Export</a>

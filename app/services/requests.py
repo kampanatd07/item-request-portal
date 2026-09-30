@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -408,6 +408,20 @@ def override_code(
         db.rollback()
         raise RequestError("รหัสนี้ถูกใช้กับคำขออื่นแล้ว") from e
     return req
+
+
+def list_my_requests(db: Session, account: Account) -> list[ItemRequest]:
+    """The Account's own requests, newest first ("My requests").
+
+    Matched on email, which never changes for an Account. Compared without case
+    or surrounding spaces, since requests typed in before login existed may
+    carry the address as the person wrote it.
+    """
+    return list(db.scalars(
+        select(ItemRequest)
+        .where(func.lower(func.trim(ItemRequest.requester_email)) == account.email.lower())
+        .order_by(ItemRequest.created_at.desc(), ItemRequest.id.desc())
+    ))
 
 
 def list_queue(db: Session, status: str | None = None) -> list[ItemRequest]:

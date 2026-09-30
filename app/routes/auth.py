@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.models import Account
-from app.routes.deps import CHANGE_PASSWORD_PATH, session_account
+from app.routes.deps import CHANGE_PASSWORD_PATH, MY_REQUESTS_PATH, session_account
 from app.services.auth import AuthError, authenticate, change_own_password
 from app.services.clock import Clock, get_clock
 from app.services.sessions import COOKIE_NAME, account_for_session, issue_session, remaining
@@ -22,6 +22,21 @@ def _safe_next(next_path: str | None) -> str:
             and "\\" not in next_path:
         return next_path
     return "/"
+
+
+def _landing(account: Account, next_path: str | None) -> str:
+    """Where a logged-in Account goes from the login page.
+
+    A temporary password must be replaced before anything else (AC11). With no
+    page to return to, a Requester lands on "My requests", everyone else on the
+    request form.
+    """
+    if account.must_change_password:
+        return CHANGE_PASSWORD_PATH
+    target = _safe_next(next_path)
+    if target == "/" and account.role == "requester":
+        return MY_REQUESTS_PATH
+    return target
 
 
 def _set_session_cookie(response: Response, account: Account, login_at: datetime,
@@ -45,8 +60,9 @@ def login_page(
     db: Session = Depends(get_db),
     clock: Clock = Depends(get_clock),
 ):
-    if account_for_session(db, request.cookies.get(COOKIE_NAME), clock()) is not None:
-        return RedirectResponse(_safe_next(next), status_code=303)
+    account = account_for_session(db, request.cookies.get(COOKIE_NAME), clock())
+    if account is not None:
+        return RedirectResponse(_landing(account, next), status_code=303)
     return templates.TemplateResponse(
         request, "login.html",
         {"next": _safe_next(next), "email": "", "error": None, "relogin": bool(relogin)},
@@ -70,9 +86,7 @@ def login(
             {"next": _safe_next(next), "email": email, "error": str(e), "relogin": False},
             status_code=401,
         )
-    # A temporary password must be replaced before anything else (AC11).
-    target = CHANGE_PASSWORD_PATH if account.must_change_password else _safe_next(next)
-    response = RedirectResponse(target, status_code=303)
+    response = RedirectResponse(_landing(account, next), status_code=303)
     now = clock()
     _set_session_cookie(response, account, now, now)
     return response

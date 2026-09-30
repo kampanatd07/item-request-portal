@@ -6,7 +6,7 @@ from app.database import get_db
 from app.models import Account
 from app.routes.deps import current_account
 from app.services import catalog, snapshots
-from app.services.requests import RequestError, submit_request
+from app.services.requests import RequestError, list_my_requests, submit_request
 from app.templating import templates
 
 router = APIRouter()
@@ -27,6 +27,17 @@ def request_form(
         request, "request_form.html",
         {"factories": factories, "uoms": catalog.list_uoms(db),
          "plant_locked": account.role == "requester"},
+    )
+
+
+@router.get("/my-requests", response_class=HTMLResponse)
+def my_requests(
+    request: Request,
+    db: Session = Depends(get_db),
+    account: Account = Depends(current_account),
+):
+    return templates.TemplateResponse(
+        request, "my_requests.html", {"requests": list_my_requests(db, account)}
     )
 
 

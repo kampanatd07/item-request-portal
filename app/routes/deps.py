@@ -17,6 +17,7 @@ from app.services.clock import Clock, get_clock
 from app.services.sessions import COOKIE_NAME, read_session
 
 CHANGE_PASSWORD_PATH = "/account/password"
+MY_REQUESTS_PATH = "/my-requests"
 
 
 class RoleForbidden(HTTPException):

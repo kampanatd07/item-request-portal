@@ -1,4 +1,6 @@
 <div class="success">
   ส่งคำขอเรียบร้อย หมายเลขคำขอของคุณคือ <strong>#{{ req.id }}</strong><br>
-  ติดตามสถานะได้ที่ <a href="/queue/{{ req.id }}">หน้าคำขอ #{{ req.id }}</a>
+  ติดตามสถานะได้ที่ <a href="/my-requests">คำขอของฉัน</a>
+  {%- if has_role(request.state.account, "procurement") %}
+  · <a href="/queue/{{ req.id }}">เปิดในคิว #{{ req.id }}</a>{% endif %}
 </div>
