@@ -133,7 +133,8 @@ async def upload_labeled_master(
             request, "partials/form_error.html", {"message": str(e)}, status_code=422
         )
     return templates.TemplateResponse(
-        request, "partials/snapshot_result.html", {"imp": imp}
+        request, "partials/snapshot_result.html",
+        {"imp": imp, "register_lag": snapshots.central_register_lag(db)},
     )
 
 

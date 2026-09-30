@@ -9,12 +9,13 @@ import csv
 import io
 import re
 import unicodedata
+from dataclasses import dataclass, field
 
 from openpyxl import load_workbook
 from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import Factory, ItemSnapshot, SnapshotImport
+from app.models import Factory, ItemSnapshot, RunningRegister, SnapshotImport
 
 SOURCES = ("CBD", "D365", "CENTRAL")
 
@@ -54,55 +55,176 @@ def similarity(a: str, b: str) -> float:
     return len(ta & tb) / len(ta | tb)
 
 
-def _extract_labeled_rows(filename: str, data: bytes) -> list[dict]:
-    """Rows from the classified master (New_Item_Master): item, name, and the
-    central Category/Sub-Category codes that make the row a training example.
+# ASCII digits only: \d and str.isdigit() also accept Thai numerals (๐-๙) and
+# fullwidth digits, which would store a "code" that never equals a real one.
+CENTRAL_CODE = re.compile(r"[0-9]{11}")
+ASCII_DIGITS = re.compile(r"[0-9]+")
+MAX_LISTED_INVALID = 10
 
-    Product Name carries the 'CATEGORY - ' prefix; the searchable text is the
-    part a user would actually type, so the prefix is stripped for matching.
+
+@dataclass
+class InvalidRow:
+    row: int          # sheet row number, as Excel shows it
+    item_number: str
+    reason: str       # Thai, for the Administrator
+
+
+@dataclass
+class LabeledCheck:
+    """What a classified master holds, before anything is written."""
+
+    total: int                                   # non-empty data rows
+    valid: list[dict] = field(default_factory=list)
+    skipped: int = 0                             # no Item Number yet (pending)
+    invalid: list[InvalidRow] = field(default_factory=list)
+
+
+@dataclass
+class RegisterLag:
+    """A Group + Sub-Category where the group master is ahead of the register."""
+
+    group_code: str
+    sub_code: str
+    register: int
+    master: int
+
+    @property
+    def gap(self) -> int:
+        return self.master - self.register
+
+
+def _cell_text(value) -> str:
+    """Cell as text; a code typed as an Excel number reads the same as text."""
+    if value is None:
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    return str(value).strip()
+
+
+def _code_problem(number: str, name: str, group: str, sub: str) -> str | None:
+    """Why a coded row is not a valid Central Code for its own category, or None."""
+    if not group or not sub:
+        return "ไม่มี Category Code / Sub-Category Code"
+    if not name:
+        return "ไม่มี Product Name"
+    if not (ASCII_DIGITS.fullmatch(group) and len(group) == 3
+            and ASCII_DIGITS.fullmatch(sub) and len(sub) == 2):
+        return f"Category Code {group} / Sub-Category Code {sub} ไม่ถูกต้อง"
+    if not CENTRAL_CODE.fullmatch(number):
+        return "ไม่ใช่ตัวเลข 11 หลัก"
+    if number[:3] != group:
+        return f"หลัก 1–3 ({number[:3]}) ไม่ตรงกับ Category Code {group}"
+    if number[3:5] != sub:
+        return f"หลัก 4–5 ({number[3:5]}) ไม่ตรงกับ Sub-Category Code {sub}"
+    if number[5:7] != "00":
+        return f"หลัก 6–7 ต้องเป็น 00 (พบ {number[5:7]})"
+    return None
+
+
+def check_labeled_master(filename: str, data: bytes) -> LabeledCheck:
+    """Read the classified master (New_Item_Master) without writing anything.
+
+    Its Item Number is the group's Central Code, which code override trusts
+    (STORY-010), so a coded row must be a valid code for its own Category /
+    Sub-Category. Rows with no Item Number are pending group decisions and are
+    skipped. Product Name carries the 'CATEGORY - ' prefix; the searchable text
+    is the part a user would actually type, so the prefix is stripped.
     """
     if not filename.lower().endswith((".xlsx", ".xlsm")):
         raise SnapshotError("ไฟล์ master ที่จัดหมวดแล้วต้องเป็น .xlsx")
     wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     required = {"item number", "product name", "category code", "sub-category code"}
-    for ws in wb.worksheets:
-        header: dict[str, int] | None = None
-        out: list[dict] = []
-        for row in ws.iter_rows(values_only=True):
-            cells = ["" if c is None else str(c).strip() for c in row]
-            lowered = [c.lower() for c in cells]
-            if header is None:
-                if required.issubset(set(lowered)):
-                    header = {k: lowered.index(k) for k in required}
-                continue
-            number = cells[header["item number"]]
-            name = cells[header["product name"]]
-            group = cells[header["category code"]]
-            sub = cells[header["sub-category code"]]
-            if not (number and name and group and sub):
-                continue
-            searchable = name.split(" - ", 1)[1] if " - " in name else name
-            out.append({
-                "item_number": number, "name": name, "searchable": searchable,
-                "group_code": group.zfill(3)[:3], "sub_code": sub.zfill(2)[:2],
-            })
-        if header is not None:
-            wb.close()
-            if not out:
-                raise SnapshotError("ไม่พบข้อมูลรายการในไฟล์")
-            return out
-    wb.close()
+    try:
+        for ws in wb.worksheets:
+            header: dict[str, int] | None = None
+            check = LabeledCheck(total=0)
+            for row_no, row in enumerate(ws.iter_rows(values_only=True), start=1):
+                cells = [_cell_text(c) for c in row]
+                if header is None:
+                    lowered = [c.lower() for c in cells]
+                    if required.issubset(set(lowered)):
+                        header = {k: lowered.index(k) for k in required}
+                    continue
+                if not any(cells):
+                    continue
+                check.total += 1
+
+                def cell(key: str) -> str:
+                    i = header[key]
+                    return cells[i] if i < len(cells) else ""
+
+                number, name = cell("item number"), cell("product name")
+                group, sub = cell("category code"), cell("sub-category code")
+                if not number:
+                    check.skipped += 1
+                    continue
+                group, sub = group.zfill(3) if group else "", sub.zfill(2) if sub else ""
+                problem = _code_problem(number, name, group, sub)
+                if problem:
+                    check.invalid.append(InvalidRow(row_no, number, problem))
+                    continue
+                searchable = name.split(" - ", 1)[1] if " - " in name else name
+                check.valid.append({
+                    "item_number": number, "name": name, "searchable": searchable,
+                    "group_code": group, "sub_code": sub,
+                })
+            if header is not None:
+                return check
+    finally:
+        wb.close()
     raise SnapshotError(
         "ไม่พบคอลัมน์ Item Number / Product Name / Category Code / Sub-Category Code"
     )
 
 
+def _invalid_message(invalid: list[InvalidRow]) -> str:
+    listed = "; ".join(f"แถว {r.row}: {r.item_number} ({r.reason})"
+                       for r in invalid[:MAX_LISTED_INVALID])
+    more = len(invalid) - MAX_LISTED_INVALID
+    return (f"ไม่นำเข้าทั้งไฟล์ — พบรหัสที่ไม่ใช่ Central Code ที่ถูกต้อง {len(invalid)} แถว: "
+            f"{listed}" + (f" และอีก {more} แถว" if more > 0 else ""))
+
+
+def register_lag(db: Session, item_numbers) -> list[RegisterLag]:
+    """Group + Sub-Categories whose highest running number in `item_numbers` is
+    above the portal's register — the group issued codes the register does not
+    know, so the next Approval there would clash (fix via STORY-005). Read-only.
+    """
+    highest: dict[tuple[str, str], int] = {}
+    for number in item_numbers:
+        if CENTRAL_CODE.fullmatch(number or ""):
+            key = (number[:3], number[3:5])
+            highest[key] = max(highest.get(key, 0), int(number[7:]))
+    registers = {(r.group_code, r.sub_code): r.last_running
+                 for r in db.scalars(select(RunningRegister))}
+    lags = [RegisterLag(g, s, registers.get((g, s), 0), top)
+            for (g, s), top in highest.items() if top > registers.get((g, s), 0)]
+    return sorted(lags, key=lambda lag: (lag.group_code, lag.sub_code))
+
+
+def central_register_lag(db: Session) -> list[RegisterLag]:
+    """register_lag for the classified master currently loaded."""
+    return register_lag(db, db.scalars(
+        select(ItemSnapshot.item_number).where(ItemSnapshot.source == "CENTRAL")))
+
+
 def import_labeled_master(
     db: Session, *, filename: str, data: bytes, uploaded_by: str
 ) -> SnapshotImport:
-    """Load the classified master as labelled training data for category
-    suggestion. Replaces the previous CENTRAL load; LEARNED rows are untouched."""
-    rows = _extract_labeled_rows(filename, data)
+    """Load the classified master: the group's Central Codes (trusted by code
+    override) and labelled training data for category suggestion.
+
+    Any coded row that is not a valid Central Code rejects the whole file and
+    the previous CENTRAL load stays. Replaces the previous CENTRAL load;
+    LEARNED rows are untouched. Never touches the register.
+    """
+    check = check_labeled_master(filename, data)
+    if check.invalid:
+        raise SnapshotError(_invalid_message(check.invalid))
+    if not check.valid:
+        raise SnapshotError("ไม่พบข้อมูลรายการในไฟล์")
+    rows = check.valid
     imp = SnapshotImport(
         source="CENTRAL", filename=filename, row_count=len(rows), uploaded_by=uploaded_by
     )
