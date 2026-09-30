@@ -18,17 +18,95 @@ from app.main import app  # noqa: E402
 from app.seed import seed  # noqa: E402
 
 
-@pytest.fixture()
-def db_session():
-    engine = create_engine(
+def memory_engine():
+    """An empty in-memory SQLite DB on one shared connection (StaticPool), so the
+    app, the test and TestClient's thread all see the same data."""
+    return create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
+
+
+def build_seeded_db():
+    """create_all + seed into a fresh in-memory DB: what every test starts from."""
+    engine = memory_engine()
     Base.metadata.create_all(engine)
-    TestingSession = sessionmaker(bind=engine, expire_on_commit=False)
-    session = TestingSession()
-    seed(session)
+    with sessionmaker(bind=engine)() as session:
+        seed(session)
+        session.commit()
+    return engine
+
+
+def copy_db(source):
+    """A new in-memory DB holding a byte-for-byte copy of `source` (SQLite backup API)."""
+    target = memory_engine()
+    src, dst = source.raw_connection(), target.raw_connection()
+    try:
+        src.driver_connection.backup(dst.driver_connection)
+    finally:
+        # Hand the shared StaticPool connections back; they stay open.
+        src.close()
+        dst.close()
+    return target
+
+
+def _clock_columns(table: str) -> set[str]:
+    """Columns the DB fills with the current time (server_default now()), e.g.
+    running_register.updated_at: they differ between two seeds by design."""
+    t = Base.metadata.tables.get(table)
+    return {c.name for c in t.columns if c.server_default is not None
+            and "now" in str(getattr(c.server_default, "arg", "")).lower()} if t is not None else set()
+
+
+def db_fingerprint(engine, ignore_clock: bool = False) -> dict:
+    """Schema DDL (tables, indexes, constraints) plus a hash of every table's rows.
+
+    Equal fingerprints mean the same structure and the same values, not just the
+    same row counts. `ignore_clock` leaves out columns stamped with the time of
+    insertion, for comparing two separately seeded DBs.
+    """
+    import hashlib
+
+    from sqlalchemy import text
+
+    with engine.connect() as c:
+        ddl = sorted(r[0] for r in c.execute(text(
+            "SELECT sql FROM sqlite_master WHERE sql IS NOT NULL")))
+        tables = [r[0] for r in c.execute(text(
+            "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"))]
+        rows = {}
+        for t in tables:
+            skip = _clock_columns(t) if ignore_clock else set()
+            digest = hashlib.sha256()
+            for row in c.execute(text(f'SELECT * FROM "{t}" ORDER BY rowid')).mappings():
+                digest.update(repr(tuple(v for k, v in row.items() if k not in skip)).encode())
+            rows[t] = digest.hexdigest()
+    return {"ddl": ddl, "rows": rows}
+
+
+@pytest.fixture(scope="session")
+def seeded_template():
+    """Seeded once per pytest run; tests never touch it, they get copies.
+
+    Seeding took ~0.35 s per test (~2 min for the suite); a copy takes ~1 ms.
+    Copies, not a rolled-back transaction, because services commit themselves.
+    """
+    engine = build_seeded_db()
+    before = db_fingerprint(engine)
+    yield engine
+    # A test that wrote to the template would have handed every later test a
+    # dirty start; fail the run loudly instead.
+    changed = db_fingerprint(engine) != before
+    engine.dispose()
+    assert not changed, "a test modified the shared seeded template DB"
+
+
+@pytest.fixture()
+def db_session(seeded_template):
+    engine = copy_db(seeded_template)
+    session = sessionmaker(bind=engine, expire_on_commit=False)()
     yield session
     session.close()
+    engine.dispose()
 
 
 def central_ids(db, factory_code: str = "APM", group_code: str = "900",

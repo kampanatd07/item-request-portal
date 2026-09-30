@@ -47,7 +47,11 @@ def test_migrations_build_accounts_table_on_fresh_db(tmp_path, monkeypatch):
     root = Path(__file__).resolve().parent.parent
     command.upgrade(Config(str(root / "alembic.ini")), "head")
 
-    columns = {c["name"] for c in inspect(create_engine(url)).get_columns("accounts")}
+    engine = create_engine(url)
+    try:
+        columns = {c["name"] for c in inspect(engine).get_columns("accounts")}
+    finally:
+        engine.dispose()  # else an unclosed sqlite3 connection lingers until GC
     assert columns >= {
         "email", "display_name", "role", "factory_id", "password_hash",
         "must_change_password", "active", "session_version",

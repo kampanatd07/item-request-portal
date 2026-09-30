@@ -39,14 +39,15 @@ code override (STORY-010).
 | Email notification | **not started — STORY-002** |
 | Deployment | **not started — STORY-006** |
 
-Tests: 341 passing (`pytest`).
+Tests: 344 passing (`pytest`).
 
-Queued chore (next, now that STORY-001 has shipped; Peter 2026-09-30): speed up the suite.
-Every test rebuilds its SQLite DB with `create_all` + `seed` (~0.35 s each,
-~100 s for 300 tests). Seed one template DB per session and copy it into each
-test with the SQLite backup API; expected ~20–30 s. `pytest.ini` sets
-`timeout = 60` (pytest-timeout, in `requirements-dev.txt`) so a hung test
-fails with stack traces instead of stalling the run.
+The suite runs in ~13 s: `create_all` + `seed` run once per pytest session
+into an in-memory template, and each test's `db_session` gets a copy through
+the SQLite backup API (`tests/conftest.py`; `tests/test_template_db.py`
+guards that a copy equals a fresh seed and that copies are isolated). Tests
+pass in random order too (checked with pytest-randomly, not installed).
+`pytest.ini` sets `timeout = 60` (pytest-timeout, in `requirements-dev.txt`)
+so a hung test fails with stack traces instead of stalling the run.
 
 ## 3. Group standard this app implements
 
