@@ -151,6 +151,7 @@ Tickets in `docs/stories/STORY-010/`:
 - Q12 An upload whose master runs ahead of the register shows a prominent
   per-sub-category warning pointing to STORY-005; it does not move the
   register.
-- Assumption to confirm in ticket 02: a row with an Item Number but a blank
-  Category or Sub-Category Code cannot be checked against its category, so it
-  counts as invalid (rejects the file) rather than being skipped.
+- A row with an Item Number but a blank Category or Sub-Category Code counts
+  as invalid (rejects the file), confirmed by Peter 2026-09-30. Ticket 02 is
+  dry-run against the real Central_v4 file (kept in `D:\dev\private\`, never
+  committed) before merge.
