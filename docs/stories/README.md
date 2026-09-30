@@ -5,7 +5,7 @@ story file plus `docs/HANDOFF.md` alone, without chat history.
 
 | ID | Story | Depends on | Parallel with |
 |---|---|---|---|
-| [001](STORY-001-auth-roles.md) | Login + roles | — | — (foundation) |
+| [001](STORY-001-auth-roles.md) | Login + roles — **done** (merged 2026-09-30) | — | — (foundation) |
 | [002](STORY-002-email-notification.md) | Email requester when item is created | 001 | 003, 004 |
 | [003](STORY-003-uom-standard.md) | 24-unit UoM standard + Base/Purchase UoM + pack size | — | 002, 004 |
 | [004](STORY-004-item-attributes.md) | Legacy No., Scope Owner, Lifecycle State | — | 002, 003 |

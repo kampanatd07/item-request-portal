@@ -1,6 +1,6 @@
 # 07: "My requests" page
 
-Status: done (awaiting Peter's review)
+Status: done
 Triage: ready-for-agent
 Parent: STORY-001
 Blocked by: 02

@@ -4,7 +4,7 @@
 > `docs/decisions.md` before doing anything. If chat history contradicts these
 > files, the files win.
 >
-> Last updated: 2026-09-29 · Owner: Peter (Procurement Strategy, Carabao Group)
+> Last updated: 2026-09-30 · Owner: Peter (Procurement Strategy, Carabao Group)
 
 ---
 
@@ -19,8 +19,10 @@ It replaces: Microsoft Forms → Peter checks manually → types into AX → ema
 
 ## 2. Status
 
-**Built and running on Peter's machine. Not yet safe to open to the plants** —
-there is no login, so anyone with the URL can approve and issue codes.
+**Built and running on Peter's machine, with login and roles (STORY-001, done
+2026-09-30). Not yet open to the plants** — it still has to be deployed
+(STORY-006), which waits for email notification (STORY-002) and validated
+code override (STORY-010).
 
 | Area | State |
 |---|---|
@@ -33,13 +35,13 @@ there is no login, so anyone with the URL can approve and issue codes.
 | Naming standard `[CATEGORY] - [name] - [detail]` | done |
 | Export to 4 plant import templates | done — **never tested against real AX** |
 | Admin config pages | done |
-| Login / roles | **in progress — STORY-001** (all 7 tickets built: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry, lockout, My requests; awaiting Peter's merge) |
+| Login / roles | done — STORY-001: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry, lockout, My requests |
 | Email notification | **not started — STORY-002** |
 | Deployment | **not started — STORY-006** |
 
 Tests: 341 passing (`pytest`).
 
-Queued chore (after STORY-001 ships, Peter 2026-09-30): speed up the suite.
+Queued chore (next, now that STORY-001 has shipped; Peter 2026-09-30): speed up the suite.
 Every test rebuilds its SQLite DB with `create_all` + `seed` (~0.35 s each,
 ~100 s for 300 tests). Seed one template DB per session and copy it into each
 test with the SQLite backup API; expected ~20–30 s. `pytest.ini` sets

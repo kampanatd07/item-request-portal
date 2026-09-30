@@ -1,6 +1,6 @@
 # 01: Login tracer bullet
 
-Status: done (awaiting Peter's review)
+Status: done
 Triage: ready-for-agent
 Parent: STORY-001
 Blocked by: None (can start immediately)

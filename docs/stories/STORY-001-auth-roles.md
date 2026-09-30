@@ -1,6 +1,6 @@
 # STORY-001: Login + roles
 
-Status: planned
+Status: done (merged to master 2026-09-30)
 Triage: ready-for-agent
 
 ## Why
