@@ -1,6 +1,6 @@
 # 02: Classified master upload — valid codes only, and say when the register is behind
 
-Status: in-progress (built; dry run on the real file pending)
+Status: done
 Triage: ready-for-agent
 Parent: STORY-010
 Blocked by: None (can start immediately)
@@ -43,7 +43,7 @@ say when the group is ahead of the portal's register.
       level or behind
 - [x] The register is unchanged after any upload
 - [x] Only Administrators reach the upload (already guarded; keep a test)
-- [ ] **Before merge — dry run on the real file** (Peter puts
+- [x] **Before merge — dry run on the real file** (Peter puts
       `Carabao_Group_Item_Master_Central_v4.xlsx` in `D:\dev\private\`, outside
       the repo; never committed): run the validator read-only and report total
       rows / valid / skipped (no Item Number) / invalid, 5 example invalid rows,
@@ -63,4 +63,9 @@ Implementation notes (2026-09-30):
   other rule and would have been stored as a code that never matches a real one.
 - Dry-run script kept outside the repo (scratchpad), reads the file and dev.db
   read-only.
+- Dry run 2026-09-30 on `Carabao_Group_Item_Master_Central_v4.xlsx` (sheet
+  `New_Item_Master`, header on row 2; dev.db verified unchanged by md5):
+  13,391 rows, 13,391 valid, 0 skipped, 0 invalid, 0 blank names, 0 duplicate
+  codes, 0 sub-categories where the register is behind. The file uploads as a
+  whole with no warning. Observations for Peter went to STORY-005 Notes.
 

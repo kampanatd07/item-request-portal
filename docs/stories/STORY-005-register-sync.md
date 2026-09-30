@@ -46,3 +46,18 @@ _(filled by /to-spec + /to-tickets)_
   old code of a `code_reissued` event and the code of a `code_burned` event
   (approved request rejected by an Administrator). They were issued from the
   register and must never be reissued by the group master either.
+- 2026-09-30, from the STORY-010 ticket 02 dry run against
+  `Carabao_Group_Item_Master_Central_v4.xlsx` — **for Peter to confirm at sync**:
+  1. The seeded register is **ahead of the master** by 1–2 numbers in 5
+     sub-categories the portal never issued in: `700-02` (register 415,
+     master 413), `900-99` (1235 vs 1233), `901-06` (29 vs 27), `906-02`
+     (149 vs 148), `908-99` (3 vs 2). The register seed
+     (`Running_Number_Register_v1`) knows numbers the v4 master does not —
+     perhaps items merged or dropped after the register was made. Safe
+     direction (no clash), but those numbers are neither in the master nor
+     retired; decide whether they are burned (retire them) or were never used.
+     (`907-01`, 64 vs 62, is explained by dev.db test approvals.)
+  2. The file's `Taxonomy` sheet says **20 groups / 105 sub-categories**; the
+     portal's `app/data/taxonomy.json` has **130** sub-categories (HANDOFF §3).
+     Confirm which taxonomy is current before syncing.
+
