@@ -63,7 +63,7 @@ def login(
     clock: Clock = Depends(get_clock),
 ):
     try:
-        account = authenticate(db, email, password)
+        account = authenticate(db, email, password, now=clock())
     except AuthError as e:
         return templates.TemplateResponse(
             request, "login.html",
@@ -112,7 +112,7 @@ def change_password(
     forced = account.must_change_password
     try:
         change_own_password(db, account, current=current_password, new=new_password,
-                            confirm=confirm_password)
+                            confirm=confirm_password, now=clock())
     except AuthError as e:
         return templates.TemplateResponse(
             request, "change_password.html", {"forced": forced, "error": str(e)},

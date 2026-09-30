@@ -8,6 +8,7 @@ find out which emails have an Account.
 import logging
 import re
 import secrets
+from datetime import datetime, timedelta
 from functools import lru_cache
 
 from argon2 import PasswordHasher
@@ -17,9 +18,14 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import ROLES, Account, Factory
+from app.services.clock import utc_now
 
 MIN_PASSWORD_LENGTH = 12
 TEMPORARY_PASSWORD_BYTES = 12  # token_urlsafe -> 16 characters
+# 10 consecutive wrong passwords lock the email for 15 minutes (STORY-001 AC9).
+MAX_FAILED_LOGINS = 10
+LOCKOUT = timedelta(minutes=15)
+ACCOUNT_LOCKED = "บัญชีถูกล็อกชั่วคราว 15 นาที เพราะใส่รหัสผ่านผิดหลายครั้ง"
 
 # Account administration is logged here (who, action, target) until STORY-011
 # moves it into the DB. Never pass a password, hash or temporary password.
@@ -115,16 +121,63 @@ def create_account(
     return account
 
 
-def authenticate(db: Session, email: str, password: str) -> Account:
-    """Return the active Account for these credentials, or raise one generic AuthError."""
-    account = db.scalar(select(Account).where(Account.email == normalize_email(email)))
-    if account is None:
+def _lock_row(db: Session, account_id: int) -> Account:
+    """Reload an Account with its row locked until commit (Postgres; SQLite ignores it),
+    so parallel guesses are counted one after another and none slip past the limit."""
+    return db.scalar(
+        select(Account).where(Account.id == account_id)
+        .with_for_update().execution_options(populate_existing=True)
+    )
+
+
+def _is_locked(account: Account, now: datetime) -> bool:
+    """True while a lock is running. A lock that has run out is cleared, and the
+    count starts again from zero (a single typo right after must not re-lock)."""
+    if account.locked_until is None:
+        return False
+    if account.locked_until > now:
+        return True
+    account.locked_until = None
+    account.failed_login_count = 0
+    return False
+
+
+def _register_failure(account: Account, now: datetime) -> bool:
+    """Count one wrong password; returns True if this one locked the Account.
+    Failures during a lock never reach here, so a lock is never extended."""
+    account.failed_login_count += 1
+    if account.failed_login_count < MAX_FAILED_LOGINS:
+        return False
+    account.locked_until = now + LOCKOUT
+    _audit(None, "locked", account, f"until={account.locked_until:%Y-%m-%d %H:%M} UTC")
+    return True
+
+
+def authenticate(db: Session, email: str, password: str, now: datetime | None = None) -> Account:
+    """Return the active Account for these credentials, or raise one generic AuthError.
+
+    Every outcome that is not a success — unknown email, wrong password,
+    deactivated, locked — gives the same message after the same hashing work,
+    so the form reveals neither which emails exist nor that one is locked.
+    """
+    now = now or utc_now()
+    found = db.scalar(select(Account.id).where(Account.email == normalize_email(email)))
+    if found is None:
         # Burn the same hashing time as a real check (AC6).
         verify_password(_dummy_hash(settings.argon2_time_cost, settings.argon2_memory_cost,
                                     settings.argon2_parallelism), password)
         raise AuthError(LOGIN_FAILED)
-    if not verify_password(account.password_hash, password) or not account.active:
+    account = _lock_row(db, found)
+    password_ok = verify_password(account.password_hash, password)  # always, for timing
+    if _is_locked(account, now):
+        db.commit()
         raise AuthError(LOGIN_FAILED)
+    if not password_ok or not account.active:
+        _register_failure(account, now)
+        db.commit()
+        raise AuthError(LOGIN_FAILED)
+    account.failed_login_count = 0
+    db.commit()
 
     # Upgrade old hashes in place when the cost parameters are raised.
     if _current_hasher().check_needs_rehash(account.password_hash):
@@ -134,15 +187,34 @@ def authenticate(db: Session, email: str, password: str) -> Account:
 
 
 def change_own_password(
-    db: Session, account: Account, *, current: str, new: str, confirm: str
+    db: Session, account: Account, *, current: str, new: str, confirm: str,
+    now: datetime | None = None,
 ) -> None:
     """An Account replaces its own password (also the forced first-login change).
 
     Bumps the session version so every other session of the Account ends; the
-    caller re-issues the current session's cookie.
+    caller re-issues the current session's cookie. A wrong current password
+    counts toward the same lockout as the login page; if it triggers the lock,
+    this session is ended too, since a logged-in session guessing the password
+    looks like a stolen cookie.
     """
-    if not verify_password(account.password_hash, current):
+    now = now or utc_now()
+    account = _lock_row(db, account.id)
+    current_ok = verify_password(account.password_hash, current)
+    if _is_locked(account, now):
+        db.commit()
+        raise AuthError(ACCOUNT_LOCKED)
+    if not current_ok:
+        if _register_failure(account, now):
+            account.session_version += 1
+            db.commit()
+            raise AuthError(ACCOUNT_LOCKED)
+        db.commit()
         raise AuthError("รหัสผ่านปัจจุบันไม่ถูกต้อง")
+    # The right password resets the count, as on the login page — committed now,
+    # before the checks below can refuse the new password and roll it back.
+    account.failed_login_count = 0
+    db.commit()
     if new != confirm:
         raise AuthError("รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน")
     check_password_rules(new)
@@ -172,10 +244,12 @@ def _one_line(value: str) -> str:
     return value.replace("\r", "\\r").replace("\n", "\\n")
 
 
-def _audit(acting: Account, action: str, target: Account, detail: str = "") -> None:
+def _audit(acting: Account | None, action: str, target: Account, detail: str = "") -> None:
+    """`acting` None means the system did it (e.g. a lockout)."""
     audit_log.info(
         "account_admin by=%s action=%s target=%s%s",
-        _one_line(acting.email), _one_line(action), _one_line(target.email),
+        _one_line(acting.email if acting else "system"), _one_line(action),
+        _one_line(target.email),
         f" {_one_line(detail)}" if detail else "",
     )
 
@@ -300,6 +374,9 @@ def reset_password(db: Session, acting: Account, account_id: int) -> str:
     account.password_hash = hash_password(temporary)
     account.must_change_password = True
     account.session_version += 1
+    # Someone locked out asks for a reset; let the temporary password work now.
+    account.failed_login_count = 0
+    account.locked_until = None
     db.commit()
     _audit(acting, "reset_password", account)
     return temporary

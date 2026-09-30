@@ -17,7 +17,8 @@
         <button type="submit" class="secondary" style="margin:0; padding:6px 10px;">บันทึก</button>
       </form>
     </td>
-    <td>{{ "ใช้งาน" if a.active else "ปิดใช้งาน" }}{% if a.must_change_password %}<br><span class="muted">ต้องเปลี่ยนรหัส</span>{% endif %}</td>
+    <td>{{ "ใช้งาน" if a.active else "ปิดใช้งาน" }}{% if a.must_change_password %}<br><span class="muted">ต้องเปลี่ยนรหัส</span>{% endif %}
+      {%- if a.locked_until and a.locked_until > request.state.now %}<br><span class="badge rejected">ล็อกถึง {{ a.locked_until | thai_time }} น.</span>{% endif %}</td>
     <td style="white-space:nowrap;">
       <form hx-post="/admin/accounts/{{ a.id }}/reset-password" hx-target="#account-result" hx-swap="innerHTML"
             hx-confirm="รีเซ็ตรหัสผ่านของ {{ a.email }}? session ที่เปิดอยู่จะหลุดทันที" style="display:inline; margin:0;">

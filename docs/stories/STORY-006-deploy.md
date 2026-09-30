@@ -32,7 +32,15 @@ The app only runs on Peter's laptop. Plants need a URL.
    Same for Accounts: two Administrators deactivating or demoting each other
    at the same moment must leave at least one active Administrator (lock on
    active Administrator rows, taken in id order, STORY-001 ticket 04)
-5. **Before go-live:** confirm with Peter that the company data policy allows
+5. Login is rate-limited per client IP (against password spraying: one
+   password tried across many emails, which the per-email lockout of
+   STORY-001 ticket 06 cannot see). First **check whether the chosen platform
+   (Render/Railway, or a proxy/CDN in front) really offers IP rate limiting**
+   and record what was found; if it does not, build it in the app (count per
+   IP in the DB or a shared store, not in process memory, so it survives
+   restarts and several instances). Also: parallel wrong logins for one email
+   on Postgres never get past 10 (row lock from ticket 06)
+6. **Before go-live:** confirm with Peter that the company data policy allows
    external hosting of item data (flagged in decisions.md 2026-07-24)
 
 ## Files likely touched

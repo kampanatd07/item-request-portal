@@ -33,11 +33,18 @@ there is no login, so anyone with the URL can approve and issue codes.
 | Naming standard `[CATEGORY] - [name] - [detail]` | done |
 | Export to 4 plant import templates | done — **never tested against real AX** |
 | Admin config pages | done |
-| Login / roles | **in progress — STORY-001** (tickets 01–05 done: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry) |
+| Login / roles | **in progress — STORY-001** (tickets 01–06 done: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry, lockout; 07 My requests left) |
 | Email notification | **not started — STORY-002** |
 | Deployment | **not started — STORY-006** |
 
-Tests: 283 passing (`pytest`).
+Tests: 302 passing (`pytest`).
+
+Queued chore (after STORY-001 ships, Peter 2026-09-30): speed up the suite.
+Every test rebuilds its SQLite DB with `create_all` + `seed` (~0.35 s each,
+~100 s for 300 tests). Seed one template DB per session and copy it into each
+test with the SQLite backup API; expected ~20–30 s. `pytest.ini` sets
+`timeout = 60` (pytest-timeout, in `requirements-dev.txt`) so a hung test
+fails with stack traces instead of stalling the run.
 
 ## 3. Group standard this app implements
 

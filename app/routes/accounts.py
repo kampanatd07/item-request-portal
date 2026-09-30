@@ -9,9 +9,15 @@ from app.models import ROLES, Account
 from app.routes.deps import current_account
 from app.services import auth, catalog
 from app.services.auth import AuthError
+from app.services.clock import Clock, get_clock
 from app.templating import templates
 
-router = APIRouter(prefix="/admin/accounts")
+def _stamp_now(request: Request, clock: Clock = Depends(get_clock)) -> None:
+    # The table shows "locked until"; it reads now from the clock seam.
+    request.state.now = clock()
+
+
+router = APIRouter(prefix="/admin/accounts", dependencies=[Depends(_stamp_now)])
 
 ROLE_LABELS = {"requester": "ผู้ขอ", "procurement": "จัดซื้อ", "administrator": "ผู้ดูแลระบบ"}
 # Responses that carry a temporary password must never be stored by a browser or proxy.

@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
@@ -20,3 +21,15 @@ STATUS_LABELS = {
 templates.env.globals["status_labels"] = STATUS_LABELS
 templates.env.globals["has_role"] = has_role
 templates.env.globals["session_hours"] = settings.session_max_hours
+
+# The DB stores naive UTC; people read Thai time. Thailand has no daylight
+# saving, so a fixed +07:00 offset is exact (and needs no tzdata on Windows).
+THAI_TZ = timezone(timedelta(hours=7))
+
+
+def thai_time(value: datetime, fmt: str = "%H:%M") -> str:
+    """Format a naive-UTC datetime from the DB in Thai time (UTC+7)."""
+    return value.replace(tzinfo=timezone.utc).astimezone(THAI_TZ).strftime(fmt)
+
+
+templates.env.filters["thai_time"] = thai_time
