@@ -420,6 +420,7 @@ class OverrideCheck:
     """
 
     code: str
+    current_code: str | None = None
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     item_name: str | None = None
@@ -459,9 +460,12 @@ def check_override(db: Session, req: ItemRequest, code: str) -> OverrideCheck:
     )
 
     code = (code or "").strip()
-    check = OverrideCheck(code=code)
+    check = OverrideCheck(code=code, current_code=req.generated_code)
     if req.status != "approved":
         check.errors.append("แก้รหัสได้เฉพาะคำขอที่อนุมัติแล้วและยังไม่ export")
+        return check
+    if code and code == req.generated_code:
+        check.errors.append("รหัสนี้เป็นรหัสปัจจุบันของคำขออยู่แล้ว")
         return check
     group = req.group.code
     sub = req.subgroup.code if req.subgroup else None
@@ -530,7 +534,7 @@ def check_override(db: Session, req: ItemRequest, code: str) -> OverrideCheck:
 
 def override_code(
     db: Session, request_id: int, *, new_code: str, account: Account,
-    reason: str = "", confirm_skip: bool = False,
+    reason: str = "", confirm_skip: bool = False, expected: dict | None = None,
 ) -> ItemRequest:
     """Put the group master's Central Code X on an approved request (STORY-010).
 
@@ -562,6 +566,22 @@ def override_code(
     if not check.ok:
         db.rollback()
         raise RequestError(check.errors[0])
+    if expected is not None:
+        # The screen showed a preview; save only if nothing changed since.
+        from app.services.override_preview import CHECK_AGAIN, plan_of
+
+        changed = [key for key, value in plan_of(check).items() if expected.get(key) != value]
+        if changed:
+            db.rollback()
+            labels = {"code": "รหัส", "item_name": "ชื่อ item ใน Master",
+                      "current_code": "รหัสปัจจุบันของคำขอ",
+                      "register_last": "เลขล่าสุดของ register", "to_retire": "จำนวนเลขที่จะทิ้ง",
+                      "to_retire_digest": "เลขที่จะทิ้ง", "in_master": "จำนวนที่มีใน master",
+                      "already_used": "จำนวนที่ใช้อยู่แล้ว"}
+            raise RequestError(
+                "ข้อมูลเปลี่ยนไปหลังตรวจรหัส ("
+                + ", ".join(dict.fromkeys(labels[k] for k in changed))
+                + f") — {CHECK_AGAIN}")
     if check.needs_confirmation and not confirm_skip:
         db.rollback()
         raise RequestError(

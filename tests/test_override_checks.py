@@ -298,22 +298,6 @@ def test_lock_order_is_request_then_register_everywhere(db_session):
         "item_requests", "running_register"]
 
 
-# --- HTTP -----------------------------------------------------------------------------------------
-
-def test_route_requires_a_reason_and_passes_confirmation(client, app_db):
-    req = _approved(app_db)
-    last = _last(app_db)
-    x = _code(last + 12)
-    load_master(app_db, [x])
-    r = client.post(f"/queue/{req.id}/code", data={"new_code": x})
-    assert r.status_code == 422 and "เหตุผล" in r.text
-    r = client.post(f"/queue/{req.id}/code", data={"new_code": x, "reason": REASON})
-    assert r.status_code == 422 and "ยืนยัน" in r.text
-    r = client.post(f"/queue/{req.id}/code", data={"new_code": x, "reason": REASON,
-                                                 "confirm_skip": "1"})
-    assert r.status_code == 200 and x in r.text
-
-
 def test_preview_reports_a_code_on_another_request(db_session):
     # The DB unique constraint would also refuse at save time; the preview must
     # say so before the Administrator confirms (ticket 04).

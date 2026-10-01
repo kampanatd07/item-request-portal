@@ -1,0 +1,40 @@
+{# Override, step 1 result: what saving would do. Read-only; the confirm form
+   carries a signed token of exactly this preview (STORY-010 ticket 04). #}
+<div class="card" style="margin-top:12px; background:#fafaf8;">
+  {% if not check.ok %}
+  <div class="error" role="alert">{{ check.errors[0] }}</div>
+  {% else %}
+  <h4 style="margin:0 0 8px;">ตรวจสอบก่อนบันทึก</h4>
+  <table>
+    <tr><th>รหัสใหม่</th><td><code>{{ check.code }}</code> — {{ check.item_name }}</td></tr>
+    <tr><th>รหัสเดิมที่จะถูกทิ้งถาวร</th><td><code>{{ check.current_code }}</code></td></tr>
+    {% if check.advances_register %}
+    <tr><th>Running Register</th><td>หมวด {{ req.group.code }}-{{ req.subgroup.code }} ขยับจาก {{ check.register_last }} เป็น {{ check.code[7:] | int }}</td></tr>
+    <tr><th>เลขที่จะถูกทิ้งถาวร</th><td>
+      <strong>{{ check.to_retire | length }} เลข</strong>
+      {%- if check.to_retire %}:
+        {{ check.to_retire[:5] | join(", ") }}{% if check.to_retire | length > 6 %}, …{% endif %}{% if check.to_retire | length > 5 %}, {{ check.to_retire[-1] }}{% endif %}
+      {%- endif %}</td></tr>
+    <tr><th>เลขที่ข้ามแต่มีใน Master (ไม่ทิ้ง)</th><td>{{ check.skipped_in_master }} เลข</td></tr>
+    {% if check.skipped_already_used %}
+    <tr><th>เลขที่ข้ามแต่ใช้อยู่แล้ว (ไม่ทิ้ง)</th><td>{{ check.skipped_already_used }} เลข</td></tr>
+    {% endif %}
+    {% else %}
+    <tr><th>Running Register</th><td>ไม่เปลี่ยน (รหัสนี้ไม่เกินเลขล่าสุด {{ check.register_last }})</td></tr>
+    {% endif %}
+  </table>
+  {% for w in check.warnings %}<p class="muted" style="color:#633806;">⚠ {{ w }}</p>{% endfor %}
+
+  <form hx-post="/queue/{{ req.id }}/code" hx-target="#status-panel" hx-swap="innerHTML">
+    <input type="hidden" name="token" value="{{ token }}">
+    <label for="override-reason">เหตุผล *</label>
+    <input id="override-reason" name="reason" required>
+    {% if check.needs_confirmation %}
+    <label style="font-weight:normal;"><input type="checkbox" name="confirm_skip" value="1" required style="width:auto;">
+      ยืนยันว่าเลข {{ check.to_retire | length }} ตัวจะถูกทิ้งถาวร</label>
+    {% endif %}
+    <button type="submit">ยืนยันใช้รหัสนี้</button>
+    <p class="muted" style="margin-bottom:0;">ผลการตรวจนี้ใช้ได้ 10 นาที ถ้าข้อมูลเปลี่ยนระหว่างนั้น ระบบจะให้ตรวจใหม่</p>
+  </form>
+  {% endif %}
+</div>
