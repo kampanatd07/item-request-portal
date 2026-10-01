@@ -1,6 +1,6 @@
 # 03: Override checks — only a real group code, and the register keeps up
 
-Status: done (awaiting Peter's review)
+Status: done
 Triage: ready-for-agent
 Parent: STORY-010
 Blocked by: 01, 02

@@ -1,6 +1,6 @@
 # 01: Retired Codes — every thrown-away number is recorded
 
-Status: done (awaiting Peter's review)
+Status: done
 Triage: ready-for-agent
 Parent: STORY-010
 Blocked by: None (can start immediately)

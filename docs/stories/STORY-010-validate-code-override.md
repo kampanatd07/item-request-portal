@@ -1,6 +1,6 @@
 # STORY-010: Validate code override against the Running Register
 
-Status: planned
+Status: done (ready for Peter's merge, 2026-10-01)
 Triage: ready-for-agent
 
 ## Why
@@ -124,6 +124,11 @@ Tickets in `docs/stories/STORY-010/`:
 
 ## Notes
 - AC6 (burned codes) found while closing STORY-001 ticket 03 (2026-09-29).
+- Closed 2026-10-01: migration verified on a temp DB (upgrade head, seed,
+  alembic check, downgrade/upgrade); whole-branch review against the 12 ACs
+  passed after the pre-merge fixes. AC12 passes with a note (Peter): the
+  migration and master-upload tests (AC9–11) involve no request or Account,
+  so they do not use `central_ids()` / `account_for()`.
 
 ### Grilling (2026-09-30, Peter) — settled
 - Q1 Override is for an item that already has a Central Code outside the

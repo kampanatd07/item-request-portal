@@ -1,6 +1,6 @@
 # 04: Override screen — reason, whose item it is, and what will be lost
 
-Status: done (awaiting Peter's review)
+Status: done
 Triage: ready-for-agent
 Parent: STORY-010
 Blocked by: 03
