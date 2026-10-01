@@ -135,6 +135,13 @@ After first run, upload in **Snapshot** page:
   on a D365 match goes back from a warning to a refusal (STORY-012)
 - Send a sample D365 item export showing the company / legal-entity column
   (STORY-012 is blocked on it)
+- Email (STORY-002) — ask IT for: an App Registration with the `Mail.Send`
+  **application** permission + admin consent, and an Application Access
+  Policy that limits it to one shared sender mailbox (e.g.
+  `item-portal@carabao.co.th`). Then provide `MS_TENANT_ID`, `MS_CLIENT_ID`,
+  `MS_CLIENT_SECRET`, `MAIL_SENDER`; plus `MAIL_ALLOWED_DOMAINS` (email
+  domains of CBD/APM/APG/ACM) and `MAIL_REPLY_TO` (Procurement mailbox for
+  replies) before deploy
 - Fill `Carabao_Item_Master_Decision_Sheet.xlsx` (D1–D4); the register must be
   re-synced afterwards
 - The cut-over date after which **only** this portal issues central codes —

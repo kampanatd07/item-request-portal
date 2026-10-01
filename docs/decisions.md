@@ -1,5 +1,17 @@
 # Decision Log
 
+## [2026-10-01] Email through Microsoft Graph, not SMTP
+**Decision:** The portal sends email with Microsoft Graph `sendMail` using an
+app registration (client credentials) limited by an Application Access Policy
+to one shared sender mailbox. Code goes through a `MailSender` interface; dev
+and tests use log/fake senders.
+**Why:** Exchange Online turns SMTP AUTH Basic Auth off by default at the end
+of December 2026; building on SMTP would break right after go-live.
+**Alternatives considered:** SMTP AUTH on a shared mailbox — rejected, being
+retired; an external provider (SendGrid etc.) — rejected, needs SPF/DKIM for
+the company domain and sends company data through a third party.
+**Revisit when:** IT offers an approved relay, or Graph limits get in the way.
+
 ## [2026-09-29] Only Administrators consume the running register
 **Decision:** Approving a request, re-categorising a request that already has a
 code, and overriding a code are Administrator-only (the Data Steward + one

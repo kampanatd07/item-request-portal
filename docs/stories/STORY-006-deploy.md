@@ -37,7 +37,9 @@ The app only runs on Peter's laptop. Plants need a URL.
    active Administrator rows, taken in id order, STORY-001 ticket 04).
    Same for codes: an override that moves the register and an Approval in the
    same sub-category at the same moment never issue one number twice (request
-   row, then register row, STORY-010 ticket 03)
+   row, then register row, STORY-010 ticket 03). And email: two resends of
+   the same notification at the same moment send one email (row lock and
+   state check before sending, STORY-002)
 5. Login is rate-limited per client IP (against password spraying: one
    password tried across many emails, which the per-email lockout of
    STORY-001 ticket 06 cannot see). First **check whether the chosen platform
