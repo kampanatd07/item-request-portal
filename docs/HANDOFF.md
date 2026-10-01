@@ -142,6 +142,10 @@ After first run, upload in **Snapshot** page:
   `MS_CLIENT_SECRET`, `MAIL_SENDER`; plus `MAIL_ALLOWED_DOMAINS` (email
   domains of CBD/APM/APG/ACM) and `MAIL_REPLY_TO` (Procurement mailbox for
   replies) before deploy
+- **Client secret expiry:** an Azure client secret has an end date (often
+  6–24 months). Note it here when IT creates it and renew it before that
+  date — after it expires every email fails with "Graph credentials do not
+  work". Secret expires on: _(fill in)_
 - Fill `Carabao_Item_Master_Decision_Sheet.xlsx` (D1–D4); the register must be
   re-synced afterwards
 - The cut-over date after which **only** this portal issues central codes —

@@ -31,3 +31,7 @@ when all four settings are present.
 - [ ] The rate limiter never lets more than N sends start in a minute
       (tested with the clock seam, not by sleeping)
 - [ ] Missing any Graph setting → log sender (AC2)
+- [ ] A failed token request (400/401 from the token endpoint, e.g.
+      `invalid_client`) gives a clear reason: the Graph credentials do not
+      work and the client secret may have expired — check MS_CLIENT_SECRET
+      (Peter, 2026-10-01)
