@@ -304,7 +304,9 @@ def _extract_rows(filename: str, data: bytes) -> list[tuple[str, str, str | None
 def import_snapshot(
     db: Session, *, source: str, filename: str, data: bytes, uploaded_by: str
 ) -> SnapshotImport:
-    if source not in SOURCES:
+    # CENTRAL is the group's list of Central Codes that override trusts; it may
+    # only arrive through import_labeled_master, which validates every code.
+    if source not in SOURCES or source == "CENTRAL":
         raise SnapshotError("แหล่งข้อมูลไม่ถูกต้อง (CBD หรือ D365)")
     rows = _extract_rows(filename, data)
 

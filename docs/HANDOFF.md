@@ -128,6 +128,12 @@ After first run, upload in **Snapshot** page:
 ## 7. Decisions only Peter can make (not code)
 
 - Test-import 1–2 exported rows into real AX/D365 (STORY-005 depends on it)
+- In that test, also import a code that already exists in one D365 company
+  (e.g. APG) into another (e.g. APM), and record what AX/D365 does (refuses,
+  releases, or duplicates). The result decides whether the override check
+  on a D365 match goes back from a warning to a refusal (STORY-012)
+- Send a sample D365 item export showing the company / legal-entity column
+  (STORY-012 is blocked on it)
 - Fill `Carabao_Item_Master_Decision_Sheet.xlsx` (D1–D4); the register must be
   re-synced afterwards
 - The cut-over date after which **only** this portal issues central codes —

@@ -72,11 +72,17 @@ stops them being used again. Found while building STORY-001 ticket 03.
 3. A code not found in the uploaded classified master is refused; with no
    master uploaded, override is refused
 4. A code found in this Plant's own snapshot is refused with advice to reject
-   instead; with no Plant snapshot the override goes ahead with a warning
+   instead; with no Plant snapshot the override goes ahead with a warning.
+   For APM/APG/ACM the D365 snapshot is shared and has no company column, so a
+   D365 match only warns ("รหัสนี้มีอยู่ใน D365 (APM/APG/ACM) แล้ว — ระบบแยก
+   ไม่ได้ว่าเป็นของโรงงานไหน ตรวจก่อน import"); CBD is still refused
+   (Peter 2026-10-01; plant-aware check is STORY-012)
 5. A Retired Code, or a code used by another request, is refused
 6. A valid code above the register's last value moves the register up to
    exactly that number, records `register_advanced`, and retires every
-   skipped number; a jump of more than 10 is refused unless confirmed
+   skipped number the group master does not hold (master codes are real codes
+   in use and are left alone); when more than 10 numbers would actually be
+   thrown away, the override is refused unless confirmed (Peter, ticket 03)
 7. A valid code lower than or equal to the register's last value leaves the
    register untouched (never moves backwards)
 8. After an override, the replaced code is a Retired Code (`overridden`);

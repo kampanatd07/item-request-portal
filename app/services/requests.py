@@ -43,8 +43,17 @@ class RequestForbidden(RequestError):
 
 
 def _retire(db: Session, code: str, req: ItemRequest, reason: str, account: Account) -> None:
-    """Retire a thrown-away code in the caller's transaction; a refusal undoes it all."""
+    """Retire a thrown-away code in the caller's transaction; a refusal undoes it all.
+
+    Only Central Codes (11 ASCII digits) are retired. Before STORY-010 override
+    accepted any text up to 20 characters; such a value was never a register
+    number, and retired_codes.code is 11 wide (PostgreSQL would refuse it and
+    leave the request impossible to reject).
+    """
     from app.services.codegen import CodegenError, retire_code
+
+    if not re.fullmatch(r"[0-9]{11}", code or ""):
+        return
 
     try:
         retire_code(db, code, request_id=req.id, reason=reason, actor=account.email)
@@ -495,10 +504,18 @@ def check_override(db: Session, req: ItemRequest, code: str) -> OverrideCheck:
             f"ยังไม่มี snapshot ของโรงงาน {req.factory.code} — ตรวจไม่ได้ว่ามีรหัสนี้ใน AX แล้วหรือไม่")
     elif db.scalar(select(ItemSnapshot.id).where(
             ItemSnapshot.source == source, ItemSnapshot.item_number == code)) is not None:
-        check.errors.append(
-            f"รหัส {code} มีอยู่ในระบบของโรงงาน {req.factory.code} แล้ว — "
-            f"ให้ไม่อนุมัติคำขอนี้พร้อมเหตุผล \"ซ้ำกับ {code}\" แทน")
-        return check
+        if source == "D365":
+            # One combined D365 snapshot for APM/APG/ACM with no company column:
+            # X may belong to another plant, which is exactly the override case.
+            # Warn until the snapshot is plant-aware (STORY-012; Peter, 2026-10-01).
+            check.warnings.append(
+                "รหัสนี้มีอยู่ใน D365 (APM/APG/ACM) แล้ว — ระบบแยกไม่ได้ว่าเป็นของโรงงานไหน "
+                "ตรวจก่อน import")
+        else:
+            check.errors.append(
+                f"รหัส {code} มีอยู่ในระบบของโรงงาน {req.factory.code} แล้ว — "
+                f"ให้ไม่อนุมัติคำขอนี้พร้อมเหตุผล \"ซ้ำกับ {code}\" แทน")
+            return check
 
     if is_retired(db, code):
         check.errors.append(f"รหัส {code} ถูกทิ้งไปแล้ว — ใช้ซ้ำไม่ได้")

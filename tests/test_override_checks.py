@@ -90,16 +90,37 @@ def test_no_master_uploaded_refuses(db_session):
     assert _state(db_session, req) == before
 
 
-def test_code_already_in_this_plants_ax_is_refused_with_advice_to_reject(db_session):
-    req = _approved(db_session)  # APM -> D365 snapshot
+def test_code_in_cbds_ax_is_refused_with_advice_to_reject(db_session):
+    # CBD has its own AX snapshot, so "already in this plant's AX" is certain.
+    factory, system, group, sub = central_ids(db_session, "CBD")
+    req = submit_request(db_session, account_for(db_session), factory_id=factory.id,
+                         code_system_id=system.id, group_id=group.id, subgroup_id=sub.id,
+                         item_name="Ball Bearing")
+    change_status(db_session, req.id, new_status="approved",
+                  account=account_for(db_session, "administrator"))
     x = next_code(db_session)
     load_master(db_session, [x])
-    _plant_snapshot(db_session, [x])
+    _plant_snapshot(db_session, [x], source="CBD")
     before = _state(db_session, req)
-    with pytest.raises(RequestError, match="มีอยู่ในระบบของโรงงาน APM.*ไม่อนุมัติ") as e:
+    with pytest.raises(RequestError, match="มีอยู่ในระบบของโรงงาน CBD.*ไม่อนุมัติ") as e:
         _override(db_session, req, x)
     assert f'"ซ้ำกับ {x}"' in str(e.value) and "{code}" not in str(e.value)
     assert _state(db_session, req) == before
+
+
+def test_code_in_the_combined_d365_snapshot_only_warns(db_session):
+    # APM/APG/ACM share one D365 snapshot with no company column: X may be in
+    # another plant's AX, which is the case override exists for (STORY-012).
+    req = _approved(db_session)  # APM -> D365 snapshot
+    x = next_code(db_session)
+    load_master(db_session, [x])
+    _plant_snapshot(db_session, [x], source="D365")
+    check = check_override(db_session, req, x)
+    assert check.ok
+    assert ("รหัสนี้มีอยู่ใน D365 (APM/APG/ACM) แล้ว — ระบบแยกไม่ได้ว่าเป็นของโรงงานไหน "
+            "ตรวจก่อน import") in check.warnings
+    _override(db_session, req, x)
+    assert req.generated_code == x
 
 
 def test_no_plant_snapshot_warns_but_allows(db_session):
@@ -361,3 +382,33 @@ def test_big_confirmed_jump_uses_a_few_queries_not_one_per_number(db_session):
     assert db_session.scalar(select(func.count(RetiredCode.id)).where(
         RetiredCode.reason == "skipped")) == 3000
     assert len(selects) < 100  # was ~9,000 (two per number, then one more each)
+
+
+def test_code_exactly_at_the_register_leaves_it(db_session):
+    # AC7, "equal": the register already stands on X's running number (e.g. the
+    # group issued it before the portal's seed) and nobody in the portal uses it.
+    req = _approved(db_session)
+    last = _last(db_session)
+    reg = db_session.scalar(select(RunningRegister).where(
+        RunningRegister.group_code == "900", RunningRegister.sub_code == "01"))
+    reg.last_running = last + 10
+    db_session.commit()
+    x = _code(last + 10)
+    load_master(db_session, [x])
+    check = check_override(db_session, req, x)
+    assert check.ok and not check.advances_register and check.to_retire == []
+    _override(db_session, req, x)
+    assert _last(db_session) == last + 10
+    assert [r.reason for r in db_session.scalars(select(RetiredCode))] == ["overridden"]
+
+
+def test_retired_refusal_changes_nothing(db_session):
+    req = _approved(db_session)
+    x = next_code(db_session)
+    load_master(db_session, [x])
+    retire_code(db_session, x, request_id=None, reason="skipped", actor="a@test.local")
+    db_session.commit()
+    before = _state(db_session, req)
+    with pytest.raises(RequestError, match="ถูกทิ้งไปแล้ว"):
+        _override(db_session, req, x)
+    assert _state(db_session, req) == before

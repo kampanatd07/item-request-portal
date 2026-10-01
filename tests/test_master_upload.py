@@ -167,3 +167,15 @@ def test_float_cells_read_as_whole_numbers():
 def test_non_ascii_digits_are_invalid(db_session, number, group, sub):
     check = check_labeled_master("m.xlsx", _xlsx([(number, "BEARING - X", group, sub)]))
     assert len(check.invalid) == 1 and not check.valid
+
+
+def test_central_cannot_arrive_through_the_unchecked_snapshot_upload(client, app_db):
+    # Otherwise unvalidated rows would replace the master that override trusts.
+    from app.services.snapshots import import_snapshot
+
+    with pytest.raises(SnapshotError):
+        import_snapshot(app_db, source="CENTRAL", filename="m.xlsx", data=_xlsx(GOOD),
+                        uploaded_by="a@test.local")
+    r = client.post("/admin/snapshots", data={"source": "CENTRAL"},
+                    files={"file": ("m.xlsx", _xlsx(GOOD), "application/octet-stream")})
+    assert r.status_code == 422 and _central(app_db) == []

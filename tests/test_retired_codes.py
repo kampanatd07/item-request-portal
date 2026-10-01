@@ -286,3 +286,59 @@ def test_backfill_prefers_the_rejection_as_the_reason(tmp_path, monkeypatch):
     finally:
         engine.dispose()
     assert got == {"90001000011": "rejected", "90001000012": "overridden"}
+
+
+def test_an_old_free_text_code_is_not_retired_and_the_request_can_be_rejected(db_session):
+    # Before STORY-010 override accepted any text; such a request must still be
+    # rejectable (retired_codes.code is 11 wide: PostgreSQL would refuse it).
+    admin = account_for(db_session, "administrator")
+    req = _approved(db_session)
+    req.generated_code = "LEGACY-CODE-1234"
+    db_session.commit()
+    change_status(db_session, req.id, new_status="rejected", note="ข้อมูลเก่า", account=admin)
+    assert req.status == "rejected" and _retired(db_session) == []
+
+
+def test_failed_reject_rolls_back_the_retired_code(db_session, monkeypatch):
+    from sqlalchemy.exc import IntegrityError as IE
+
+    admin = account_for(db_session, "administrator")
+    req = _approved(db_session)
+    real_commit = db_session.commit
+
+    def failing_commit():
+        raise IE("boom", None, Exception())
+
+    monkeypatch.setattr(db_session, "commit", failing_commit)
+    with pytest.raises(RequestError):
+        change_status(db_session, req.id, new_status="rejected", note="x", account=admin)
+    monkeypatch.setattr(db_session, "commit", real_commit)
+    assert _retired(db_session) == []
+    db_session.refresh(req)
+    assert req.status == "approved"
+
+
+def test_migrated_db_can_be_seeded_and_used(tmp_path, monkeypatch):
+    # AC9: alembic upgrade head + seed on a fresh DB (the suite otherwise uses
+    # create_all), then a Retired Code can be written there.
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.seed import seed
+
+    url = f"sqlite:///{(tmp_path / 'seeded.db').as_posix()}"
+    monkeypatch.setattr(settings, "database_url", url)
+    command.upgrade(Config(str(Path(__file__).resolve().parent.parent / "alembic.ini")), "head")
+    engine = create_engine(url)
+    try:
+        with sessionmaker(bind=engine)() as db:
+            seed(db)
+            seed(db)  # idempotent
+            retire_code(db, "90001000999", request_id=None, reason="skipped", actor="a@test.local")
+            db.commit()
+            assert is_retired(db, "90001000999")
+            assert db.scalar(select(RunningRegister).limit(1)) is not None
+    finally:
+        engine.dispose()

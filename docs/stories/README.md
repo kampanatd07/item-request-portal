@@ -16,6 +16,7 @@ story file plus `docs/HANDOFF.md` alone, without chat history.
 | [009](STORY-009-requester-resubmit.md) | Requester edits and resubmits a Needs Info request (before plants open) | 001 | 002 |
 | [010](STORY-010-validate-code-override.md) | Validate code override against the Running Register (before deploy) | 001 | 002, 003 |
 | [011](STORY-011-account-admin-audit.md) | Account admin audit trail in DB (lower priority) | 001 | any |
+| [012](STORY-012-plant-aware-d365-snapshot.md) | Plant-aware D365 snapshot (blocked: waiting for Peter's sample export) | 010 | any |
 
 ## Status values
 `todo` → `planned` (spec + tickets written) → `in-progress` → `review` → `done`
