@@ -4,10 +4,14 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Account, ItemRequest
-from app.routes.deps import current_account
+from app.routes.deps import current_account, require_role
+from app.services import override_preview
+from app.services.clock import Clock, get_clock
 from app.services.requests import (
     RequestError,
     RequestForbidden,
+    SKIP_CONFIRM_LIMIT,
+    check_override,
     change_category,
     change_status,
     edit_name,
@@ -124,16 +128,52 @@ def recategorise(
     )
 
 
+def _admin(account: Account = Depends(require_role("administrator"))) -> Account:
+    return account
+
+
+@router.post("/{request_id}/code/check", response_class=HTMLResponse)
+def check_code(
+    request: Request,
+    request_id: int,
+    new_code: str = Form(""),
+    db: Session = Depends(get_db),
+    clock: Clock = Depends(get_clock),
+    account: Account = Depends(_admin),
+):
+    """Step 1 of an override: show what it would do. Writes nothing."""
+    req = db.get(ItemRequest, request_id)
+    if req is None:
+        return _error(request, RequestError("ไม่พบคำขอนี้"))
+    check = check_override(db, req, new_code)
+    token = override_preview.issue(check, req, account, clock()) if check.ok else None
+    return templates.TemplateResponse(
+        request, "partials/override_preview.html",
+        {"req": req, "check": check, "token": token,
+         "confirm_limit": SKIP_CONFIRM_LIMIT},
+    )
+
+
 @router.post("/{request_id}/code", response_class=HTMLResponse)
 def edit_code(
     request: Request,
     request_id: int,
-    new_code: str = Form(...),
+    token: str = Form(""),
+    reason: str = Form(""),
+    confirm_skip: str = Form(""),
     db: Session = Depends(get_db),
-    account: Account = Depends(current_account),
+    clock: Clock = Depends(get_clock),
+    account: Account = Depends(_admin),
 ):
+    """Step 2: save exactly what the preview showed, or refuse and ask to check again.
+    The code comes only from the signed preview token."""
+    req = db.get(ItemRequest, request_id)
+    if req is None:
+        return _error(request, RequestError("ไม่พบคำขอนี้"))
     try:
-        req = override_code(db, request_id, new_code=new_code, account=account)
+        plan = override_preview.read(token, req, account, clock())
+        req = override_code(db, request_id, new_code=plan["code"], account=account,
+                            reason=reason, confirm_skip=bool(confirm_skip), expected=plan)
     except RequestError as e:
         return _error(request, e)
     return templates.TemplateResponse(

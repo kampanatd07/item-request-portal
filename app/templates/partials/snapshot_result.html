@@ -1,3 +1,17 @@
 <div class="success">
   อัปโหลดสำเร็จ: {{ imp.filename }} ({{ imp.source }}) — {{ imp.row_count }} รายการ
 </div>
+{% if register_lag %}
+{# The group issued codes the register does not know: the next Approval in
+   these sub-categories would clash. The upload never moves the register. #}
+<div class="error" role="alert" style="font-size:15px;">
+  <strong>⚠ Running Register ตามหลัง Master ของกลุ่ม {{ register_lag | length }} หมวดย่อย</strong> —
+  การอนุมัติในหมวดเหล่านี้จะออกเลขที่กลุ่มใช้ไปแล้ว ต้อง sync register ก่อน (STORY-005)
+  <table style="margin-top:8px;">
+    <tr><th>หมวด</th><th>Register</th><th>Master</th><th>ตามหลัง</th></tr>
+    {% for lag in register_lag %}
+    <tr><td>{{ lag.group_code }}-{{ lag.sub_code }}</td><td>{{ lag.register }}</td><td>{{ lag.master }}</td><td>{{ lag.gap }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}

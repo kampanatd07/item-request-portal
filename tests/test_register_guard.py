@@ -14,7 +14,7 @@ from app.services.requests import (
     override_code,
     submit_request,
 )
-from tests.conftest import account_for, central_ids
+from tests.conftest import account_for, central_ids, load_master, next_code
 
 
 def _register(db, group_code: str = "900", sub_code: str = "01") -> int | None:
@@ -133,9 +133,11 @@ def test_recategorise_after_export_is_refused_even_for_administrator(db_session)
 
 def test_administrator_can_override_code(db_session):
     req = _approved(db_session)
-    override_code(db_session, req.id, new_code="90001009999",
+    x = next_code(db_session)
+    load_master(db_session, [x])
+    override_code(db_session, req.id, new_code=x, reason="มีใน master แล้ว",
                   account=account_for(db_session, "administrator"))
-    assert req.generated_code == "90001009999"
+    assert req.generated_code == x
 
 
 # --- Service: Procurement keeps the review work ----------------------------------

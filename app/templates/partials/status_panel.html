@@ -6,11 +6,17 @@
 {% if req.review_note %}<p class="muted">หมายเหตุ: {{ req.review_note }}</p>{% endif %}
 {% set is_admin = has_role(request.state.account, "administrator") %}
 {% if req.status == "approved" and is_admin %}
-<form hx-post="/queue/{{ req.id }}/code" hx-target="#status-panel" hx-swap="innerHTML" style="max-width:340px;">
-  <label class="muted">แก้รหัสเอง (กรณีพิเศษ — จะถูกบันทึกใน audit)</label>
-  <input name="new_code" value="{{ req.generated_code }}">
-  <button type="submit" class="secondary">บันทึกรหัสใหม่</button>
+{# Override, step 1: check a code the group master already holds. Nothing is
+   saved until the preview below is confirmed (STORY-010 ticket 04). #}
+<form hx-post="/queue/{{ req.id }}/code/check" hx-target="#override-preview" hx-swap="innerHTML"
+      style="max-width:480px;">
+  <label class="muted">ใช้รหัสกลางที่กลุ่มออกไว้แล้วแทน (กรณี item มีใน Master แต่ยังไม่มีใน AX ของโรงงาน)</label>
+  <input name="new_code" placeholder="รหัส 11 หลักจาก Master" inputmode="numeric" required>
+  {# No maxlength: a code pasted from Excel/AX often carries spaces, which the
+     server strips; cutting at 11 characters would lose a digit instead. #}
+  <button type="submit" class="secondary">ตรวจสอบรหัส</button>
 </form>
+<div id="override-preview"></div>
 {% endif %}
 {% if req.status == "approved" and is_admin %}
 {# Rejecting after a code burns that number for good: reason required. #}

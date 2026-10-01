@@ -9,7 +9,7 @@ from app.models import Account, RequestEvent
 from app.services import auth
 from app.services.auth import AuthError
 from app.services.requests import change_category, change_status, override_code, submit_request
-from tests.conftest import TEST_PASSWORD, account_for, central_ids
+from tests.conftest import TEST_PASSWORD, account_for, central_ids, load_master, next_code
 
 
 # --- 1. APP_ENV fails closed ------------------------------------------------------------------
@@ -135,7 +135,9 @@ def test_every_remaining_event_action_records_the_acting_email(db_session):
     b = new_request()
     change_status(db_session, b.id, new_status="approved", account=admin)
     change_category(db_session, b.id, subgroup_id=third_sub.id, account=admin)  # reissue
-    override_code(db_session, b.id, new_code="90003009999", account=admin)
+    x = next_code(db_session, "900", "03")
+    load_master(db_session, [x])
+    override_code(db_session, b.id, new_code=x, reason="มีใน master แล้ว", account=admin)
     change_status(db_session, b.id, new_status="rejected", account=admin, note="ผิด")
 
     actors = {}

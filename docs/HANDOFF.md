@@ -4,7 +4,7 @@
 > `docs/decisions.md` before doing anything. If chat history contradicts these
 > files, the files win.
 >
-> Last updated: 2026-09-30 · Owner: Peter (Procurement Strategy, Carabao Group)
+> Last updated: 2026-10-01 · Owner: Peter (Procurement Strategy, Carabao Group)
 
 ---
 
@@ -20,9 +20,9 @@ It replaces: Microsoft Forms → Peter checks manually → types into AX → ema
 ## 2. Status
 
 **Built and running on Peter's machine, with login and roles (STORY-001, done
-2026-09-30). Not yet open to the plants** — it still has to be deployed
-(STORY-006), which waits for email notification (STORY-002) and validated
-code override (STORY-010).
+2026-09-30) and validated code override (STORY-010, done 2026-10-01). Not yet
+open to the plants** — it still has to be deployed (STORY-006), which now
+waits only for email notification (STORY-002).
 
 | Area | State |
 |---|---|
@@ -31,7 +31,8 @@ code override (STORY-010).
 | Category suggestion (learns from 13,391 classified items) | done — 60% top-1, 68% top-3 on holdout |
 | Search-name suggestion (dictionary + master neighbours + optional LLM) | done |
 | Size / UoM cleaning | done (UoM still the old 5 units — see STORY-003) |
-| Central 11-digit code from running register | done |
+| Central 11-digit code from running register | done — minting refuses when the next number is retired, on a request or in the group master (register behind → STORY-005) |
+| Code override / Retired Codes | done — STORY-010: two-step override checked against the group master, register moves up, thrown-away numbers kept in `retired_codes` (never reused) |
 | Naming standard `[CATEGORY] - [name] - [detail]` | done |
 | Export to 4 plant import templates | done — **never tested against real AX** |
 | Admin config pages | done |
@@ -39,7 +40,7 @@ code override (STORY-010).
 | Email notification | **not started — STORY-002** |
 | Deployment | **not started — STORY-006** |
 
-Tests: 344 passing (`pytest`).
+Tests: 442 passing (`pytest`).
 
 The suite runs in ~13 s: `create_all` + `seed` run once per pytest session
 into an in-memory template, and each test's `db_session` gets a copy through
@@ -128,6 +129,12 @@ After first run, upload in **Snapshot** page:
 ## 7. Decisions only Peter can make (not code)
 
 - Test-import 1–2 exported rows into real AX/D365 (STORY-005 depends on it)
+- In that test, also import a code that already exists in one D365 company
+  (e.g. APG) into another (e.g. APM), and record what AX/D365 does (refuses,
+  releases, or duplicates). The result decides whether the override check
+  on a D365 match goes back from a warning to a refusal (STORY-012)
+- Send a sample D365 item export showing the company / legal-entity column
+  (STORY-012 is blocked on it)
 - Fill `Carabao_Item_Master_Decision_Sheet.xlsx` (D1–D4); the register must be
   re-synced afterwards
 - The cut-over date after which **only** this portal issues central codes —
