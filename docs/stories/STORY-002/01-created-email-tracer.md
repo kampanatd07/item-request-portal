@@ -1,6 +1,6 @@
 # 01: "Created in AX" email, end to end (tracer bullet)
 
-Status: todo
+Status: done (awaiting Peter's review)
 Triage: ready-for-agent
 Parent: STORY-002
 Blocked by: None (can start immediately)
@@ -33,14 +33,38 @@ other tickets build on:
 - Config + `.env.example`: `PUBLIC_BASE_URL`, `MAIL_REPLY_TO`; the old SMTP
   placeholders are replaced by the Graph settings of ticket 02.
 
-- [ ] Mark-created on one request sends one email to the requester (fake
+- [x] Mark-created on one request sends one email to the requester (fake
       sender) and the request becomes `notified` with a `notified` event
-- [ ] Subject and body are Thai and contain the code; no link without
+- [x] Subject and body are Thai and contain the code; no link without
       `PUBLIC_BASE_URL`; Reply-To only when set
-- [ ] A sender failure leaves the request `created` with a `notify_failed`
+- [x] A sender failure leaves the request `created` with a `notify_failed`
       event and the mark-created response is still a success (AC1)
-- [ ] Calling the notification twice sends one email (second finds the row
+- [x] Calling the notification twice sends one email (second finds the row
       already notified); request rows are locked FOR UPDATE (AC8)
-- [ ] No Graph settings → the log sender is used and logs recipients and
+- [x] No Graph settings → the log sender is used and logs recipients and
       subject only (AC2)
-- [ ] "My requests" has `id="request-<id>"` anchors
+- [x] "My requests" has `id="request-<id>"` anchors
+
+Implementation notes (2026-10-01):
+- `app/services/mail.py` (MailMessage, MailSender, MailError, LogMailSender,
+  `get_mail_sender`), `app/services/notify.py` (`build_created_email`,
+  `notify_created`), templates `email/created.html|txt`.
+- Claim = `UPDATE item_requests SET status = status WHERE id AND status =
+  'created'`, held through the send; proven with a real two-thread race on a
+  file SQLite DB (one email). Removing the claim makes that test fail.
+- Mark-created schedules `notify_created` with BackgroundTasks and a session
+  from `get_session_factory` (the request session is closed by then).
+- The STORY-001 audit test now also expects the `notified` event, actor =
+  who marked created.
+- Code review fixes: any error for one request (render, DB, commit, an
+  unexpected sender exception) is rolled back, recorded as `notify_failed`
+  in a fresh transaction, and the batch goes on; a lock busy past the
+  timeout is skipped (request stays `created`, resend list). Sent-but-not-
+  recorded is a third at-least-once case, named in the event. The dev
+  SQLite engine waits 30 s for the write lock (a send holds it). Mark-
+  created emails the requests it already moved even if a later one fails.
+  The plain-text email is not HTML-escaped.
+- Known test limit: HTTP tests share one StaticPool connection between the
+  request and background sessions; real separation is only exercised by
+  the file-SQLite race test.
+

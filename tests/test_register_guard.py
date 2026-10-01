@@ -186,6 +186,7 @@ def test_every_event_records_the_acting_accounts_email(client_as, app_db):
         "code_generated": "administrator1@test.local",
         "exported": "procurement0@test.local",
         "created": "procurement0@test.local",
+        "notified": "procurement0@test.local",  # email sent after mark-created (STORY-002)
     }
     assert app_db.get(ExportBatch, req.export_batch_id).created_by == "procurement0@test.local"
 

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="th">
+<body style="font-family:'Segoe UI',Tahoma,sans-serif; color:#222; max-width:600px;">
+  <p>เรียน {{ req.requester_name }}</p>
+  <p>Item ที่ขอไว้ <strong>สร้างในระบบ AX ของโรงงาน {{ req.factory.code }} เรียบร้อยแล้ว</strong>
+     สามารถใช้รหัสนี้เปิด PR/PO ได้</p>
+  <p style="font-size:26px; font-weight:bold; letter-spacing:1px; background:#e1f5ee; color:#085041;
+            padding:10px 16px; border-radius:6px; display:inline-block;">{{ req.generated_code }}</p>
+  <table style="border-collapse:collapse; font-size:14px;">
+    <tr><td style="padding:4px 12px 4px 0; color:#666;">ชื่อสินค้า</td><td>{{ req.item_name }}</td></tr>
+    <tr><td style="padding:4px 12px 4px 0; color:#666;">หน่วยนับ</td><td>{{ req.uom or "-" }}</td></tr>
+    <tr><td style="padding:4px 12px 4px 0; color:#666;">โรงงาน</td><td>{{ req.factory.code }} — {{ req.factory.name }}</td></tr>
+    <tr><td style="padding:4px 12px 4px 0; color:#666;">คำขอเลขที่</td><td>#{{ req.id }}</td></tr>
+  </table>
+  {% if link %}
+  <p><a href="{{ link }}">ดูคำขอในระบบ</a> <span style="color:#666;">(สำหรับผู้มีบัญชีในระบบ)</span></p>
+  {% endif %}
+  <p style="color:#666; font-size:13px;">อีเมลนี้ส่งอัตโนมัติจาก Item Request Portal — มีคำถามตอบกลับอีเมลนี้ได้</p>
+</body>
+</html>

@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     # (STORY-001). No "remember me".
     session_max_hours: int = 8
 
+    # Email (STORY-002). Full portal address for links in emails; none when
+    # empty. Replies go to Procurement when MAIL_REPLY_TO is set.
+    public_base_url: str = ""
+    mail_reply_to: str = ""
+
     class Config:
         env_file = ".env"
 

@@ -132,5 +132,13 @@ other ticket records outcomes as `RequestEvent`s and adds no column.
   give one email; one email per recipient per "mark created" click listing
   all codes (needs_info / rejected stay one per request); resend buttons are
   Procurement + Administrator.
-- SQLite cannot run the concurrent-send race; tests prove the lock is taken
-  and a second send finds nothing to do. The real race goes to STORY-006 AC4.
+- Delivery is **at-least-once** (Peter, 2026-10-01): if Graph accepts an email
+  but its reply is lost (timeout), the attempt is recorded as `notify_failed`
+  and a resend can deliver a second copy. Accepted behaviour, not a bug.
+- The claim before each send is an `UPDATE … WHERE id = :id AND status = …`
+  that takes the row's write lock (row lock on PostgreSQL, database write
+  lock on SQLite) and is held through the send — so the concurrent-send test
+  runs for real on a file SQLite DB with two threads (ticket 01). Postgres
+  race is still in STORY-006 AC4.
+- `notified` / `notify_failed` events carry the email of the person whose
+  action triggered the send (mark-created, resend), not "system".
