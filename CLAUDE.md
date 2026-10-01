@@ -13,9 +13,9 @@ Backlog: `docs/stories/`. Group standard: `docs/group-standard/`.
 Any change touching codes, names, categories, UoM, Thai text or exports: apply
 the `carabao-item-master` skill (source in `docs/claude-setup/skills/`).
 
-Status: login and roles done (STORY-001). Not yet open to plants — deploy
-(STORY-006) must ship first, after STORY-002 and STORY-010. Current test count
-and next steps: docs/HANDOFF.md §2.
+Status: login and roles (STORY-001) and validated code override (STORY-010)
+done. Not yet open to plants — deploy (STORY-006) must ship first, after
+STORY-002. Current test count and next steps: docs/HANDOFF.md §2.
 
 ## Stack
 FastAPI + SQLAlchemy + Alembic | SQLite (dev) / PostgreSQL (prod) | HTMX + Jinja2 | Docker → Render/Railway
