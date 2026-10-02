@@ -56,8 +56,8 @@ def test_mark_created_emails_the_requester_and_moves_to_notified(client, app_db,
 def test_code_is_prominent_in_the_html(client, app_db, mail_outbox):
     req, batch_id = _exported(app_db)
     client.post(f"/exports/{batch_id}/mark-created")
-    assert f"font-size:26px" in mail_outbox.sent[0].html
-    assert f">{req.generated_code}</p>" in mail_outbox.sent[0].html
+    html = mail_outbox.sent[0].html
+    assert f'font-size:20px; font-weight:bold; color:#085041;">{req.generated_code}</td>' in html
 
 
 def test_no_link_without_public_base_url_and_no_reply_to_by_default(client, app_db, mail_outbox,
@@ -203,22 +203,26 @@ def _created(db, n=1):
     return reqs
 
 
-def test_one_requests_unexpected_error_does_not_stop_the_others(app_db, monkeypatch):
+def test_one_groups_unexpected_error_does_not_stop_the_others(app_db, monkeypatch):
     import app.services.notify as notify
 
-    first, second, third = _created(app_db, 3)
-    real = notify.build_created_email
+    first, third = _created(app_db, 2)                       # requester-apm: one group
+    other = account_for(app_db, "requester", plant="APG")
+    second, _ = _exported(app_db, requester=other)           # another requester's group
+    change_status(app_db, second.id, new_status="created", account=account_for(app_db))
+    real = notify.build_created_group_email
 
-    def flaky(req):
-        if req.id == second.id:
+    def flaky(reqs):
+        if any(r.id == second.id for r in reqs):
             raise RuntimeError("template broke")
-        return real(req)
+        return real(reqs)
 
-    monkeypatch.setattr(notify, "build_created_email", flaky)
+    monkeypatch.setattr(notify, "build_created_group_email", flaky)
     outbox = FakeMailSender()
     factory = sessionmaker(bind=app_db.get_bind(), expire_on_commit=False)
     counts = notify_created(factory, [first.id, second.id, third.id], outbox, "a@test.local")
     assert counts == {"sent": 2, "failed": 1, "skipped": 0}
+    assert len(outbox.sent) == 1  # first + third together
     app_db.expire_all()
     assert [app_db.get(ItemRequest, r.id).status for r in (first, second, third)] == [
         "notified", "created", "notified"]

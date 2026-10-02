@@ -39,7 +39,10 @@ The app only runs on Peter's laptop. Plants need a URL.
    same sub-category at the same moment never issue one number twice (request
    row, then register row, STORY-010 ticket 03). And email: two resends of
    the same notification at the same moment send one email (row lock and
-   state check before sending, STORY-002)
+   state check before sending, STORY-002); and a notifier that cannot get a
+   request row within `lock_timeout` (30 s, `SET LOCAL` in the claiming
+   transaction) gives up, leaving the requests `created` for the resend
+   list, instead of hanging the background task (STORY-002 ticket 03)
 5. Login is rate-limited per client IP (against password spraying: one
    password tried across many emails, which the per-email lockout of
    STORY-001 ticket 06 cannot see). First **check whether the chosen platform
