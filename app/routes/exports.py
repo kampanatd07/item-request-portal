@@ -8,8 +8,9 @@ from app.models import Account, ExportBatch, Factory, ItemRequest
 from app.routes.deps import current_account
 from app.services import catalog
 from app.services.exporter import ExportError, build_workbook_bytes, export_pending
+from app.services.clock import Clock, get_clock
 from app.services.mail import MailSender, get_mail_sender
-from app.services.notify import notify_created
+from app.services.notify import notify_created, pending_notifications, recipients, resend
 from app.services.requests import RequestError, change_status
 from app.templating import templates
 
@@ -18,8 +19,16 @@ router = APIRouter(prefix="/exports")
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
+def _to(req: ItemRequest) -> str:
+    try:
+        return ", ".join(recipients(req)[0])
+    except Exception:  # noqa: BLE001 - the list must show even if one row is odd
+        return "-"
+
+
 @router.get("", response_class=HTMLResponse)
-def exports_page(request: Request, db: Session = Depends(get_db)):
+def exports_page(request: Request, db: Session = Depends(get_db),
+                 clock: Clock = Depends(get_clock)):
     factories = catalog.list_factories(db)
     pending = {
         f.id: db.scalar(
@@ -37,10 +46,35 @@ def exports_page(request: Request, db: Session = Depends(get_db)):
     batches = list(
         db.scalars(select(ExportBatch).order_by(ExportBatch.at.desc()).limit(20))
     )
+    unsent = [(p, _to(p.req)) for p in pending_notifications(db, clock())]
     return templates.TemplateResponse(
         request, "exports.html",
-        {"factories": factories, "pending": pending, "batches": batches},
+        {"factories": factories, "pending": pending, "batches": batches, "unsent": unsent},
     )
+
+
+@router.post("/notifications/resend", response_class=HTMLResponse)
+def resend_all(
+    request: Request,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    clock: Clock = Depends(get_clock),
+    account: Account = Depends(current_account),
+    sender: MailSender = Depends(get_mail_sender),
+    session_factory=Depends(get_session_factory),
+):
+    """"ส่งซ้ำทั้งหมด": everything still owed, in the background (the Graph sender
+    paces sends, so a long list takes a while). 'created' ones are grouped per
+    (To, CC) as in the first send."""
+    pending = pending_notifications(db, clock())
+    if pending:
+        background.add_task(
+            resend, session_factory,
+            [p.req.id for p in pending if p.kind == "created"],
+            [(p.req.id, p.event_id) for p in pending if p.event_id is not None],
+            sender, account.email)
+    return templates.TemplateResponse(
+        request, "partials/resend_result.html", {"count": len(pending)})
 
 
 @router.post("/{factory_id}", response_class=HTMLResponse)

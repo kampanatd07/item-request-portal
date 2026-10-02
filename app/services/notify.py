@@ -23,10 +23,12 @@ import logging
 
 from collections import defaultdict
 from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 
-from sqlalchemy import select, text
+from sqlalchemy import exists, select, text
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.config import settings
 from app.models import ItemRequest, RequestEvent
@@ -384,3 +386,101 @@ def _record_failure(db: Session, request_id: int, actor: str, detail: str,
     except Exception:  # noqa: BLE001
         db.rollback()
         log.exception("notify: could not record notify_failed for request %s", request_id)
+
+
+# --- Resend: what is still waiting to be sent (ticket 06) -------------------------
+
+# A needs_info/rejected change with neither `notified` nor `notify_failed` is
+# normally a send still running in the background; past this it was lost (a
+# restart killed the task) and goes on the resend list (Peter, ticket 06).
+LOST_AFTER = timedelta(minutes=10)
+NOT_SENT_YET = "ยังไม่ได้ส่ง — อาจค้างจากการ restart"
+
+
+@dataclass
+class PendingNotification:
+    req: ItemRequest
+    kind: str               # 'created', 'needs_info' or 'rejected'
+    event_id: int | None    # the status change E to announce; None for 'created'
+    reason: str             # the latest notify_failed detail, or NOT_SENT_YET
+    since: datetime         # when the change happened
+
+
+def pending_notifications(db: Session, now: datetime,
+                          request_id: int | None = None) -> list[PendingNotification]:
+    """Emails still owed, oldest change first; read-only.
+
+    - every request still `created` (the "created in AX" email failed, or was
+      lost before it ran);
+    - every needs_info/rejected change E that is still current — the request
+      is still in E's status and E is its latest status change — with no
+      `notified` pointing at E, and either a `notify_failed` pointing at E or
+      older than LOST_AFTER. A stale E is never listed, so never resent.
+    """
+    pending: list[PendingNotification] = []
+
+    created_q = select(ItemRequest).where(ItemRequest.status == "created")
+    if request_id is not None:
+        created_q = created_q.where(ItemRequest.id == request_id)
+    created = list(db.scalars(created_q))
+    events: dict[int, list[RequestEvent]] = defaultdict(list)
+    if created:
+        for e in db.scalars(select(RequestEvent).where(
+                RequestEvent.request_id.in_([r.id for r in created]),
+                RequestEvent.action.in_(("created", "notify_failed")),
+        ).order_by(RequestEvent.id)):
+            events[e.request_id].append(e)
+    for req in created:
+        change, failure = None, None
+        for e in events[req.id]:
+            if e.action == "created":
+                change, failure = e, None  # only failures since the latest 'created' count
+            else:
+                failure = e
+        pending.append(PendingNotification(
+            req=req, kind="created", event_id=None,
+            reason=failure.detail if failure is not None else NOT_SENT_YET,
+            since=change.at if change is not None else req.updated_at))
+
+    change, later, done = aliased(RequestEvent), aliased(RequestEvent), aliased(RequestEvent)
+    changes_q = (
+        select(change, ItemRequest)
+        .join(ItemRequest, ItemRequest.id == change.request_id)
+        .where(
+            change.action.in_(ANNOUNCED),
+            ItemRequest.status == change.action,
+            ~exists().where(later.request_id == change.request_id,
+                            later.action.in_(STATUS_ACTIONS), later.id > change.id),
+            ~exists().where(done.ref_event_id == change.id, done.action == "notified"),
+        )
+    )
+    if request_id is not None:
+        changes_q = changes_q.where(change.request_id == request_id)
+    current = list(db.execute(changes_q))
+    failures: dict[int, RequestEvent] = {}
+    if current:
+        for e in db.scalars(select(RequestEvent).where(
+                RequestEvent.ref_event_id.in_([c.id for c, _ in current]),
+                RequestEvent.action == "notify_failed",
+        ).order_by(RequestEvent.id)):
+            failures[e.ref_event_id] = e  # the last one wins
+    for c, req in current:
+        failure = failures.get(c.id)
+        if failure is None and c.at > now - LOST_AFTER:
+            continue  # probably still being sent
+        pending.append(PendingNotification(
+            req=req, kind=c.action, event_id=c.id,
+            reason=failure.detail if failure is not None else NOT_SENT_YET, since=c.at))
+
+    return sorted(pending, key=lambda p: (p.since, p.req.id))
+
+
+def resend(session_factory: SessionFactory, created_ids: list[int],
+           changes: list[tuple[int, int]], sender: MailSender, actor: str) -> dict[str, int]:
+    """Send again what `pending_notifications` listed, through the same claims
+    as the first send — pressing twice sends once. `created_ids` go out grouped
+    per (To, CC); `changes` are (request id, status change id). Counts per request."""
+    counts = notify_created(session_factory, created_ids, sender, actor)
+    for request_id, event_id in changes:
+        counts[notify_status(session_factory, request_id, event_id, sender, actor)] += 1
+    return counts

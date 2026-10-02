@@ -7,7 +7,13 @@ from app.models import Account, ItemRequest
 from app.routes.deps import current_account, require_role
 from app.services import override_preview
 from app.services.mail import MailSender, get_mail_sender
-from app.services.notify import ANNOUNCED, latest_status_event, notify_status
+from app.services.notify import (
+    ANNOUNCED,
+    latest_status_event,
+    notify_status,
+    pending_notifications,
+    resend,
+)
 from app.services.clock import Clock, get_clock
 from app.services.requests import (
     RequestError,
@@ -67,13 +73,55 @@ def _taxonomy(db: Session):
 
 
 @router.get("/{request_id}", response_class=HTMLResponse)
-def request_detail(request: Request, request_id: int, db: Session = Depends(get_db)):
+def request_detail(request: Request, request_id: int, db: Session = Depends(get_db),
+                   clock: Clock = Depends(get_clock)):
     req = db.get(ItemRequest, request_id)
+    unsent = pending_notifications(db, clock(), request_id=request_id) if req else []
     return templates.TemplateResponse(
         request, "request_detail.html",
         {"req": req, "taxonomy": _taxonomy(db),
-         "originator": originator_of(req) if req else None},
+         "originator": originator_of(req) if req else None,
+         "unsent": unsent[0] if unsent else None, "req_id": request_id},
     )
+
+
+@router.post("/{request_id}/notification/resend", response_class=HTMLResponse)
+def resend_one(
+    request: Request,
+    request_id: int,
+    db: Session = Depends(get_db),
+    clock: Clock = Depends(get_clock),
+    account: Account = Depends(current_account),
+    sender: MailSender = Depends(get_mail_sender),
+    session_factory=Depends(get_session_factory),
+):
+    """"ส่งอีเมลอีกครั้ง" for one request: sent now, so the result shows at once."""
+    actor = account.email
+    pending = pending_notifications(db, clock(), request_id=request_id)
+    db.commit()  # end this read before the send opens its own transactions
+    if not pending:
+        return templates.TemplateResponse(
+            request, "partials/mail_panel.html",
+            {"unsent": None, "req_id": request_id,
+             "message": "ไม่มีอีเมลค้างสำหรับคำขอนี้ (อาจส่งไปแล้ว)"})
+    p = pending[0]
+    counts = resend(session_factory, [request_id] if p.kind == "created" else [],
+                    [(request_id, p.event_id)] if p.event_id is not None else [],
+                    sender, actor)
+    db.expire_all()
+    left = pending_notifications(db, clock(), request_id=request_id)
+    if counts["sent"]:
+        message = "ส่งอีเมลแล้ว"
+    elif counts["failed"] and left:
+        message = f"ส่งไม่สำเร็จ: {left[0].reason}"
+    elif left:
+        # Skipped yet still owed: another send held the lock past the timeout.
+        message = "ระบบไม่ว่าง (มีการส่งอื่นค้างอยู่) — ลองกดอีกครั้งในอีกสักครู่"
+    else:
+        message = "ไม่ได้ส่ง — สถานะคำขอเปลี่ยนไปแล้ว หรือมีคนส่งไปก่อน"
+    return templates.TemplateResponse(
+        request, "partials/mail_panel.html",
+        {"unsent": left[0] if left else None, "message": message, "req_id": request_id})
 
 
 @router.post("/{request_id}/status", response_class=HTMLResponse)
