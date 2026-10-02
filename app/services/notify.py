@@ -265,11 +265,121 @@ def _notify_created_group(db: Session, ids: list[int], sender: MailSender,
     return outcome
 
 
-def _record_failure(db: Session, request_id: int, actor: str, detail: str) -> None:
+# --- needs_info / rejected: one email per status change (ticket 04) ---------------
+
+# Request statuses as event actions; 'notified' is left out because the same
+# word is also the action of a notification event.
+STATUS_ACTIONS = ("submitted", "in_review", "needs_info", "approved", "rejected",
+                  "exported", "created")
+ANNOUNCED = ("needs_info", "rejected")
+
+
+def latest_status_event(db: Session, request_id: int) -> RequestEvent | None:
+    return db.scalar(select(RequestEvent).where(
+        RequestEvent.request_id == request_id,
+        RequestEvent.action.in_(STATUS_ACTIONS),
+    ).order_by(RequestEvent.id.desc()).limit(1))
+
+
+def build_status_email(req: ItemRequest, status: str, reason: str | None = None) -> MailMessage:
+    """needs_info, or rejected (before or after a code), in Thai, with the reason
+    given for *this* change (the event's note — review_note keeps an older one
+    when a change comes without a note)."""
+    to, cc = recipients(req)
+    if status == "needs_info":
+        subject = f"[Item Portal] คำขอ #{req.id} ต้องการข้อมูลเพิ่ม — {req.item_name}"
+        template = "needs_info"
+    elif req.generated_code:
+        subject = (f"[Item Portal] รหัส {req.generated_code} ยกเลิกแล้ว ห้ามใช้ — "
+                   f"คำขอ #{req.id} ไม่อนุมัติ")
+        template = "rejected"
+    else:
+        subject = f"[Item Portal] คำขอ #{req.id} ไม่อนุมัติ — {req.item_name}"
+        template = "rejected"
+    message = _message(to, subject[:250], template, req=req, link=_link(req),
+                       greeting=_greeting(req), reason=(reason or "").strip() or "-")
+    message.cc = cc
+    return message
+
+
+def notify_status(session_factory: SessionFactory, request_id: int, event_id: int,
+                  sender: MailSender, actor: str) -> str:
+    """Announce one status change (event E = `event_id`) to the requester, once.
+
+    Under the request's row lock: the request must still be in E's status, E
+    must still be its latest status change, and no `notified` event may point
+    at E yet (ref_event_id). Otherwise nothing is sent — a stale announcement
+    is skipped quietly (logged), it is not a failure. Returns sent / failed /
+    skipped.
+    """
+    db = session_factory()
+    try:
+        event = db.get(RequestEvent, event_id)
+        if event is None or event.request_id != request_id or event.action not in ANNOUNCED:
+            log.warning("notify: event %s is not an announceable change of request %s",
+                        event_id, request_id)
+            return "skipped"
+        status, reason_text = event.action, event.detail
+        db.rollback()
+        req = None
+        for attempt in (1, 2):
+            try:
+                _set_lock_timeout(db)
+                req = _claim(db, request_id, status)
+                break
+            except OperationalError:
+                db.rollback()
+                if attempt == 2:
+                    # Unlike 'created', a needs_info/rejected request has no state
+                    # left to find it by — record it so the resend button shows.
+                    _record_failure(db, request_id, actor,
+                                    f"{status}: ระบบไม่ว่าง (ล็อกค้าง) — ส่งอีกครั้งได้",
+                                    ref_event_id=event_id)
+                    return "failed"
+        if req is None:
+            db.rollback()
+            log.info("notify: request %s no longer %s, not announced", request_id, status)
+            return "skipped"
+        sent = False
+        try:
+            latest = latest_status_event(db, request_id)
+            already = db.scalar(select(RequestEvent.id).where(
+                RequestEvent.ref_event_id == event_id, RequestEvent.action == "notified"))
+            if latest is None or latest.id != event_id or already is not None:
+                db.rollback()
+                log.info("notify: event %s superseded or already announced", event_id)
+                return "skipped"
+            message = build_status_email(req, status, reason_text)
+            sender.send(message)
+            sent = True
+            note = recipient_note(req)
+            db.add(RequestEvent(request_id=req.id, actor=actor, action="notified",
+                                ref_event_id=event_id,
+                                detail=f"{status} → {', '.join(message.to)}"
+                                       + (f" · {note}" if note else "")))
+            db.commit()
+            return "sent"
+        except Exception as e:  # noqa: BLE001 - record any failure
+            db.rollback()
+            if isinstance(e, MailError):
+                reason = str(e)
+            elif sent:
+                reason = (f"ส่งอีเมลแล้วแต่บันทึกผลไม่สำเร็จ ({type(e).__name__}) "
+                          "— ผู้รับอาจได้ซ้ำถ้าส่งอีกครั้ง")
+            else:
+                reason = f"สร้างหรือส่งอีเมลไม่สำเร็จ ({type(e).__name__}: {e})"
+            _record_failure(db, request_id, actor, f"{status}: {reason}", ref_event_id=event_id)
+            return "failed"
+    finally:
+        db.close()
+
+
+def _record_failure(db: Session, request_id: int, actor: str, detail: str,
+                    ref_event_id: int | None = None) -> None:
     """notify_failed in its own transaction; never raises (logged instead)."""
     try:
         db.add(RequestEvent(request_id=request_id, actor=actor, action="notify_failed",
-                            detail=detail[:1000]))
+                            ref_event_id=ref_event_id, detail=detail[:1000]))
         db.commit()
     except Exception:  # noqa: BLE001
         db.rollback()

@@ -295,6 +295,12 @@ class RequestEvent(Base):
     action: Mapped[str] = mapped_column(String(50))  # submitted / approved / rejected / ...
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # The event this one is about: a notified / notify_failed event points at
+    # the status change it announced (STORY-002), so "already sent?" is a
+    # column lookup, never a search through detail text.
+    ref_event_id: Mapped[int | None] = mapped_column(
+        ForeignKey("request_events.id", name="fk_request_events_ref_event_id"),
+        nullable=True, index=True)
 
     request: Mapped[ItemRequest] = relationship(back_populates="events")
 

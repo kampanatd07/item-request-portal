@@ -102,8 +102,10 @@ Tickets in `docs/stories/STORY-002/`:
 6. `06-retry.md` — notify_failed handling, resend button, "not yet notified" list
 
 Build order (Peter): 01 → 05 → 03 → 04 → 06 → 02 — Graph last, so it can be
-tried with the real values from IT. Only ticket 05 has a migration; every
-other ticket records outcomes as `RequestEvent`s and adds no column.
+tried with the real values from IT. The story has one migration
+(`e52ce808c5d5`, ticket 05): originator columns, `mail_domains`, and
+`request_events.ref_event_id` (ticket 04, Peter) — notification events
+point at the status change they announce.
 
 ## Notes
 

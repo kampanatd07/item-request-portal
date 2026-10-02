@@ -1,0 +1,16 @@
+{#- Plain text: Starlette's Jinja env autoescapes every template, so turn it off here. -#}
+{% autoescape false %}เรียน {{ greeting }}
+
+คำขอ #{{ req.id }} {{ req.item_name }} (โรงงาน {{ req.factory.code }})
+ต้องการข้อมูลเพิ่มก่อนดำเนินการต่อ
+
+สิ่งที่ต้องการ: {{ reason }}
+
+กรุณาตอบกลับอีเมลนี้หรือติดต่อฝ่ายจัดซื้อพร้อมข้อมูลที่ขอ
+{%- if link %}
+ดูคำขอในระบบ (สำหรับผู้มีบัญชีในระบบ): {{ link }}
+{%- endif %}
+
+--
+อีเมลนี้ส่งอัตโนมัติจาก Item Request Portal
+{% endautoescape %}

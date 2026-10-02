@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, get_session_factory
 from app.models import Account, ItemRequest
 from app.routes.deps import current_account, require_role
 from app.services import override_preview
+from app.services.mail import MailSender, get_mail_sender
+from app.services.notify import ANNOUNCED, latest_status_event, notify_status
 from app.services.clock import Clock, get_clock
 from app.services.requests import (
     RequestError,
@@ -78,10 +80,13 @@ def request_detail(request: Request, request_id: int, db: Session = Depends(get_
 def update_status(
     request: Request,
     request_id: int,
+    background: BackgroundTasks,
     new_status: str = Form(...),
     note: str = Form(""),
     db: Session = Depends(get_db),
     account: Account = Depends(current_account),
+    sender: MailSender = Depends(get_mail_sender),
+    session_factory=Depends(get_session_factory),
 ):
     try:
         req = change_status(
@@ -89,6 +94,13 @@ def update_status(
         )
     except RequestError as e:
         return _error(request, e)
+    if new_status in ANNOUNCED:
+        # Email the requester after the response (STORY-002 ticket 04); the
+        # notification is tied to this exact status change.
+        event = latest_status_event(db, req.id)
+        if event is not None and event.action == new_status:
+            background.add_task(notify_status, session_factory, req.id, event.id, sender,
+                                account.email)
     return templates.TemplateResponse(
         request, "partials/status_panel.html", {"req": req}
     )
