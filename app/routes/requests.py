@@ -183,6 +183,7 @@ def create_request(
     purchase_price: str = Form(""),
     procurement_category: str = Form(""),
     on_behalf_of: str = Form(""),
+    originator_email: str = Form(""),
     db: Session = Depends(get_db),
     account: Account = Depends(current_account),
 ):
@@ -207,6 +208,7 @@ def create_request(
             purchase_price=purchase_price,
             procurement_category=procurement_category,
             on_behalf_of=on_behalf_of,
+            originator_email=originator_email,
         )
     except RequestError as e:
         return templates.TemplateResponse(

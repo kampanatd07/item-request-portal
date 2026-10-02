@@ -5,6 +5,8 @@ field update for the group export mapping. All changes are immediate; these
 tables are low-volume config, not transactional data.
 """
 
+import re
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -12,6 +14,7 @@ from app.models import (
     CodeGroup,
     GroupExportMap,
     ItemRequest,
+    MailDomain,
     ProcurementCategory,
     SearchTerm,
     Uom,
@@ -21,6 +24,38 @@ from app.models import (
 
 class ConfigError(Exception):
     """Config edit error with a user-facing Thai message."""
+
+
+# --- Mail domains (STORY-002) ------------------------------------------------
+# ASCII labels of letters, digits and inner hyphens, at least two labels.
+_DOMAIN_RE = re.compile(r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}")
+
+
+def list_mail_domains(db: Session) -> list[MailDomain]:
+    return list(db.scalars(select(MailDomain).order_by(MailDomain.domain)))
+
+
+def active_mail_domains(db: Session) -> set[str]:
+    return set(db.scalars(select(MailDomain.domain).where(MailDomain.active)))
+
+
+def add_mail_domain(db: Session, domain: str) -> MailDomain:
+    domain = (domain or "").strip().lower().removeprefix("@")
+    if not _DOMAIN_RE.fullmatch(domain):
+        raise ConfigError("รูปแบบโดเมนไม่ถูกต้อง เช่น carabao.co.th (ไม่ต้องใส่ @)")
+    if db.scalar(select(MailDomain).where(MailDomain.domain == domain)):
+        raise ConfigError(f"โดเมน {domain} มีอยู่แล้ว")
+    d = MailDomain(domain=domain)
+    db.add(d)
+    db.commit()
+    return d
+
+
+def toggle_mail_domain(db: Session, domain_id: int) -> None:
+    d = db.get(MailDomain, domain_id)
+    if d:
+        d.active = not d.active
+        db.commit()
 
 
 # --- UOM --------------------------------------------------------------------

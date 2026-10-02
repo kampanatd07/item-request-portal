@@ -139,9 +139,9 @@ After first run, upload in **Snapshot** page:
   **application** permission + admin consent, and an Application Access
   Policy that limits it to one shared sender mailbox (e.g.
   `item-portal@carabao.co.th`). Then provide `MS_TENANT_ID`, `MS_CLIENT_ID`,
-  `MS_CLIENT_SECRET`, `MAIL_SENDER`; plus `MAIL_ALLOWED_DOMAINS` (email
-  domains of CBD/APM/APG/ACM) and `MAIL_REPLY_TO` (Procurement mailbox for
-  replies) before deploy
+  `MS_CLIENT_SECRET`, `MAIL_SENDER`; plus `MAIL_REPLY_TO` (Procurement mailbox for
+  replies) before deploy. Allowed originator email domains are data on the
+  Settings page (seeded: apm.co.th, acmf.co.th, apg.co.th, carabao.co.th)
 - **Client secret expiry:** an Azure client secret has an end date (often
   6–24 months). Note it here when IT creates it and renew it before that
   date — after it expires every email fails with "Graph credentials do not

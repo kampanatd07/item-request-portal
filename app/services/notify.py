@@ -47,12 +47,52 @@ def _message(to: list[str], subject: str, template: str, **ctx) -> MailMessage:
                        reply_to=settings.mail_reply_to or None)
 
 
+def recipients(req: ItemRequest) -> tuple[list[str], list[str]]:
+    """(to, cc) for a request's emails: the originator when Procurement gave
+    their email, with the submitting Account copied; otherwise the submitter.
+
+    The originator's domain is checked again at send time: if an Administrator
+    has switched it off since (e.g. a company left the group), internal item
+    data no longer goes there — the submitter gets the email instead. The same
+    address is never in both To and CC.
+    """
+    email = None if switched_off_domain(req) else req.originator_email
+    if not email:
+        return [req.requester_email], []
+    cc = [] if req.requester_email.lower() == email.lower() else [req.requester_email]
+    return [email], cc
+
+
+def switched_off_domain(req: ItemRequest) -> str | None:
+    """The originator's email domain if an Administrator has switched it off
+    since the request was submitted, else None."""
+    from sqlalchemy.orm import object_session
+
+    from app.services.config_admin import active_mail_domains
+
+    db = object_session(req)
+    if not req.originator_email or db is None:
+        return None
+    domain = req.originator_email.rsplit("@", 1)[1]
+    return None if domain in active_mail_domains(db) else domain
+
+
+def recipient_note(req: ItemRequest) -> str | None:
+    """Why the email did not go where the request says, for the event detail."""
+    domain = switched_off_domain(req)
+    return f"โดเมน {domain} ถูกปิด — ส่งให้ผู้ส่งคำขอแทน" if domain else None
+
+
 def build_created_email(req: ItemRequest) -> MailMessage:
     """'Created in AX — ready to order', in Thai, the code up front."""
     subject = (f"[Item Portal] รหัส {req.generated_code} สร้างใน AX แล้ว — ใช้สั่งซื้อได้ "
                f"— {req.item_name}")
-    return _message([req.requester_email], subject[:250], "created",
-                    req=req, link=_link(req))
+    to, cc = recipients(req)
+    message = _message(to, subject[:250], "created", req=req, link=_link(req),
+                       greeting=req.originator_name if to == [req.originator_email]
+                       else req.requester_name)
+    message.cc = cc
+    return message
 
 
 def _claim(db: Session, request_id: int, status: str) -> ItemRequest | None:
@@ -101,8 +141,10 @@ def _notify_one_created(db: Session, request_id: int, sender: MailSender, actor:
         sender.send(message)
         sent = True
         req.status = "notified"
+        note = recipient_note(req)
         db.add(RequestEvent(request_id=req.id, actor=actor, action="notified",
-                            detail=f"created → {', '.join(message.to)}"))
+                            detail=f"created → {', '.join(message.to)}"
+                                   + (f" · {note}" if note else "")))
         db.commit()
         return "sent"
     except Exception as e:  # noqa: BLE001 - record any failure, then carry on

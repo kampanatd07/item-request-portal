@@ -28,7 +28,9 @@ should disappear. Deploy (STORY-006) waits for this story.
   `item_requests` (one migration; names backfilled from `ขอแทน:` events;
   `originator_of()` reads the column). Procurement/Administrator may enter
   the originator's email on the form (optional; needs a name; same format
-  rule as Account emails; domain must be in `MAIL_ALLOWED_DOMAINS`). With an
+  rule as Account emails; domain must be an active allowed domain — table
+  `mail_domains`, edited on the Settings page, seeded with apm.co.th,
+  acmf.co.th, apg.co.th, carabao.co.th). With an
   originator email: To the originator, CC the submitting Account; otherwise
   To the submitting Account.
 - **Content:** Thai; simple HTML with the code large, plus a plain-text part;
@@ -68,7 +70,7 @@ should disappear. Deploy (STORY-006) waits for this story.
 6. needs_info and rejected send one email per request with the reason; a
    rejection after approval says the code is cancelled and must not be used
 7. With an originator email the email goes To the originator, CC the
-   submitting Account; an originator email outside `MAIL_ALLOWED_DOMAINS`, or
+   submitting Account; an originator email outside the active allowed domains, or
    without a name, is refused on the form
 8. Sending the same notification twice at the same time (double click, two
    resends) sends exactly one email: the row is locked and its state checked
@@ -122,7 +124,11 @@ other ticket records outcomes as `RequestEvent`s and adds no column.
   events; resend on the queue page; "not yet notified" list on Export.
 - Q6 Thai, simple HTML + plain text, code in the subject.
 - Q9 Originator email optional, needs a name, same format rule, domain in
-  `MAIL_ALLOWED_DOMAINS` (values from Peter before deploy).
+  allowed domains. Peter (2026-10-02): the list is data in table
+  `mail_domains` (same migration as ticket 05), seeded with apm.co.th (APM),
+  acmf.co.th (ACM), apg.co.th (APG), carabao.co.th (CBD), editable on the
+  Settings page by Administrators (add / switch off, stored lower-case,
+  domain format checked), not tied to a Plant; the env setting is gone.
 - Q10 To originator, CC submitting Account; otherwise To the submitter.
 - Q11 `Reply-To` from `MAIL_REPLY_TO` (value from Peter before deploy).
 - Q12 Rate limit `MAIL_RATE_PER_MINUTE` (default 25); throttling →
