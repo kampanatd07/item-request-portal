@@ -1,4 +1,4 @@
-from pydantic import model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings
 
 # Placeholder secrets that must never reach a non-dev environment.
@@ -28,6 +28,16 @@ class Settings(BaseSettings):
     # empty. Replies go to Procurement when MAIL_REPLY_TO is set.
     public_base_url: str = ""
     mail_reply_to: str = ""
+    # Microsoft Graph sender (ticket 02): all four set → real email; any one
+    # missing → emails are only logged. SecretStr keeps the secret out of
+    # repr/logs.
+    ms_tenant_id: str = ""
+    ms_client_id: str = ""
+    ms_client_secret: SecretStr = SecretStr("")
+    mail_sender: str = ""
+    # Exchange allows about 30 messages a minute per mailbox.
+    # Checked at start-up: a bad value must stop the app, not fail every click.
+    mail_rate_per_minute: int = Field(default=25, ge=1)
 
     class Config:
         env_file = ".env"

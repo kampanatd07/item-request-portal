@@ -6,6 +6,7 @@ without touching the callers.
 """
 
 import logging
+import threading
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -30,6 +31,14 @@ class MailSender(Protocol):
     def send(self, message: MailMessage) -> None: ...
 
 
+def wait_for_slot(sender: MailSender) -> None:
+    """Let a rate-limited sender make us wait now, before any row is locked
+    (senders without a limit — log, fake — have nothing to wait for)."""
+    wait = getattr(sender, "wait_for_slot", None)
+    if wait is not None:
+        wait()
+
+
 class LogMailSender:
     """Dev mode, no mail settings: record that an email would have gone out.
 
@@ -42,6 +51,40 @@ class LogMailSender:
                  ",".join(message.to), ",".join(message.cc) or "-", message.subject)
 
 
+GRAPH_SETTINGS = ("MS_TENANT_ID", "MS_CLIENT_ID", "MS_CLIENT_SECRET", "MAIL_SENDER")
+
+_graph: MailSender | None = None
+_graph_lock = threading.Lock()
+
+
+def _graph_values() -> dict[str, str]:
+    from app.config import settings
+
+    return {"MS_TENANT_ID": settings.ms_tenant_id.strip(),
+            "MS_CLIENT_ID": settings.ms_client_id.strip(),
+            "MS_CLIENT_SECRET": settings.ms_client_secret.get_secret_value().strip(),
+            "MAIL_SENDER": settings.mail_sender.strip()}
+
+
 def get_mail_sender() -> MailSender:
-    """FastAPI dependency; tests override it with a fake sender."""
-    return LogMailSender()
+    """FastAPI dependency: the Graph sender when all four Graph settings are
+    set, else the log sender (AC2). One Graph sender per process, so its token
+    cache and rate limiter cover every send. Tests override this dependency."""
+    global _graph
+    values = _graph_values()
+    missing = [name for name in GRAPH_SETTINGS if not values[name]]
+    if missing:
+        if len(missing) < len(GRAPH_SETTINGS):
+            # Half-configured is a mistake worth seeing; names only, never values.
+            log.warning("mail: Graph settings incomplete (missing %s) — emails are only "
+                        "logged", ", ".join(missing))
+        return LogMailSender()
+    with _graph_lock:
+        if _graph is None:
+            from app.config import settings
+            from app.services.graph_mail import GraphMailSender
+
+            _graph = GraphMailSender(
+                values["MS_TENANT_ID"], values["MS_CLIENT_ID"], values["MS_CLIENT_SECRET"],
+                values["MAIL_SENDER"], rate_per_minute=settings.mail_rate_per_minute)
+        return _graph

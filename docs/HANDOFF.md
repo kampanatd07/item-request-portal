@@ -4,7 +4,7 @@
 > `docs/decisions.md` before doing anything. If chat history contradicts these
 > files, the files win.
 >
-> Last updated: 2026-10-01 · Owner: Peter (Procurement Strategy, Carabao Group)
+> Last updated: 2026-10-05 · Owner: Peter (Procurement Strategy, Carabao Group)
 
 ---
 
@@ -22,7 +22,7 @@ It replaces: Microsoft Forms → Peter checks manually → types into AX → ema
 **Built and running on Peter's machine, with login and roles (STORY-001, done
 2026-09-30) and validated code override (STORY-010, done 2026-10-01). Not yet
 open to the plants** — it still has to be deployed (STORY-006), which now
-waits only for email notification (STORY-002).
+waits only for Peter's review of email notification (STORY-002) and IT's Graph values.
 
 | Area | State |
 |---|---|
@@ -37,10 +37,10 @@ waits only for email notification (STORY-002).
 | Export to 4 plant import templates | done — **never tested against real AX** |
 | Admin config pages | done |
 | Login / roles | done — STORY-001: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry, lockout, My requests |
-| Email notification | **not started — STORY-002** |
+| Email notification | built — STORY-002 tickets 01–06 (Graph sender tested with a fake transport only; first real send waits for IT, see §7) |
 | Deployment | **not started — STORY-006** |
 
-Tests: 442 passing (`pytest`).
+Tests: 576 passing (`pytest`).
 
 The suite runs in ~13 s: `create_all` + `seed` run once per pytest session
 into an in-memory template, and each test's `db_session` gets a copy through
@@ -140,7 +140,9 @@ After first run, upload in **Snapshot** page:
   Policy that limits it to one shared sender mailbox (e.g.
   `item-portal@carabao.co.th`). Then provide `MS_TENANT_ID`, `MS_CLIENT_ID`,
   `MS_CLIENT_SECRET`, `MAIL_SENDER`; plus `MAIL_REPLY_TO` (Procurement mailbox for
-  replies) before deploy. Allowed originator email domains are data on the
+  replies) before deploy. Steps are spelled out in `.env.example`. Then send
+  one real test email (any request through needs_info) and check it arrives,
+  with the Reply-To and the copy in the sender's Sent Items. Allowed originator email domains are data on the
   Settings page (seeded: apm.co.th, acmf.co.th, apg.co.th, carabao.co.th)
 - **Client secret expiry:** an Azure client secret has an end date (often
   6–24 months). Note it here when IT creates it and renew it before that

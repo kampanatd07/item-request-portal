@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session, aliased
 
 from app.config import settings
 from app.models import ItemRequest, RequestEvent
-from app.services.mail import MailError, MailMessage, MailSender
+from app.services.mail import MailError, MailMessage, MailSender, wait_for_slot
 from app.templating import templates
 
 SessionFactory = Callable[[], Session]
@@ -192,6 +192,7 @@ def _notify_created_group(db: Session, ids: list[int], sender: MailSender,
                           actor: str) -> dict[str, int]:
     """Claim, send, record and commit one (To, CC) group; counts per request."""
     claimed: list[ItemRequest] = []
+    wait_for_slot(sender)  # the rate limiter's wait, before any row lock is held
     for attempt in (1, 2):
         try:
             claimed = []
@@ -323,6 +324,7 @@ def notify_status(session_factory: SessionFactory, request_id: int, event_id: in
             return "skipped"
         status, reason_text = event.action, event.detail
         db.rollback()
+        wait_for_slot(sender)  # the rate limiter's wait, before the row lock is held
         req = None
         for attempt in (1, 2):
             try:
