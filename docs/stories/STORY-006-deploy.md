@@ -10,7 +10,9 @@ The app only runs on Peter's laptop. Plants need a URL.
 - CI also runs `alembic upgrade head` against a fresh Postgres service container
   (catches trap HANDOFF §6.8, which SQLite tests miss)
 - Deploy the existing `Dockerfile` to Render or Railway with managed Postgres
-- `DATABASE_URL`, `SECRET_KEY`, SMTP settings as platform secrets. Leave
+- `DATABASE_URL`, `SECRET_KEY`, the Graph mail settings (`MS_TENANT_ID`,
+  `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MAIL_SENDER`, `MAIL_REPLY_TO`,
+  `PUBLIC_BASE_URL`) as platform secrets (STORY-002; no SMTP). Leave
   `APP_ENV` **unset** (or `production`): the app then requires a real
   `SECRET_KEY`, marks the session cookie Secure and hides `/docs`. Never set
   `APP_ENV=dev` on the platform (STORY-001 pre-merge hardening)
@@ -53,6 +55,20 @@ The app only runs on Peter's laptop. Plants need a URL.
    on Postgres never get past 10 (row lock from ticket 06)
 6. **Before go-live:** confirm with Peter that the company data policy allows
    external hosting of item data (flagged in decisions.md 2026-07-24)
+7. The app runs as **one worker process**, or `MAIL_RATE_PER_MINUTE` × number
+   of worker processes (all instances included) ≤ 25. The mail rate limiter
+   counts per process, while Exchange Online limits sends per mailbox
+   (about 30 a minute), so several workers at the default 25 would exceed
+   it (STORY-002 ticket 02). Record the worker count chosen in the Dockerfile /
+   start command and in README
+8. **Before opening to the plants:** with IT's real Graph values on the
+   deployed app, send one real email of each kind and check each arrives:
+   (a) `created`, batched — one "mark created" click on two requests of the
+   same requester gives one email listing both codes; (b) `needs_info` with
+   the reason; (c) `rejected` after approval, saying the code is cancelled
+   and must not be used. For each, check that Reply-To is `MAIL_REPLY_TO` and
+   a copy is in the sender mailbox's Sent Items. Record the date and result
+   here (STORY-002 was tested with a fake transport only)
 
 ## Files likely touched
 `.github/workflows/ci.yml`, `Dockerfile`, `README.md`, `docker-compose.yml`, tests
