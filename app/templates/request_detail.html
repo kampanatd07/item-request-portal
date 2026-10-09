@@ -47,7 +47,7 @@
     {% for e in req.events %}
     <tr>
       <td class="muted">{{ e.at.strftime("%d/%m/%Y %H:%M") }}</td>
-      <td>{{ status_labels.get(e.action, e.action) }}</td>
+      <td>{{ event_labels.get(e.action) or status_labels.get(e.action, e.action) }}</td>
       <td>{{ e.actor }}</td>
       <td>{{ e.detail or "" }}</td>
     </tr>

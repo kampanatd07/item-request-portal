@@ -60,11 +60,17 @@ def recipients(req: ItemRequest) -> tuple[list[str], list[str]]:
     data no longer goes there — the submitter gets the email instead. The same
     address is never in both To and CC.
     """
-    email = None if switched_off_domain(req) else req.originator_email
+    submitter = _addr(req.requester_email)
+    email = None if switched_off_domain(req) else _addr(req.originator_email or "")
     if not email:
-        return [req.requester_email], []
-    cc = [] if req.requester_email.lower() == email.lower() else [req.requester_email]
-    return [email], cc
+        return [submitter], []
+    return [email], [] if submitter == email else [submitter]
+
+
+def _addr(email: str) -> str:
+    """An address as sent and grouped: older requests may hold it with odd case
+    or surrounding spaces (see list_my_requests)."""
+    return email.strip().lower()
 
 
 def switched_off_domain(req: ItemRequest) -> str | None:
@@ -275,6 +281,11 @@ def _notify_created_group(db: Session, ids: list[int], sender: MailSender,
 STATUS_ACTIONS = ("submitted", "in_review", "needs_info", "approved", "rejected",
                   "exported", "created")
 ANNOUNCED = ("needs_info", "rejected")
+# Events that settle "is an email owed?": a sent email, or the migration's
+# honest note that the change predates email (e52ce808c5d5) — never a fake
+# `notified`. Both point at the change through ref_event_id.
+NOT_APPLICABLE = "notify_not_applicable"
+CLOSING = ("notified", NOT_APPLICABLE)
 
 
 def latest_status_event(db: Session, request_id: int) -> RequestEvent | None:
@@ -348,7 +359,7 @@ def notify_status(session_factory: SessionFactory, request_id: int, event_id: in
         try:
             latest = latest_status_event(db, request_id)
             already = db.scalar(select(RequestEvent.id).where(
-                RequestEvent.ref_event_id == event_id, RequestEvent.action == "notified"))
+                RequestEvent.ref_event_id == event_id, RequestEvent.action.in_(CLOSING)))
             if latest is None or latest.id != event_id or already is not None:
                 db.rollback()
                 log.info("notify: event %s superseded or already announced", event_id)
@@ -413,10 +424,11 @@ def pending_notifications(db: Session, now: datetime,
     """Emails still owed, oldest change first; read-only.
 
     - every request still `created` (the "created in AX" email failed, or was
-      lost before it ran);
+      lost before it ran), unless a `notify_not_applicable` follows its latest
+      'created' (it was created before email existed);
     - every needs_info/rejected change E that is still current — the request
       is still in E's status and E is its latest status change — with no
-      `notified` pointing at E, and either a `notify_failed` pointing at E or
+      `notified` or `notify_not_applicable` pointing at E, and either a `notify_failed` pointing at E or
       older than LOST_AFTER. A stale E is never listed, so never resent.
     """
     pending: list[PendingNotification] = []
@@ -429,16 +441,21 @@ def pending_notifications(db: Session, now: datetime,
     if created:
         for e in db.scalars(select(RequestEvent).where(
                 RequestEvent.request_id.in_([r.id for r in created]),
-                RequestEvent.action.in_(("created", "notify_failed")),
+                RequestEvent.action.in_(("created", "notify_failed", NOT_APPLICABLE)),
         ).order_by(RequestEvent.id)):
             events[e.request_id].append(e)
     for req in created:
-        change, failure = None, None
+        change, failure, closed = None, None, False
         for e in events[req.id]:
             if e.action == "created":
-                change, failure = e, None  # only failures since the latest 'created' count
+                # only what happened since the latest 'created' counts
+                change, failure, closed = e, None, False
+            elif e.action == NOT_APPLICABLE:
+                closed = True  # by event order: an old request may have no 'created' to ref
             else:
                 failure = e
+        if closed:
+            continue
         pending.append(PendingNotification(
             req=req, kind="created", event_id=None,
             reason=failure.detail if failure is not None else NOT_SENT_YET,
@@ -453,7 +470,7 @@ def pending_notifications(db: Session, now: datetime,
             ItemRequest.status == change.action,
             ~exists().where(later.request_id == change.request_id,
                             later.action.in_(STATUS_ACTIONS), later.id > change.id),
-            ~exists().where(done.ref_event_id == change.id, done.action == "notified"),
+            ~exists().where(done.ref_event_id == change.id, done.action.in_(CLOSING)),
         )
     )
     if request_id is not None:

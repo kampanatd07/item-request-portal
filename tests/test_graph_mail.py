@@ -416,3 +416,69 @@ def test_a_bad_rate_setting_stops_the_app_at_start(monkeypatch):
     monkeypatch.setenv("MAIL_RATE_PER_MINUTE", "0")
     with pytest.raises(ValidationError):
         Settings()
+
+
+# --- AC10 end to end: a Graph error through the notifier to notify_failed ---------------------
+
+def _graph_app(graph, fake_time):
+    """The app's mail dependency → a real GraphMailSender on the fake transport."""
+    from app.main import app
+
+    app.dependency_overrides[mail.get_mail_sender] = lambda: _sender(graph, fake_time)
+
+
+def _failures(db, req):
+    from sqlalchemy import select
+
+    from app.models import RequestEvent
+
+    db.expire_all()
+    return list(db.scalars(select(RequestEvent.detail).where(
+        RequestEvent.request_id == req.id, RequestEvent.action == "notify_failed")))
+
+
+def _submitted(db):
+    from app.services.requests import submit_request
+    from tests.conftest import account_for, central_ids
+
+    factory, system, group, sub = central_ids(db)
+    return submit_request(db, account_for(db, "requester", plant="APM"), factory_id=factory.id,
+                          code_system_id=system.id, group_id=group.id, subgroup_id=sub.id,
+                          item_name="Ball Bearing", uom="EA")
+
+
+def test_graph_throttling_on_mark_created_becomes_notify_failed(client, app_db, graph, fake_time):
+    from app.models import ItemRequest
+    from app.services.exporter import export_pending
+    from app.services.requests import change_status
+    from tests.conftest import account_for
+
+    req = _submitted(app_db)
+    change_status(app_db, req.id, new_status="approved", account=account_for(app_db, "administrator"))
+    batch = export_pending(app_db, req.factory_id, account=account_for(app_db))
+    _graph_app(graph, fake_time)
+    graph.send_responses = [httpx.Response(
+        429, headers={"Retry-After": str(RETRY_AFTER_CAP_SECONDS + 1)})] * 3
+
+    assert client.post(f"/exports/{batch.id}/mark-created").status_code == 200
+    [detail] = _failures(app_db, req)
+    assert "HTTP 429" in detail
+    assert SECRET not in detail and TOKEN not in detail
+    assert app_db.get(ItemRequest, req.id).status == "created"  # left for resend
+    assert len(graph.sends()) == 1 and fake_time.sleeps == []
+
+
+def test_graph_server_error_on_needs_info_becomes_notify_failed(client, app_db, graph, fake_time):
+    from app.models import ItemRequest
+
+    req = _submitted(app_db)
+    _graph_app(graph, fake_time)
+    graph.send_responses = [httpx.Response(500, json={"error": {
+        "code": "ErrorInternalServerError", "message": f"boom {SECRET}"}})] * 3
+
+    r = client.post(f"/queue/{req.id}/status", data={"new_status": "needs_info", "note": "ขอสเปค"})
+    assert r.status_code == 200
+    [detail] = _failures(app_db, req)
+    assert detail.startswith("needs_info:") and "HTTP 500" in detail
+    assert SECRET not in detail and TOKEN not in detail and "boom" not in detail
+    assert app_db.get(ItemRequest, req.id).status == "needs_info"  # the change stands

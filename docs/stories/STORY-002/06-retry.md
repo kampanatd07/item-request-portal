@@ -42,3 +42,16 @@ Implementation notes (2026-10-02, decisions by Peter):
 - One HTTP end-to-end test on a file SQLite DB (request and background
   sessions on separate connections): fail, listed, resend twice, one email.
 - No migration.
+
+Pre-merge fix (2026-10-08, Peter): without it, the first deploy would list
+every request already `created` and every current needs_info/rejected change
+from before email existed, and "ส่งซ้ำทั้งหมด" would email people about old
+decisions. Migration `e52ce808c5d5` now records `notify_not_applicable`
+("เกิดก่อนมีระบบแจ้งเตือนทางอีเมล", actor `system`) for each of those — an
+honest event, never a fake `notified`; statuses stay as they are. Created
+requests point at their latest `created` event (NULL when older than the
+event log); changes point at the change. Only current changes are closed: a
+superseded one is never listed anyway. `pending_notifications` and
+`notify_status` treat it like `notified`; for `created` it counts when it
+follows the latest `created` event. Downgrade deletes these events.
+Recipient addresses are trimmed and lower-cased before sending and grouping.

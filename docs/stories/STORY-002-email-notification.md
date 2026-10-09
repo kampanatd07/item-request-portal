@@ -150,3 +150,11 @@ point at the status change they announce.
   race is still in STORY-006 AC4.
 - `notified` / `notify_failed` events carry the email of the person whose
   action triggered the send (mark-created, resend), not "system".
+- Known limit (code review, 2026-10-08; Peter: note only): the email link
+  `/my-requests#request-<id>` works for the submitting Account (To, or CC
+  when there is an originator). An originator who has their own Account does
+  not see the request in "My requests", which lists the requester's own
+  requests only — that needs the read-only request page, out of scope here.
+- Requests and needs_info/rejected changes from before email existed get a
+  `notify_not_applicable` event from the migration, so the resend list starts
+  empty on deploy (ticket 06, pre-merge fix 2026-10-08).

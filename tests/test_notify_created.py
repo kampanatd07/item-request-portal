@@ -304,3 +304,44 @@ def test_busy_lock_is_skipped_not_crashed(app_db, monkeypatch):
         "sent": 0, "failed": 0, "skipped": 1}
     app_db.expire_all()
     assert app_db.get(ItemRequest, req.id).status == "created"
+
+
+def test_without_graph_settings_mark_created_works_and_logs_the_email(client, app_db, caplog,
+                                                                     monkeypatch):
+    """AC2 end to end: the real dependency (no fake sender) gives the log sender."""
+    from pydantic import SecretStr
+
+    from app.main import app
+
+    for name in ("ms_tenant_id", "ms_client_id", "mail_sender"):
+        monkeypatch.setattr(settings, name, "")
+    monkeypatch.setattr(settings, "ms_client_secret", SecretStr(""))
+    app.dependency_overrides.pop(get_mail_sender)
+    caplog.set_level(logging.INFO, logger="app.mail")
+    req, batch_id = _exported(app_db)
+
+    assert client.post(f"/exports/{batch_id}/mark-created").status_code == 200
+    assert "not sent, no sender configured" in caplog.text
+    assert "requester-apm@test.local" in caplog.text and req.generated_code in caplog.text
+    app_db.expire_all()
+    assert app_db.get(ItemRequest, req.id).status == "notified"
+
+
+def test_addresses_are_trimmed_and_lowercased_before_sending_and_grouping(db_session):
+    """An older request may hold its address with odd case or spaces: the email
+    goes to the clean address, and the same person is never in To and CC."""
+    first, _ = _exported(db_session)
+    second, _ = _exported(db_session)
+    first.requester_email = "  Requester-APM@Test.Local "
+    second.originator_name, second.originator_email = "คำรณ ใจดี", "requester-apm@test.local"
+    second.requester_email = "REQUESTER-APM@test.local"
+    for req in (first, second):
+        change_status(db_session, req.id, new_status="created", account=account_for(db_session))
+    outbox = FakeMailSender()
+
+    factory = sessionmaker(bind=db_session.get_bind(), expire_on_commit=False)
+    counts = notify_created(factory, [first.id, second.id], outbox, "a@test.local")
+
+    assert counts["sent"] == 2
+    [mail] = outbox.sent  # one group: both clean to the same address
+    assert mail.to == ["requester-apm@test.local"] and mail.cc == []

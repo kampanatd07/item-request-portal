@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, func, select, text
 
 from app.config import settings
 from app.models import ItemRequest, RequestEvent
@@ -192,6 +192,17 @@ def test_form_post_with_a_bad_domain_is_a_thai_422(client, app_db):
         "subgroup_id": sub.id, "item_name": "Ball Bearing",
         "on_behalf_of": "คำรณ", "originator_email": "kamron@gmail.com"})
     assert r.status_code == 422 and "โดเมนของบริษัท" in r.text
+
+
+def test_form_post_with_an_email_but_no_name_is_a_thai_422(client, app_db):
+    factory, system, group, sub = central_ids(app_db)
+    before = app_db.scalar(select(func.count()).select_from(ItemRequest))
+    r = client.post("/requests", data={
+        "factory_id": factory.id, "code_system_id": system.id, "group_id": group.id,
+        "subgroup_id": sub.id, "item_name": "Ball Bearing",
+        "on_behalf_of": "  ", "originator_email": "kamron@carabao.co.th"})
+    assert r.status_code == 422 and "ต้องใส่ชื่อ" in r.text
+    assert app_db.scalar(select(func.count()).select_from(ItemRequest)) == before
 
 
 

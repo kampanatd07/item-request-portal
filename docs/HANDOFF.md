@@ -4,7 +4,7 @@
 > `docs/decisions.md` before doing anything. If chat history contradicts these
 > files, the files win.
 >
-> Last updated: 2026-10-05 · Owner: Peter (Procurement Strategy, Carabao Group)
+> Last updated: 2026-10-08 · Owner: Peter (Procurement Strategy, Carabao Group)
 
 ---
 
@@ -40,7 +40,7 @@ waits only for Peter's review of email notification (STORY-002) and IT's Graph v
 | Email notification | built — STORY-002 tickets 01–06 (Graph sender tested with a fake transport only; first real send waits for IT, see §7) |
 | Deployment | **not started — STORY-006** |
 
-Tests: 576 passing (`pytest`).
+Tests: 586 passing (`pytest`).
 
 The suite runs in ~13 s: `create_all` + `seed` run once per pytest session
 into an in-memory template, and each test's `db_session` gets a copy through
