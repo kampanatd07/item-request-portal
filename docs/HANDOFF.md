@@ -4,7 +4,7 @@
 > `docs/decisions.md` before doing anything. If chat history contradicts these
 > files, the files win.
 >
-> Last updated: 2026-10-08 · Owner: Peter (Procurement Strategy, Carabao Group)
+> Last updated: 2026-10-14 · Owner: Peter (Procurement Strategy, Carabao Group)
 
 ---
 
@@ -20,9 +20,9 @@ It replaces: Microsoft Forms → Peter checks manually → types into AX → ema
 ## 2. Status
 
 **Built and running on Peter's machine, with login and roles (STORY-001, done
-2026-09-30) and validated code override (STORY-010, done 2026-10-01). Not yet
-open to the plants** — it still has to be deployed (STORY-006), which now
-waits only for Peter's review of email notification (STORY-002) and IT's Graph values.
+2026-09-30), validated code override (STORY-010, done 2026-10-01) and email
+notification (STORY-002, done 2026-10-14). Not yet open to the plants** — it
+still has to be deployed (STORY-006), which now waits only for IT's Graph values (§7).
 
 | Area | State |
 |---|---|
@@ -37,7 +37,7 @@ waits only for Peter's review of email notification (STORY-002) and IT's Graph v
 | Export to 4 plant import templates | done — **never tested against real AX** |
 | Admin config pages | done |
 | Login / roles | done — STORY-001: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry, lockout, My requests |
-| Email notification | built — STORY-002 tickets 01–06 (Graph sender tested with a fake transport only; first real send waits for IT, see §7) |
+| Email notification | done — STORY-002 tickets 01–06 (Graph sender tested with a fake transport only; first real send waits for IT, see §7) |
 | Deployment | **not started — STORY-006** |
 
 Tests: 586 passing (`pytest`).

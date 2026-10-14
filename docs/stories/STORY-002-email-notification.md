@@ -1,6 +1,6 @@
 # STORY-002: Email the requester when their item is created
 
-Status: planned · Depends on: STORY-001 (done)
+Status: done (2026-10-14; real Graph send waits for IT's values) · Depends on: STORY-001 (done)
 Triage: ready-for-agent
 
 ## Why
