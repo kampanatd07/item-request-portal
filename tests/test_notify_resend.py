@@ -66,6 +66,13 @@ def _age(db, event, by=LOST_AFTER + timedelta(minutes=1)):
     db.commit()
 
 
+def _age_created(db, req):
+    """Push a request's latest 'created' change past LOST_AFTER."""
+    _age(db, db.scalars(select(RequestEvent).where(
+        RequestEvent.request_id == req.id, RequestEvent.action == "created")
+        .order_by(RequestEvent.id.desc())).first())
+
+
 # --- 'created' left over (AC1) -------------------------------------------------------------------
 
 def test_a_failed_created_email_is_listed_then_resent_from_the_queue(client, app_db, mail_outbox):
@@ -94,6 +101,7 @@ def test_the_list_holds_exactly_the_requests_still_created(client, app_db, mail_
     client.post(f"/exports/{batch}/mark-created")
     app_db.execute(update(ItemRequest).where(ItemRequest.id == stuck.id).values(status="created"))
     app_db.commit()  # as if the server restarted before stuck's email went out
+    _age_created(app_db, stuck)
     other = _submitted(app_db)  # still submitted: owes nothing
     pending = pending_notifications(app_db, utc_now())
     assert [(p.req.id, p.kind, p.reason) for p in pending] == [(stuck.id, "created", NOT_SENT_YET)]
@@ -113,8 +121,26 @@ def test_a_failure_before_the_created_change_is_not_its_reason(client, app_db, m
     client.post(f"/exports/{batch.id}/mark-created")
     app_db.execute(update(ItemRequest).where(ItemRequest.id == req.id).values(status="created"))
     app_db.commit()  # lost before its email went out
+    _age_created(app_db, req)
     [p] = pending_notifications(app_db, utc_now())
     assert p.kind == "created" and p.reason == NOT_SENT_YET
+
+
+def test_a_created_email_still_sending_is_listed_only_after_the_grace_time(client_as, app_db,
+                                                                          mail_outbox):
+    # Review 2026-10-14: right after mark-created every row showed as owed and
+    # the menu counted them, while the background send was still running.
+    procurement = client_as("procurement")
+    [req], batch = _exported(app_db, [account_for(app_db, "requester", plant="APM")])
+    procurement.post(f"/exports/{batch}/mark-created")
+    app_db.execute(update(ItemRequest).where(ItemRequest.id == req.id).values(status="created"))
+    app_db.commit()  # its email is still on the way: no notified, no notify_failed yet
+    assert pending_notifications(app_db, utc_now()) == []
+    assert "อีเมลค้าง" not in procurement.get("/queue").text
+    _age_created(app_db, req)  # past LOST_AFTER: the send was lost (e.g. a restart)
+    [p] = pending_notifications(app_db, utc_now())
+    assert (p.req.id, p.kind, p.reason) == (req.id, "created", NOT_SENT_YET)
+    assert "Export (อีเมลค้าง 1)</a>" in procurement.get("/queue").text
 
 
 def test_send_all_groups_created_emails_per_recipient(client, app_db, mail_outbox):

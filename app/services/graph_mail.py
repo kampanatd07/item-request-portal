@@ -216,11 +216,13 @@ class GraphMailSender:
             # The token may have been revoked before its expiry: one fresh try.
             with self._token_lock:
                 self._token = None
+            self.limiter.acquire()  # every sendMail call counts against the limit
             response = self._post(payload)
         if response.status_code == 429:
             wait = self._retry_after(response)
             if wait is not None:
                 self._sleep(wait)
+                self.limiter.acquire()
                 response = self._post(payload)
         self._raise_for(response)
         log.info("mail sent via Graph to=%s cc=%s subject=%s", ",".join(message.to),
@@ -239,7 +241,7 @@ class GraphMailSender:
     @staticmethod
     def _raise_for(response: httpx.Response) -> None:
         status = response.status_code
-        if status == 202 or 200 <= status < 300:
+        if 200 <= status < 300:
             return
         code = _graph_error_code(response)
         detail = f"HTTP {status}" + (f", {code}" if code else "")

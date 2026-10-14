@@ -77,3 +77,13 @@ The app only runs on Peter's laptop. Plants need a URL.
 _(filled by /to-spec + /to-tickets)_
 
 ## Notes
+
+- Query cost found in the STORY-002 review (2026-10-14), not a deploy
+  condition; fix if pages feel slow once the plants use it:
+  - `app/routes/deps.py` runs the whole `pending_notifications` query on
+    every full page load for Procurement/Administrators only to show the
+    menu count. A COUNT query (or loading only ids) would do.
+  - `switched_off_domain()` queries `active_mail_domains()` every call, and
+    `recipients`, `group_key`, `_greeting`, `recipient_note` and the Export
+    page all call it: about 4 identical queries per request (≈ 200 for 50
+    rows). Load the domain set once per notifier run / page and pass it in.

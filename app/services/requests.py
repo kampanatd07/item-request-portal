@@ -105,14 +105,14 @@ def _check_originator(db: Session, name: str | None,
     """
     import unicodedata
 
-    from app.services.auth import _EMAIL_RE
+    from app.services.auth import _EMAIL_RE, normalize_email
     from app.services.config_admin import active_mail_domains
     from app.services.snapshots import fix_thai
 
     # NFC then recompose SARA AM, never NFKC (HANDOFF §6.2), so a name typed as
     # NIKHAHIT + SARA AA is stored the same way as everywhere else.
     name = " ".join(fix_thai(unicodedata.normalize("NFC", name or "")).split()) or None
-    email = (email or "").strip().lower() or None
+    email = normalize_email(email or "") or None
     # Column limits: PostgreSQL raises instead of truncating (a 500, not Thai).
     if name is not None and len(name) > 100:
         raise RequestError("ชื่อผู้ขอจริงยาวเกิน 100 ตัวอักษร")

@@ -150,6 +150,17 @@ def test_greeting_names_the_person_or_says_requester_when_names_differ(app_db):
     assert "เรียน ผู้ขอ" in build_created_group_email(same + [other]).text
 
 
+def test_greeting_matches_an_originator_email_stored_with_odd_case(app_db):
+    # Review 2026-10-14: the email went to the originator but greeted the
+    # submitting Procurement person, because the stored address was compared raw.
+    p = account_for(app_db, "procurement")
+    req = _approved(app_db, p, on_behalf_of="คำรณ ใจดี", originator_email="k@carabao.co.th")
+    req.originator_email = "  K@Carabao.co.th "  # older data, or a direct DB fix
+    app_db.commit()
+    mail = build_created_group_email([req])
+    assert mail.to == ["k@carabao.co.th"] and "เรียน คำรณ ใจดี" in mail.text
+
+
 def test_overlapping_concurrent_clicks_send_each_code_once(tmp_path, seeded_template):
     # Two threads, two connections, one file DB; their request sets overlap.
     url = f"sqlite:///{(tmp_path / 'race3.db').as_posix()}"

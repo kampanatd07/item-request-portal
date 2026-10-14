@@ -31,6 +31,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, aliased
 
 from app.config import settings
+from app.services.auth import normalize_email
 from app.models import ItemRequest, RequestEvent
 from app.services.mail import MailError, MailMessage, MailSender, wait_for_slot
 from app.templating import templates
@@ -60,17 +61,13 @@ def recipients(req: ItemRequest) -> tuple[list[str], list[str]]:
     data no longer goes there — the submitter gets the email instead. The same
     address is never in both To and CC.
     """
-    submitter = _addr(req.requester_email)
-    email = None if switched_off_domain(req) else _addr(req.originator_email or "")
+    # Older requests may hold an address with odd case or surrounding spaces
+    # (see list_my_requests): it is sent, grouped and compared normalised.
+    submitter = normalize_email(req.requester_email)
+    email = None if switched_off_domain(req) else normalize_email(req.originator_email or "")
     if not email:
         return [submitter], []
     return [email], [] if submitter == email else [submitter]
-
-
-def _addr(email: str) -> str:
-    """An address as sent and grouped: older requests may hold it with odd case
-    or surrounding spaces (see list_my_requests)."""
-    return email.strip().lower()
 
 
 def switched_off_domain(req: ItemRequest) -> str | None:
@@ -83,7 +80,7 @@ def switched_off_domain(req: ItemRequest) -> str | None:
     db = object_session(req)
     if not req.originator_email or db is None:
         return None
-    domain = req.originator_email.rsplit("@", 1)[1]
+    domain = normalize_email(req.originator_email).rsplit("@", 1)[1]
     return None if domain in active_mail_domains(db) else domain
 
 
@@ -112,7 +109,8 @@ def group_key(req: ItemRequest) -> GroupKey:
 
 def _greeting(req: ItemRequest) -> str:
     to, _ = recipients(req)
-    return req.originator_name if to == [req.originator_email] else req.requester_name
+    return (req.originator_name if to == [normalize_email(req.originator_email or "")]
+            else req.requester_name)
 
 
 def build_created_group_email(reqs: list[ItemRequest]) -> MailMessage:
@@ -403,8 +401,8 @@ def _record_failure(db: Session, request_id: int, actor: str, detail: str,
 
 # --- Resend: what is still waiting to be sent (ticket 06) -------------------------
 
-# A needs_info/rejected change with neither `notified` nor `notify_failed` is
-# normally a send still running in the background; past this it was lost (a
+# A 'created' request or a needs_info/rejected change with neither `notified`
+# nor `notify_failed` is normally a send still running in the background; past this it was lost (a
 # restart killed the task) and goes on the resend list (Peter, ticket 06).
 LOST_AFTER = timedelta(minutes=10)
 NOT_SENT_YET = "ยังไม่ได้ส่ง — อาจค้างจากการ restart"
@@ -423,8 +421,8 @@ def pending_notifications(db: Session, now: datetime,
                           request_id: int | None = None) -> list[PendingNotification]:
     """Emails still owed, oldest change first; read-only.
 
-    - every request still `created` (the "created in AX" email failed, or was
-      lost before it ran), unless a `notify_not_applicable` follows its latest
+    - every request still `created` whose "created in AX" email failed, or
+      that has been `created` longer than LOST_AFTER (lost before it ran), unless a `notify_not_applicable` follows its latest
       'created' (it was created before email existed);
     - every needs_info/rejected change E that is still current — the request
       is still in E's status and E is its latest status change — with no
@@ -454,12 +452,12 @@ def pending_notifications(db: Session, now: datetime,
                 closed = True  # by event order: an old request may have no 'created' to ref
             else:
                 failure = e
-        if closed:
-            continue
+        since = change.at if change is not None else req.updated_at
+        if closed or (failure is None and since > now - LOST_AFTER):
+            continue  # closed, or probably still being sent
         pending.append(PendingNotification(
             req=req, kind="created", event_id=None,
-            reason=failure.detail if failure is not None else NOT_SENT_YET,
-            since=change.at if change is not None else req.updated_at))
+            reason=failure.detail if failure is not None else NOT_SENT_YET, since=since))
 
     change, later, done = aliased(RequestEvent), aliased(RequestEvent), aliased(RequestEvent)
     changes_q = (

@@ -276,6 +276,23 @@ def test_the_sender_goes_through_the_limiter(graph, fake_time):
     assert fake_time.sleeps == [60.0]
 
 
+def test_a_retry_after_401_or_429_counts_against_the_limit(graph, fake_time):
+    # Review 2026-10-14: re-posts skipped the limiter, so real sendMail calls
+    # could pass MAIL_RATE_PER_MINUTE and draw more 429s.
+    sender = _sender(graph, fake_time, rate=2)
+    graph.send_responses = [httpx.Response(401, json={"error": {"code": "InvalidAuthenticationToken"}})]
+    sender.send(_message())  # two posts: the minute is full
+    sender.send(_message())
+    assert len(graph.sends()) == 3 and fake_time.sleeps == [60.0]
+
+    graph, fake_time = FakeGraph(), FakeTime()
+    sender = _sender(graph, fake_time, rate=2)
+    graph.send_responses = [httpx.Response(429, headers={"Retry-After": "4"})]
+    sender.send(_message())  # the wait, then a second post: the minute is full
+    sender.send(_message())
+    assert len(graph.sends()) == 3 and fake_time.sleeps == [4.0, 56.0]
+
+
 def test_a_rate_below_one_is_refused():
     with pytest.raises(ValueError):
         RateLimiter(0)
