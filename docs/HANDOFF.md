@@ -22,7 +22,8 @@ It replaces: Microsoft Forms → Peter checks manually → types into AX → ema
 **Built and running on Peter's machine, with login and roles (STORY-001, done
 2026-09-30), validated code override (STORY-010, done 2026-10-01) and email
 notification (STORY-002, done 2026-10-14). Not yet open to the plants** — it
-still has to be deployed (STORY-006), which now waits only for IT's Graph values (§7).
+still has to be deployed (STORY-006), which now waits for requester resubmit
+(STORY-009, must ship before the plants get access) and IT's Graph values (§7).
 
 | Area | State |
 |---|---|
