@@ -199,6 +199,38 @@ def test_a_prepare_failure_is_recorded_without_sending(app_db):
     assert detail == "created: Graph: ขอ token ไม่ทันเวลา (timeout) — ส่งอีกครั้งได้"
 
 
+def test_a_recipient_error_under_the_lock_is_recorded_and_the_rest_go_on(app_db, monkeypatch):
+    # Review of 2026-10-14 round 3: group_key under the locks was outside any
+    # try, so one bad request stopped the click and recorded nothing.
+    from app.services import notify
+
+    p, q = account_for(app_db, "procurement"), account_for(app_db, "requester", plant="APM")
+    bad, good = _approved(app_db, p), _approved(app_db, q)
+    _batch(app_db)
+    admin = account_for(app_db, "administrator")
+    for r in (bad, good):
+        change_status(app_db, r.id, new_status="created", account=admin)
+    real, calls = notify.group_key, {"n": 0}
+
+    def group_key(req):
+        if req.id == bad.id:
+            calls["n"] += 1
+            if calls["n"] == 2:  # the read passes, the check under the lock fails
+                raise RuntimeError("domain table unreadable")
+        return real(req)
+
+    monkeypatch.setattr(notify, "group_key", group_key)
+    sender = FakeMailSender()
+    counts = notify_created(sessionmaker(bind=app_db.get_bind(), expire_on_commit=False),
+                            [bad.id, good.id], sender, "a@test.local")
+    assert counts == {"sent": 1, "failed": 1, "skipped": 0}
+    assert [m.to for m in sender.sent] == [[q.email]]
+    assert _status(app_db, bad) == "created" and _status(app_db, good) == "notified"
+    detail = app_db.scalar(select(RequestEvent.detail).where(
+        RequestEvent.request_id == bad.id, RequestEvent.action == "notify_failed"))
+    assert "RuntimeError" in detail and "domain table unreadable" in detail
+
+
 def test_overlapping_concurrent_clicks_send_each_code_once(tmp_path, seeded_template):
     # Two threads, two connections, one file DB; their request sets overlap.
     url = f"sqlite:///{(tmp_path / 'race3.db').as_posix()}"

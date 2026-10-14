@@ -98,6 +98,24 @@ _(filled by /to-spec + /to-tickets)_
   (≤ 20 s) + one send (≈ 15 s). Check the platform's proxy timeout at
   deploy; if it is under ~100 s, make that button fail fast when no slot
   is free instead of waiting.
-- Graph's Retry-After is no longer honoured (a 429 fails at once). Pressing
-  resend straight away can draw another 429; the reason on the resend list
-  says to try later.
+- A 429 fails that send at once; its Retry-After (capped at 60 s) holds back
+  the next `prepare()`, outside any lock. A Retry-After longer than 60 s can
+  still draw another 429 after the cap.
+- Further notes from the review of 2026-10-14 round 3 (not correctness, not
+  deploy conditions):
+  - Migrations and `create_admin` load Settings too, so outside dev they
+    need the four Graph values as well. On Render/Railway the pre-deploy
+    step shares the app's env, so set them before the first deploy.
+  - `config.Settings.graph_missing()` and `mail._graph_values()` both list
+    the four Graph settings; make `get_mail_sender` use `graph_missing()` so
+    the start-up check and the sender choice cannot drift.
+  - The dev "Graph settings incomplete" warning is logged while
+    `settings = Settings()` is built at import, before uvicorn configures
+    logging; it may not show. Dev only.
+  - When Entra login is unreachable, each (To, CC) group's `prepare()` waits
+    the token timeout again (~20 s each): a 20-group "send all" takes ~7 min
+    of a background thread to record 20 identical failures. Stop after the
+    first prepare failure per call if this is ever seen.
+  - A split "created" group (recipients changed under the lock) and a token
+    dropped by another thread's 401 are the two rare paths that still do
+    more than one short call under the lock (see decisions.md).

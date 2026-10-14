@@ -288,6 +288,50 @@ def test_send_never_waits_for_the_limiter_prepare_does(graph, fake_time):
     assert fake_time.sleeps == [60.0] and len(graph.sends()) == 3
 
 
+def test_a_429_makes_the_next_prepare_wait_the_retry_after(graph, fake_time):
+    # Review of 2026-10-14 round 3: with the retry gone, a 429 was honoured
+    # nowhere, so "send all" burned every remaining group into notify_failed.
+    sender = _sender(graph, fake_time)
+    graph.send_responses = [httpx.Response(429, headers={"Retry-After": "30"})]
+    sender.prepare()
+    with pytest.raises(MailError, match="HTTP 429"):
+        sender.send(_message())
+    sender.prepare()  # outside the lock: wait out what Graph asked
+    assert fake_time.sleeps == [30.0]
+    sender.send(_message())
+    assert len(graph.sends()) == 2
+
+
+def test_a_huge_retry_after_is_capped(graph, fake_time):
+    from app.services.graph_mail import BACK_OFF_CAP_SECONDS
+
+    sender = _sender(graph, fake_time)
+    graph.send_responses = [httpx.Response(429, headers={"Retry-After": "3600"})]
+    with pytest.raises(MailError):
+        sender.send(_message())
+    sender.prepare()
+    assert fake_time.sleeps == [float(BACK_OFF_CAP_SECONDS)]
+
+
+def test_prepare_reserves_the_slot_its_own_send_spends(graph, fake_time):
+    # Review of 2026-10-14 round 3: two notifiers could both pass prepare() on
+    # the last free slot; the second then failed under its lock.
+    from concurrent.futures import ThreadPoolExecutor
+
+    sender = _sender(graph, fake_time, rate=1)
+    a, b = ThreadPoolExecutor(1), ThreadPoolExecutor(1)  # one thread per notifier
+    try:
+        a.submit(sender.prepare).result()
+        b.submit(sender.prepare).result()  # must wait: A holds the only slot
+        assert fake_time.sleeps == [60.0]
+        a.submit(sender.send, _message()).result()
+        b.submit(sender.send, _message()).result()  # its own reserved slot
+    finally:
+        a.shutdown()
+        b.shutdown()
+    assert len(graph.sends()) == 2
+
+
 def test_prepare_fetches_the_token_before_the_claim(graph, fake_time):
     sender = _sender(graph, fake_time)
     sender.prepare()
@@ -385,13 +429,14 @@ def test_the_secret_does_not_show_in_settings_repr(graph_settings):
 
 # --- Code review fixes ----------------------------------------------------------------------------
 
-def test_wait_for_slot_waits_without_taking_the_slot(fake_time):
+def test_reserve_waits_once_and_take_spends_it_without_waiting(fake_time):
     limiter = RateLimiter(1, fake_time.clock, fake_time.sleep)
     limiter.acquire()
-    limiter.wait_for_slot()
+    limiter.reserve()  # waits for the window, then holds the slot
     assert fake_time.sleeps == [60.0]
-    limiter.wait_for_slot()  # nothing taken: still free
-    limiter.acquire()  # and the send itself does not wait again
+    limiter.reserve()  # already holding one: no second slot, no wait
+    assert limiter.take() is True and fake_time.sleeps == [60.0]
+    assert limiter.take() is False  # nothing reserved, window full: no wait
     assert fake_time.sleeps == [60.0]
 
 

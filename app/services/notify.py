@@ -243,12 +243,15 @@ def _notify_created_group(db: Session, ids: list[int], sender: MailSender,
     # Recipients are checked again under the locks (e.g. a domain switched off
     # since the read); requests that no longer belong together get their own email.
     parts: dict[GroupKey, list[ItemRequest]] = defaultdict(list)
+    failures: list[tuple[list[ItemRequest], str]] = []
     for req in claimed:
-        parts[group_key(req)].append(req)
+        try:
+            parts[group_key(req)].append(req)
+        except Exception as e:  # noqa: BLE001 - one bad request never stops the rest
+            failures.append(([req], f"หาผู้รับไม่ได้ ({type(e).__name__}: {e})"))
     sent_ids: set[int] = set()
     reasons: dict[int, str] = {}  # request id -> why its part failed
     try:
-        failures: list[tuple[list[ItemRequest], str]] = []
         for key in sorted(parts):
             part = parts[key]
             try:

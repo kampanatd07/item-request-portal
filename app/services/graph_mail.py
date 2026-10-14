@@ -34,6 +34,9 @@ TIMEOUT = httpx.Timeout(15.0, connect=5.0)
 # no retry and no Retry-After wait; a failure goes on the resend list.
 SEND_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 WINDOW_SECONDS = 60.0
+# A 429's Retry-After holds back the next sends (in prepare, outside any
+# lock) for at most this long; past it they try again and may fail again.
+BACK_OFF_CAP_SECONDS = 60
 
 BAD_CREDENTIALS = ("Graph: ใช้ credentials ไม่ได้ ({detail}) — client secret อาจหมดอายุ "
                    "ตรวจ MS_CLIENT_SECRET / Graph credentials do not work, the client "
@@ -49,6 +52,11 @@ class RateLimiter:
     A send that would exceed it waits for the oldest start to leave the window.
     Exchange Online allows about 30 messages a minute per mailbox; the default
     25 leaves room. Per process: two app processes would need a shared limiter.
+
+    The notifier `reserve`s a slot before it locks request rows (it may wait
+    there) and its `send` then `take`s that slot without waiting. The
+    reservation is per thread, so concurrent notifiers cannot both count on
+    the same last slot. After a 429, `back_off` holds every new slot back.
     """
 
     def __init__(self, per_minute: int, clock: Clock = time.monotonic,
@@ -59,15 +67,23 @@ class RateLimiter:
         self._clock, self._sleep = clock, sleep
         self._starts: deque[float] = deque()
         self._lock = threading.Lock()
+        self._blocked_until = 0.0  # set by back_off (a 429's Retry-After)
+        self._local = threading.local()  # .reserved: this thread holds a slot
 
     def _free_in(self) -> float:
         """Seconds until a send may start (0 = now). Call with the lock held."""
         now = self._clock()
         while self._starts and self._starts[0] <= now - WINDOW_SECONDS:
             self._starts.popleft()
+        blocked = self._blocked_until - now
         if len(self._starts) < self.per_minute:
-            return 0.0
-        return self._starts[0] + WINDOW_SECONDS - now
+            return max(blocked, 0.0)
+        return max(self._starts[0] + WINDOW_SECONDS - now, blocked)
+
+    def back_off(self, seconds: float) -> None:
+        """Graph throttled us: no new slot for this long (capped)."""
+        until = self._clock() + min(max(seconds, 0.0), BACK_OFF_CAP_SECONDS)
+        self._blocked_until = max(self._blocked_until, until)
 
     def acquire(self) -> None:
         """Wait for a slot and take it (records this send's start)."""
@@ -77,27 +93,27 @@ class RateLimiter:
             self._starts.append(self._clock())
 
     def try_acquire(self) -> bool:
-        """Take a slot if one is free now; never waits (used under row locks)."""
+        """Take a slot if one is free now; never waits."""
         with self._lock:
             if self._free_in() > 0:
                 return False
             self._starts.append(self._clock())
             return True
 
-    def wait_for_slot(self) -> None:
-        """Wait until a send could start, without taking the slot.
+    def reserve(self) -> None:
+        """Wait for a slot and hold it for this thread's next `take` (one at a time)."""
+        if getattr(self._local, "reserved", False):
+            return
+        self.acquire()
+        self._local.reserved = True
 
-        The notifier calls this (through `prepare`) *before* it locks request
-        rows, so the minute-long wait happens with no lock held; `try_acquire`
-        in `send` then almost always passes. If another send took the slot in
-        between, `send` fails and the request goes on the resend list.
-        """
-        while True:
-            with self._lock:
-                wait = self._free_in()
-            if wait <= 0:
-                return
-            self._sleep(wait)
+    def take(self) -> bool:
+        """Spend this thread's reserved slot, or take a free one; never waits
+        (used under row locks). False when the window is full."""
+        if getattr(self._local, "reserved", False):
+            self._local.reserved = False
+            return True
+        return self.try_acquire()
 
 
 @dataclass
@@ -217,13 +233,13 @@ class GraphMailSender:
     def prepare(self) -> None:
         """Before the notifier locks any row: wait for a rate-limit slot and
         make sure a token is cached, so `send` has nothing slow left to do."""
-        self.limiter.wait_for_slot()
+        self.limiter.reserve()
         self._access_token()
 
     def send(self, message: MailMessage) -> None:
         """One sendMail call: no waiting, no retry (it runs under row locks).
         Any failure is a MailError; the resend list does the retrying."""
-        if not self.limiter.try_acquire():
+        if not self.limiter.take():
             raise MailError("Graph: ถึงขีดจำกัดอัตราการส่ง (MAIL_RATE_PER_MINUTE) "
                             "— ส่งอีกครั้งภายหลัง")
         response = self._post(self._payload(message))
@@ -232,7 +248,17 @@ class GraphMailSender:
             # prepare() fetches a fresh one.
             with self._token_lock:
                 self._token = None
+        if response.status_code == 429:
+            # Honoured by the next prepare(), outside any lock.
+            self.limiter.back_off(self._retry_after(response))
         self._raise_for(response)
+
+    @staticmethod
+    def _retry_after(response: httpx.Response) -> float:
+        try:
+            return float(response.headers.get("Retry-After", "1"))
+        except ValueError:
+            return 1.0
         log.info("mail sent via Graph to=%s cc=%s subject=%s", ",".join(message.to),
                  ",".join(message.cc) or "-", message.subject)
 

@@ -2,19 +2,21 @@
 
 ## [2026-10-14] Known limit: request rows stay locked during one short Graph call
 **Decision:** Keep claim → send → record in one transaction for v1, but with
-nothing slow inside it. Before the claim, `prepare()` waits for a rate-limit
-slot and makes sure a token is cached. Under the lock there is exactly one
-sendMail call with a short timeout (5 s connect, 10 s read), no retry, no
-Retry-After wait and no rate-limit wait: a 401/429/5xx/timeout, or a full
-rate-limit window, is recorded as `notify_failed` and the lock is released;
-the resend list does the retrying. The lock covers one request
+nothing slow inside it. Before the claim, `prepare()` reserves a rate-limit
+slot for this thread (waiting there if needed, including any Retry-After a
+429 asked for, capped at 60 s) and makes sure a token is cached. Under the
+lock there is exactly one sendMail call with a short timeout (5 s connect,
+10 s read), no retry and no wait: a 401/429/5xx/timeout is recorded as
+`notify_failed` and the lock is released; the resend list does the
+retrying. The lock covers one request
 (needs_info/rejected) or the whole (To, CC) group ("created"). On PostgreSQL
 (prod) those rows only; on SQLite (dev) the database-wide write lock.
 **How long:** a normal send is well under 1 s. Worst case per sendMail
 ≈ 15 s (5 s connect + 10 s read; the write phase is a few KB). Rare cases
 add to it: a "created" group whose recipients changed since it was read is
-split and sends once per part; if another thread dropped the token after a
-401 between prepare and send, the token is fetched under the lock (≤ 20 s).
+split and sends once per part (parts after the first need a free slot and
+fail rather than wait); if another thread dropped the token after a 401
+between prepare and send, the token is fetched under the lock (≤ 20 s).
 A Procurement status change on a locked request waits that long
 (`_get_locked` has no lock_timeout); other requests are not affected.
 **Why:** 1–2 Procurement users and a low email volume; restructuring to
