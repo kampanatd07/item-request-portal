@@ -307,7 +307,8 @@ def test_placeholder_secret_is_refused_outside_dev(secret):
 
 
 def test_real_secret_is_accepted_outside_dev():
-    assert Settings(app_env="production", secret_key="x" * 40).cookie_secure
+    assert Settings(app_env="production", secret_key="x" * 40,
+                    ms_tenant_id="t", ms_client_id="c", ms_client_secret="s", mail_sender="item-portal@carabao.co.th").cookie_secure
 
 
 # --- create_admin CLI ----------------------------------------------------------

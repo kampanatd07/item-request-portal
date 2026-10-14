@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.database import get_db, get_session_factory
+from app.database import SessionFactory, get_db, get_session_factory
 from app.models import Account, ExportBatch, Factory, ItemRequest
 from app.routes.deps import current_account
 from app.services import catalog
@@ -61,7 +61,7 @@ def resend_all(
     clock: Clock = Depends(get_clock),
     account: Account = Depends(current_account),
     sender: MailSender = Depends(get_mail_sender),
-    session_factory=Depends(get_session_factory),
+    session_factory: SessionFactory = Depends(get_session_factory),
 ):
     """"ส่งซ้ำทั้งหมด": everything still owed, in the background (the Graph sender
     paces sends, so a long list takes a while). 'created' ones are grouped per
@@ -120,7 +120,7 @@ def mark_created(
     db: Session = Depends(get_db),
     account: Account = Depends(current_account),
     sender: MailSender = Depends(get_mail_sender),
-    session_factory=Depends(get_session_factory),
+    session_factory: SessionFactory = Depends(get_session_factory),
 ):
     reqs = list(
         db.scalars(

@@ -16,7 +16,8 @@ from tests.conftest import TEST_PASSWORD, account_for, central_ids, load_master,
 
 def test_unset_app_env_means_production(monkeypatch):
     monkeypatch.delenv("APP_ENV", raising=False)
-    s = Settings(_env_file=None, secret_key="x" * 40)
+    s = Settings(_env_file=None, secret_key="x" * 40,
+                 ms_tenant_id="t", ms_client_id="c", ms_client_secret="s", mail_sender="item-portal@carabao.co.th")
     assert s.app_env == "production" and s.cookie_secure
 
 
@@ -35,6 +36,8 @@ def test_docs_are_hidden_when_app_env_is_unset():
 
     env = {k: v for k, v in os.environ.items() if k != "APP_ENV"}
     env["SECRET_KEY"] = "x" * 40
+    env.update(MS_TENANT_ID="t", MS_CLIENT_ID="c", MS_CLIENT_SECRET="s",
+               MAIL_SENDER="item-portal@carabao.co.th")  # required outside dev
     out = subprocess.run(
         [sys.executable, "-c",
          "import app.main as m; print(m.app.docs_url, m.app.redoc_url, m.app.openapi_url)"],

@@ -10,7 +10,6 @@ from pydantic import SecretStr
 
 from app.services import mail
 from app.services.graph_mail import (
-    RETRY_AFTER_CAP_SECONDS,
     TOKEN_MARGIN_SECONDS,
     GraphMailSender,
     RateLimiter,
@@ -156,10 +155,16 @@ def test_an_expiring_token_is_refreshed(graph, fake_time):
     assert graph.sends()[1].headers["authorization"] == f"Bearer {TOKEN}-2"
 
 
-def test_a_revoked_token_gets_one_fresh_try(graph, fake_time):
+def test_a_revoked_token_fails_now_and_the_next_send_gets_a_fresh_one(graph, fake_time):
+    # Review 2026-10-14: no retry while the notifier holds the row lock.
+    sender = _sender(graph, fake_time)
+    sender.prepare()
     graph.send_responses = [httpx.Response(401, json={"error": {"code": "InvalidAuthenticationToken"}})]
-    _sender(graph, fake_time).send(_message())
-    assert len(graph.token_requests()) == 2 and len(graph.sends()) == 2
+    with pytest.raises(MailError, match="HTTP 401"):
+        sender.send(_message())
+    assert len(graph.token_requests()) == 1 and len(graph.sends()) == 1
+    sender.prepare()  # before the next claim: a new token
+    sender.send(_message())
     assert graph.sends()[1].headers["authorization"] == f"Bearer {TOKEN}-2"
 
 
@@ -179,21 +184,22 @@ def test_401_403_and_5xx_become_mail_errors_naming_the_status(graph, fake_time):
     assert "HTTP 400, ErrorInvalidRecipients" in reason
 
 
-def test_429_waits_the_retry_after_then_retries_once(graph, fake_time):
-    graph.send_responses = [httpx.Response(429, headers={"Retry-After": "4"})]
-    _sender(graph, fake_time).send(_message())
-    assert fake_time.sleeps == [4.0] and len(graph.sends()) == 2
-
-
-def test_429_twice_fails_after_one_wait(graph, fake_time):
-    reason = _failure(graph, fake_time, httpx.Response(429, headers={"Retry-After": "2"}))
-    assert "HTTP 429" in reason and fake_time.sleeps == [2.0] and len(graph.sends()) == 2
-
-
-def test_429_asking_longer_than_the_cap_fails_without_waiting(graph, fake_time):
-    reason = _failure(graph, fake_time, httpx.Response(
-        429, headers={"Retry-After": str(RETRY_AFTER_CAP_SECONDS + 1)}))
+def test_429_and_5xx_fail_at_once_without_waiting_or_retrying(graph, fake_time):
+    # Review 2026-10-14: a Retry-After sleep and a re-post held the row lock;
+    # now the failure goes to notify_failed and the resend list does the retry.
+    reason = _failure(graph, fake_time, httpx.Response(429, headers={"Retry-After": "4"}))
     assert "HTTP 429" in reason and fake_time.sleeps == [] and len(graph.sends()) == 1
+    graph = FakeGraph()
+    reason = _failure(graph, fake_time, httpx.Response(503))
+    assert "HTTP 503" in reason and fake_time.sleeps == [] and len(graph.sends()) == 1
+
+
+def test_sendmail_uses_the_short_timeout(graph, fake_time):
+    _sender(graph, fake_time).send(_message())
+    [send], [token] = graph.sends(), graph.token_requests()
+    assert send.extensions["timeout"] == {"connect": 5.0, "read": 10.0, "write": 10.0,
+                                          "pool": 10.0}
+    assert token.extensions["timeout"]["read"] == 15.0  # before the lock: may take longer
 
 
 def test_a_timeout_becomes_a_mail_error_that_warns_of_a_copy(fake_time):
@@ -269,28 +275,25 @@ def test_the_limiter_never_lets_more_than_n_sends_start_in_a_minute(fake_time):
     assert fake_time.sleeps  # it had to wait, without really sleeping
 
 
-def test_the_sender_goes_through_the_limiter(graph, fake_time):
+def test_send_never_waits_for_the_limiter_prepare_does(graph, fake_time):
+    # Review 2026-10-14: send runs under the row lock, so it must not wait.
     sender = _sender(graph, fake_time, rate=2)
-    for _ in range(3):
-        sender.send(_message())
-    assert fake_time.sleeps == [60.0]
-
-
-def test_a_retry_after_401_or_429_counts_against_the_limit(graph, fake_time):
-    # Review 2026-10-14: re-posts skipped the limiter, so real sendMail calls
-    # could pass MAIL_RATE_PER_MINUTE and draw more 429s.
-    sender = _sender(graph, fake_time, rate=2)
-    graph.send_responses = [httpx.Response(401, json={"error": {"code": "InvalidAuthenticationToken"}})]
-    sender.send(_message())  # two posts: the minute is full
     sender.send(_message())
-    assert len(graph.sends()) == 3 and fake_time.sleeps == [60.0]
-
-    graph, fake_time = FakeGraph(), FakeTime()
-    sender = _sender(graph, fake_time, rate=2)
-    graph.send_responses = [httpx.Response(429, headers={"Retry-After": "4"})]
-    sender.send(_message())  # the wait, then a second post: the minute is full
     sender.send(_message())
-    assert len(graph.sends()) == 3 and fake_time.sleeps == [4.0, 56.0]
+    with pytest.raises(MailError, match="อัตราการส่ง"):
+        sender.send(_message())  # the minute is full: fail, do not wait
+    assert fake_time.sleeps == [] and len(graph.sends()) == 2
+    sender.prepare()  # before the claim: the wait happens here
+    sender.send(_message())
+    assert fake_time.sleeps == [60.0] and len(graph.sends()) == 3
+
+
+def test_prepare_fetches_the_token_before_the_claim(graph, fake_time):
+    sender = _sender(graph, fake_time)
+    sender.prepare()
+    assert len(graph.token_requests()) == 1 and graph.sends() == []
+    sender.send(_message())
+    assert len(graph.token_requests()) == 1  # nothing fetched under the lock
 
 
 def test_a_rate_below_one_is_refused():
@@ -319,12 +322,10 @@ def test_all_four_settings_give_one_graph_sender_per_process(graph_settings):
 
 @pytest.mark.parametrize("name", ["ms_tenant_id", "ms_client_id", "ms_client_secret",
                                   "mail_sender"])
-def test_any_missing_setting_gives_the_log_sender(graph_settings, monkeypatch, caplog, name):
+def test_any_missing_setting_gives_the_log_sender(graph_settings, monkeypatch, name):
     monkeypatch.setattr(graph_settings, name,
                         SecretStr("") if name == "ms_client_secret" else "  ")
-    with caplog.at_level(logging.WARNING, logger="app.mail"):
-        assert isinstance(mail.get_mail_sender(), LogMailSender)
-    assert name.upper() in caplog.text and SECRET not in caplog.text
+    assert isinstance(mail.get_mail_sender(), LogMailSender)
 
 
 def test_no_settings_at_all_is_quietly_the_log_sender(graph_settings, monkeypatch, caplog):
@@ -333,6 +334,48 @@ def test_no_settings_at_all_is_quietly_the_log_sender(graph_settings, monkeypatc
     monkeypatch.setattr(graph_settings, "ms_client_secret", SecretStr(""))
     with caplog.at_level(logging.WARNING, logger="app.mail"):
         assert isinstance(mail.get_mail_sender(), LogMailSender)
+    assert caplog.text == ""
+
+
+GRAPH_ENV = {"ms_tenant_id": "tenant-1", "ms_client_id": "client-1",
+             "ms_client_secret": SECRET, "mail_sender": "item-portal@carabao.co.th"}
+
+
+@pytest.mark.parametrize("missing", [None, "ms_tenant_id", "ms_client_id",
+                                     "ms_client_secret", "mail_sender"])
+def test_outside_dev_the_app_refuses_to_start_without_all_graph_settings(missing):
+    # Review 2026-10-14: production fell back to the log sender and marked
+    # every request notified with no email sent.
+    from pydantic import ValidationError
+
+    from app.config import Settings
+
+    values = {k: v for k, v in GRAPH_ENV.items() if k != missing}
+    if missing is None:
+        Settings(_env_file=None, app_env="production", secret_key="x" * 40, **values)
+        return
+    with pytest.raises(ValidationError, match=missing.upper()):
+        Settings(_env_file=None, app_env="production", secret_key="x" * 40, **values)
+
+
+def test_dev_without_graph_settings_starts_with_the_log_sender():
+    from app.config import Settings
+
+    Settings(_env_file=None, app_env="dev")  # no error
+
+
+def test_a_half_configured_dev_warns_once_at_start_not_per_request(graph_settings, monkeypatch,
+                                                                   caplog):
+    from app.config import Settings
+
+    with caplog.at_level(logging.WARNING, logger="app.mail"):
+        Settings(_env_file=None, app_env="dev", ms_tenant_id="tenant-1")
+    assert "MS_CLIENT_ID" in caplog.text
+    caplog.clear()
+    monkeypatch.setattr(graph_settings, "mail_sender", "")
+    with caplog.at_level(logging.WARNING, logger="app.mail"):
+        for _ in range(3):
+            assert isinstance(mail.get_mail_sender(), LogMailSender)
     assert caplog.text == ""
 
 
@@ -375,8 +418,8 @@ def test_the_notifier_waits_for_the_limiter_before_locking_rows(app_db, monkeypa
         return real_claim(*args)
 
     class Limited:
-        def wait_for_slot(self):
-            order.append("wait")
+        def prepare(self):
+            order.append("prepare")
 
         def send(self, message):
             order.append("send")
@@ -385,7 +428,7 @@ def test_the_notifier_waits_for_the_limiter_before_locking_rows(app_db, monkeypa
     change = latest_status_event(app_db, req.id)
     notify_status(sessionmaker(bind=app_db.get_bind(), expire_on_commit=False), req.id,
                   change.id, Limited(), "a@test.local")
-    assert order == ["wait", "claim", "send"]
+    assert order == ["prepare", "claim", "send"]
 
 
 def test_the_created_notifier_also_waits_before_locking(app_db, monkeypatch):
@@ -413,8 +456,8 @@ def test_the_created_notifier_also_waits_before_locking(app_db, monkeypatch):
         return real_claim(*args)
 
     class Limited:
-        def wait_for_slot(self):
-            order.append("wait")
+        def prepare(self):
+            order.append("prepare")
 
         def send(self, message):
             order.append("send")
@@ -422,7 +465,7 @@ def test_the_created_notifier_also_waits_before_locking(app_db, monkeypatch):
     monkeypatch.setattr(notify, "_claim", claim)
     notify_created(sessionmaker(bind=app_db.get_bind(), expire_on_commit=False), [req.id],
                    Limited(), "a@test.local")
-    assert order == ["wait", "claim", "send"]
+    assert order == ["prepare", "claim", "send"]
 
 
 def test_a_bad_rate_setting_stops_the_app_at_start(monkeypatch):
@@ -474,8 +517,7 @@ def test_graph_throttling_on_mark_created_becomes_notify_failed(client, app_db, 
     change_status(app_db, req.id, new_status="approved", account=account_for(app_db, "administrator"))
     batch = export_pending(app_db, req.factory_id, account=account_for(app_db))
     _graph_app(graph, fake_time)
-    graph.send_responses = [httpx.Response(
-        429, headers={"Retry-After": str(RETRY_AFTER_CAP_SECONDS + 1)})] * 3
+    graph.send_responses = [httpx.Response(429, headers={"Retry-After": "2"})] * 3
 
     assert client.post(f"/exports/{batch.id}/mark-created").status_code == 200
     [detail] = _failures(app_db, req)

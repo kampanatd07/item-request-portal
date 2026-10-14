@@ -2,7 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
-from app.database import get_db, get_session_factory
+from app.database import SessionFactory, get_db, get_session_factory
 from app.models import Account, ItemRequest
 from app.routes.deps import current_account, require_role
 from app.services import override_preview
@@ -93,7 +93,7 @@ def resend_one(
     clock: Clock = Depends(get_clock),
     account: Account = Depends(current_account),
     sender: MailSender = Depends(get_mail_sender),
-    session_factory=Depends(get_session_factory),
+    session_factory: SessionFactory = Depends(get_session_factory),
 ):
     """"ส่งอีเมลอีกครั้ง" for one request: sent now, so the result shows at once."""
     actor = account.email
@@ -134,7 +134,7 @@ def update_status(
     db: Session = Depends(get_db),
     account: Account = Depends(current_account),
     sender: MailSender = Depends(get_mail_sender),
-    session_factory=Depends(get_session_factory),
+    session_factory: SessionFactory = Depends(get_session_factory),
 ):
     try:
         req = change_status(

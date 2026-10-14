@@ -82,8 +82,22 @@ _(filled by /to-spec + /to-tickets)_
   condition; fix if pages feel slow once the plants use it:
   - `app/routes/deps.py` runs the whole `pending_notifications` query on
     every full page load for Procurement/Administrators only to show the
-    menu count. A COUNT query (or loading only ids) would do.
+    menu count. A COUNT query (or loading only ids) would do. It also runs
+    on POSTs and file downloads that never render the menu, and the query
+    sits in the auth dependency (routes → services rule): compute it only
+    where `base.html` renders.
   - `switched_off_domain()` queries `active_mail_domains()` every call, and
     `recipients`, `group_key`, `_greeting`, `recipient_note` and the Export
     page all call it: about 4 identical queries per request (≈ 200 for 50
     rows). Load the domain set once per notifier run / page and pass it in.
+- Single "ส่งอีเมลอีกครั้ง" button (`routes/queue.py`) sends inside the HTTP
+  request. Since the 2026-10-14 fix there is no retry or Retry-After wait,
+  so a normal click returns in a second or two; the worst case is now the
+  rate-limit wait in `prepare()` (up to 60 s, only when 25 emails already
+  started in that minute, e.g. right after "ส่งซ้ำทั้งหมด") + a token
+  (≤ 20 s) + one send (≈ 15 s). Check the platform's proxy timeout at
+  deploy; if it is under ~100 s, make that button fail fast when no slot
+  is free instead of waiting.
+- Graph's Retry-After is no longer honoured (a 429 fails at once). Pressing
+  resend straight away can draw another 429; the reason on the resend list
+  says to try later.

@@ -40,7 +40,7 @@ still has to be deployed (STORY-006), which now waits only for IT's Graph values
 | Email notification | done — STORY-002 tickets 01–06 (Graph sender tested with a fake transport only; first real send waits for IT, see §7) |
 | Deployment | **not started — STORY-006** |
 
-Tests: 589 passing (`pytest`).
+Tests: 598 passing (`pytest`).
 
 The suite runs in ~13 s: `create_all` + `seed` run once per pytest session
 into an in-memory template, and each test's `db_session` gets a copy through
@@ -140,7 +140,8 @@ After first run, upload in **Snapshot** page:
   Policy that limits it to one shared sender mailbox (e.g.
   `item-portal@carabao.co.th`). Then provide `MS_TENANT_ID`, `MS_CLIENT_ID`,
   `MS_CLIENT_SECRET`, `MAIL_SENDER`; plus `MAIL_REPLY_TO` (Procurement mailbox for
-  replies) before deploy. Steps are spelled out in `.env.example`. Then send
+  replies) before deploy. Outside `APP_ENV=dev` the app refuses to start
+  without the four Graph values, so deploy cannot go ahead before IT sends them. Steps are spelled out in `.env.example`. Then send
   one real test email (any request through needs_info) and check it arrives,
   with the Reply-To and the copy in the sender's Sent Items. Allowed originator email domains are data on the
   Settings page (seeded: apm.co.th, acmf.co.th, apg.co.th, carabao.co.th)

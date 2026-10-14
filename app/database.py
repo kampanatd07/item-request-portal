@@ -1,5 +1,7 @@
+from collections.abc import Callable
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import settings
 
@@ -16,7 +18,11 @@ class Base(DeclarativeBase):
     pass
 
 
-def get_session_factory():
+# How background work (e.g. the notifier) opens its own sessions.
+SessionFactory = Callable[[], Session]
+
+
+def get_session_factory() -> SessionFactory:
     """FastAPI dependency: how background work (e.g. sending email after the
     response) opens its own session, since the request's session is closed
     by then. Tests point it at their database."""

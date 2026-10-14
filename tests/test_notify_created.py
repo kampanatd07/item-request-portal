@@ -345,3 +345,21 @@ def test_addresses_are_trimmed_and_lowercased_before_sending_and_grouping(db_ses
     assert counts["sent"] == 2
     [mail] = outbox.sent  # one group: both clean to the same address
     assert mail.to == ["requester-apm@test.local"] and mail.cc == []
+
+
+def test_the_session_factory_dependency_is_typed():
+    # Review 2026-10-14: CLAUDE.md asks for type hints on all functions.
+    import typing
+
+    from app.database import get_session_factory
+    from app.routes import exports, queue
+    from app.services.notify import SessionFactory
+
+    assert typing.get_type_hints(get_session_factory)["return"] == SessionFactory
+    for module in (exports, queue):
+        for name, fn in vars(module).items():
+            if callable(fn) and "session_factory" in getattr(fn, "__code__", type("", (), {
+                    "co_varnames": ()})).co_varnames:
+                hints = typing.get_type_hints(fn)
+                assert hints.get("session_factory") == SessionFactory, f"{module.__name__}.{name}"
+

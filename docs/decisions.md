@@ -1,27 +1,32 @@
 # Decision Log
 
-## [2026-10-14] Known limit: request rows stay locked during the Graph call
-**Decision:** Keep claim → send → record in one transaction for v1. The
-notifier holds the claimed request rows (one request for needs_info/rejected,
-the whole (To, CC) group for "created") until Graph answers. On PostgreSQL
-(prod) that locks only those rows, not the database; on SQLite (dev) it is the
-database-wide write lock.
-**How long:** a normal send is well under 1 s. The worst case is bounded by
-the timeouts in `graph_mail.py`: each HTTP call ≤ 20 s (5 s connect + 15 s
-read), at most two token calls and three sendMail posts (first, after a 401,
-after a 429), one Retry-After wait ≤ 10 s, and, rarely, a rate-limiter wait
-inside `send` of up to 60 s (also before each re-post since the 2026-10-14
-review) → about 2–3 minutes in the worst case, normally 0. Meanwhile a
-Procurement status change on the same request waits (`_get_locked` has no
-lock_timeout); other requests are not affected.
+## [2026-10-14] Known limit: request rows stay locked during one short Graph call
+**Decision:** Keep claim → send → record in one transaction for v1, but with
+nothing slow inside it. Before the claim, `prepare()` waits for a rate-limit
+slot and makes sure a token is cached. Under the lock there is exactly one
+sendMail call with a short timeout (5 s connect, 10 s read), no retry, no
+Retry-After wait and no rate-limit wait: a 401/429/5xx/timeout, or a full
+rate-limit window, is recorded as `notify_failed` and the lock is released;
+the resend list does the retrying. The lock covers one request
+(needs_info/rejected) or the whole (To, CC) group ("created"). On PostgreSQL
+(prod) those rows only; on SQLite (dev) the database-wide write lock.
+**How long:** a normal send is well under 1 s. Worst case per sendMail
+≈ 15 s (5 s connect + 10 s read; the write phase is a few KB). Rare cases
+add to it: a "created" group whose recipients changed since it was read is
+split and sends once per part; if another thread dropped the token after a
+401 between prepare and send, the token is fetched under the lock (≤ 20 s).
+A Procurement status change on a locked request waits that long
+(`_get_locked` has no lock_timeout); other requests are not affected.
 **Why:** 1–2 Procurement users and a low email volume; restructuring to
 claim → commit → send → record adds a "sending" state and its own crash
-recovery, for a problem not yet seen.
+recovery, for a problem not yet seen. Moving the slow parts out of the lock
+was cheap and removes the multi-minute worst case.
 **Alternatives considered:** a separate claim transaction with a `sending`
-marker — deferred, not rejected.
+marker — deferred, not rejected. Retrying 429/5xx inside the send —
+rejected: it held the lock for up to ~2–3 minutes.
 **Revisit when:** after go-live, a Graph call is seen to be slow (the
 `mail sent via Graph` log line, or Procurement reporting a hanging status
-change), or Graph timeouts show up on the resend list.
+change), or rate-limit / Graph failures pile up on the resend list.
 
 ## [2026-10-01] Email through Microsoft Graph, not SMTP
 **Decision:** The portal sends email with Microsoft Graph `sendMail` using an

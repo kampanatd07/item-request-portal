@@ -31,12 +31,13 @@ class MailSender(Protocol):
     def send(self, message: MailMessage) -> None: ...
 
 
-def wait_for_slot(sender: MailSender) -> None:
-    """Let a rate-limited sender make us wait now, before any row is locked
-    (senders without a limit — log, fake — have nothing to wait for)."""
-    wait = getattr(sender, "wait_for_slot", None)
-    if wait is not None:
-        wait()
+def prepare(sender: MailSender) -> None:
+    """Do a sender's slow part now, before any row is locked: the rate-limit
+    wait and the token (senders without either — log, fake — have nothing to
+    do). Raises MailError; `send` itself then never waits or retries."""
+    ready = getattr(sender, "prepare", None)
+    if ready is not None:
+        ready()
 
 
 class LogMailSender:
@@ -68,16 +69,13 @@ def _graph_values() -> dict[str, str]:
 
 def get_mail_sender() -> MailSender:
     """FastAPI dependency: the Graph sender when all four Graph settings are
-    set, else the log sender (AC2). One Graph sender per process, so its token
-    cache and rate limiter cover every send. Tests override this dependency."""
+    set, else the log sender (AC2; only possible in dev — Settings refuses to
+    start without them elsewhere and warns once in dev). One Graph sender per
+    process, so its token cache and rate limiter cover every send. Tests
+    override this dependency."""
     global _graph
     values = _graph_values()
-    missing = [name for name in GRAPH_SETTINGS if not values[name]]
-    if missing:
-        if len(missing) < len(GRAPH_SETTINGS):
-            # Half-configured is a mistake worth seeing; names only, never values.
-            log.warning("mail: Graph settings incomplete (missing %s) — emails are only "
-                        "logged", ", ".join(missing))
+    if not all(values[name] for name in GRAPH_SETTINGS):
         return LogMailSender()
     with _graph_lock:
         if _graph is None:

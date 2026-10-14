@@ -161,6 +161,44 @@ def test_greeting_matches_an_originator_email_stored_with_odd_case(app_db):
     assert mail.to == ["k@carabao.co.th"] and "เรียน คำรณ ใจดี" in mail.text
 
 
+def test_a_detached_request_fails_closed_on_the_domain_check(app_db):
+    # Review 2026-10-14: without a session the switched-off check passed, so
+    # internal data could go to a domain an Administrator had turned off.
+    import pytest
+
+    from app.services.notify import recipients
+
+    p = account_for(app_db, "procurement")
+    req = _approved(app_db, p, on_behalf_of="คำรณ", originator_email="k@carabao.co.th")
+    app_db.expunge(req)
+    with pytest.raises(RuntimeError):
+        recipients(req)
+
+
+def test_a_prepare_failure_is_recorded_without_sending(app_db):
+    # Review 2026-10-14: the token is fetched before the claim; if that fails
+    # the group is still claimed and recorded as notify_failed, nothing sent.
+    from app.services.mail import MailError
+
+    p = account_for(app_db, "procurement")
+    req = _approved(app_db, p)
+    _batch(app_db)
+    change_status(app_db, req.id, new_status="created", account=account_for(app_db, "administrator"))
+
+    class NoToken(FakeMailSender):
+        def prepare(self):
+            raise MailError("Graph: ขอ token ไม่ทันเวลา (timeout) — ส่งอีกครั้งได้")
+
+    sender = NoToken()
+    counts = notify_created(sessionmaker(bind=app_db.get_bind(), expire_on_commit=False),
+                            [req.id], sender, "a@test.local")
+    assert counts["failed"] == 1 and sender.sent == []
+    assert _status(app_db, req) == "created"
+    detail = app_db.scalar(select(RequestEvent.detail).where(
+        RequestEvent.request_id == req.id, RequestEvent.action == "notify_failed"))
+    assert detail == "created: Graph: ขอ token ไม่ทันเวลา (timeout) — ส่งอีกครั้งได้"
+
+
 def test_overlapping_concurrent_clicks_send_each_code_once(tmp_path, seeded_template):
     # Two threads, two connections, one file DB; their request sets overlap.
     url = f"sqlite:///{(tmp_path / 'race3.db').as_posix()}"

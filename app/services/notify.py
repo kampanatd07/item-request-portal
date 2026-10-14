@@ -6,7 +6,9 @@ session, so a slow or failed send never blocks Procurement.
 Each send is claimed atomically: an UPDATE that matches only while the
 request is still in the state being announced takes the row's write lock
 (a row lock on PostgreSQL, the database write lock on SQLite) and holds it
-through the send and the status change. A second, concurrent send for the
+through the send and the status change. Everything slow happens before the
+claim (`prepare`: rate-limit wait, token); under the lock there is one short
+sendMail call and no retry (decisions.md, 2026-10-14). A second, concurrent send for the
 same request waits, then matches nothing and sends nothing. "Created" emails
 are grouped: one email per (To, CC) per click, listing every code.
 
@@ -22,7 +24,6 @@ recorded as notify_failed in a fresh transaction, and the loop goes on.
 import logging
 
 from collections import defaultdict
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -31,12 +32,12 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, aliased
 
 from app.config import settings
+from app.database import SessionFactory
 from app.services.auth import normalize_email
 from app.models import ItemRequest, RequestEvent
-from app.services.mail import MailError, MailMessage, MailSender, wait_for_slot
+from app.services.mail import MailError, MailMessage, MailSender, prepare
 from app.templating import templates
 
-SessionFactory = Callable[[], Session]
 log = logging.getLogger("app.notify")
 
 
@@ -77,9 +78,14 @@ def switched_off_domain(req: ItemRequest) -> str | None:
 
     from app.services.config_admin import active_mail_domains
 
-    db = object_session(req)
-    if not req.originator_email or db is None:
+    if not req.originator_email:
         return None
+    db = object_session(req)
+    if db is None:
+        # Fail closed: without a session the domain cannot be checked, and
+        # passing would send internal data to a domain that was switched off.
+        raise RuntimeError(f"request {req.id} is not attached to a session; "
+                           "cannot check its originator's email domain")
     domain = normalize_email(req.originator_email).rsplit("@", 1)[1]
     return None if domain in active_mail_domains(db) else domain
 
@@ -136,6 +142,20 @@ def build_created_group_email(reqs: list[ItemRequest]) -> MailMessage:
 def build_created_email(req: ItemRequest) -> MailMessage:
     """'Created in AX — ready to order' for one request."""
     return build_created_group_email([req])
+
+
+def _prepare(sender: MailSender) -> str | None:
+    """Run the sender's slow part before any claim; the reason if it failed.
+
+    The failure is recorded after the claim, like a failed send, so it is
+    only written for requests that still owe the email."""
+    try:
+        prepare(sender)
+    except MailError as e:
+        return str(e)
+    except Exception as e:  # noqa: BLE001 - recorded like any other send failure
+        return f"เตรียมส่งอีเมลไม่สำเร็จ ({type(e).__name__}: {e})"
+    return None
 
 
 def _set_lock_timeout(db: Session) -> None:
@@ -196,7 +216,7 @@ def _notify_created_group(db: Session, ids: list[int], sender: MailSender,
                           actor: str) -> dict[str, int]:
     """Claim, send, record and commit one (To, CC) group; counts per request."""
     claimed: list[ItemRequest] = []
-    wait_for_slot(sender)  # the rate limiter's wait, before any row lock is held
+    not_ready = _prepare(sender)  # the slow part, before any row lock is held
     for attempt in (1, 2):
         try:
             claimed = []
@@ -232,6 +252,8 @@ def _notify_created_group(db: Session, ids: list[int], sender: MailSender,
         for key in sorted(parts):
             part = parts[key]
             try:
+                if not_ready is not None:
+                    raise MailError(not_ready)
                 message = build_created_group_email(part)
                 sender.send(message)
             except MailError as e:
@@ -333,7 +355,7 @@ def notify_status(session_factory: SessionFactory, request_id: int, event_id: in
             return "skipped"
         status, reason_text = event.action, event.detail
         db.rollback()
-        wait_for_slot(sender)  # the rate limiter's wait, before the row lock is held
+        not_ready = _prepare(sender)  # the slow part, before the row lock is held
         req = None
         for attempt in (1, 2):
             try:
@@ -362,6 +384,8 @@ def notify_status(session_factory: SessionFactory, request_id: int, event_id: in
                 db.rollback()
                 log.info("notify: event %s superseded or already announced", event_id)
                 return "skipped"
+            if not_ready is not None:
+                raise MailError(not_ready)
             message = build_status_email(req, status, reason_text)
             sender.send(message)
             sent = True

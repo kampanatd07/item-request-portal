@@ -28,10 +28,11 @@ SCOPE = "https://graph.microsoft.com/.default"
 # A token is renewed this long before Graph says it expires, so a send never
 # starts with a token that runs out on the way.
 TOKEN_MARGIN_SECONDS = 300
-# Throttled (429): wait what Graph asks, but never longer than this inside a
-# background task; past it the send fails and goes on the resend list.
-RETRY_AFTER_CAP_SECONDS = 10
+# Token requests run in prepare(), before any row lock: they may take longer.
 TIMEOUT = httpx.Timeout(15.0, connect=5.0)
+# sendMail runs while the notifier holds the request rows: one short try,
+# no retry and no Retry-After wait; a failure goes on the resend list.
+SEND_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 WINDOW_SECONDS = 60.0
 
 BAD_CREDENTIALS = ("Graph: ใช้ credentials ไม่ได้ ({detail}) — client secret อาจหมดอายุ "
@@ -75,13 +76,21 @@ class RateLimiter:
                 self._sleep(wait)
             self._starts.append(self._clock())
 
+    def try_acquire(self) -> bool:
+        """Take a slot if one is free now; never waits (used under row locks)."""
+        with self._lock:
+            if self._free_in() > 0:
+                return False
+            self._starts.append(self._clock())
+            return True
+
     def wait_for_slot(self) -> None:
         """Wait until a send could start, without taking the slot.
 
-        The notifier calls this *before* it locks request rows, so the minute-
-        long wait happens with no lock held; `acquire` in `send` then almost
-        always passes at once. If another send took the slot in between, the
-        wait inside `send` is the rare, bounded fallback.
+        The notifier calls this (through `prepare`) *before* it locks request
+        rows, so the minute-long wait happens with no lock held; `try_acquire`
+        in `send` then almost always passes. If another send took the slot in
+        between, `send` fails and the request goes on the resend list.
         """
         while True:
             with self._lock:
@@ -140,7 +149,7 @@ class GraphMailSender:
         self._client_secret = client_secret
         self.sender = sender
         self._client = client or httpx.Client(timeout=TIMEOUT)
-        self._clock, self._sleep = clock, sleep
+        self._clock = clock
         self.limiter = RateLimiter(rate_per_minute, clock, sleep)
         self._token: _Token | None = None
         self._token_lock = threading.Lock()
@@ -156,7 +165,7 @@ class GraphMailSender:
     def _fetch_token(self) -> _Token:
         try:
             response = self._client.post(
-                TOKEN_URL.format(tenant=self._tenant_id),
+                TOKEN_URL.format(tenant=self._tenant_id), timeout=TIMEOUT,
                 data={"client_id": self._client_id, "client_secret": self._client_secret,
                       "scope": SCOPE, "grant_type": "client_credentials"})
         except httpx.TimeoutException:
@@ -195,7 +204,7 @@ class GraphMailSender:
     def _post(self, payload: dict) -> httpx.Response:
         try:
             return self._client.post(
-                SEND_URL.format(sender=self.sender), json=payload,
+                SEND_URL.format(sender=self.sender), json=payload, timeout=SEND_TIMEOUT,
                 headers={"Authorization": f"Bearer {self._access_token()}"})
         except httpx.TimeoutException:
             # Graph may have accepted it before the reply was lost: a resend can
@@ -205,38 +214,27 @@ class GraphMailSender:
         except httpx.HTTPError as e:
             raise MailError(f"Graph: ติดต่อ Microsoft Graph ไม่ได้ ({type(e).__name__})") from None
 
-    def wait_for_slot(self) -> None:
+    def prepare(self) -> None:
+        """Before the notifier locks any row: wait for a rate-limit slot and
+        make sure a token is cached, so `send` has nothing slow left to do."""
         self.limiter.wait_for_slot()
+        self._access_token()
 
     def send(self, message: MailMessage) -> None:
-        self.limiter.acquire()
-        payload = self._payload(message)
-        response = self._post(payload)
+        """One sendMail call: no waiting, no retry (it runs under row locks).
+        Any failure is a MailError; the resend list does the retrying."""
+        if not self.limiter.try_acquire():
+            raise MailError("Graph: ถึงขีดจำกัดอัตราการส่ง (MAIL_RATE_PER_MINUTE) "
+                            "— ส่งอีกครั้งภายหลัง")
+        response = self._post(self._payload(message))
         if response.status_code == 401:
-            # The token may have been revoked before its expiry: one fresh try.
+            # The token may have been revoked before its expiry: the next
+            # prepare() fetches a fresh one.
             with self._token_lock:
                 self._token = None
-            self.limiter.acquire()  # every sendMail call counts against the limit
-            response = self._post(payload)
-        if response.status_code == 429:
-            wait = self._retry_after(response)
-            if wait is not None:
-                self._sleep(wait)
-                self.limiter.acquire()
-                response = self._post(payload)
         self._raise_for(response)
         log.info("mail sent via Graph to=%s cc=%s subject=%s", ",".join(message.to),
                  ",".join(message.cc) or "-", message.subject)
-
-    def _retry_after(self, response: httpx.Response) -> float | None:
-        """Seconds to wait before the one retry, or None when Graph asks for
-        longer than the cap (then fail now and leave it for a resend)."""
-        try:
-            seconds = float(response.headers.get("Retry-After", "1"))
-        except ValueError:
-            seconds = 1.0
-        seconds = max(seconds, 0.0)
-        return seconds if seconds <= RETRY_AFTER_CAP_SECONDS else None
 
     @staticmethod
     def _raise_for(response: httpx.Response) -> None:
