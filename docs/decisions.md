@@ -3,8 +3,9 @@
 ## [2026-10-14] Known limit: request rows stay locked during one short Graph call
 **Decision:** Keep claim → send → record in one transaction for v1, but with
 nothing slow inside it. Before the claim, `prepare()` waits for the send
-spacing (sends ≥ 60/MAIL_RATE_PER_MINUTE s apart, plus any Retry-After a 429
-asked for, capped at 60 s) and makes sure a token is cached. The spacing
+spacing (each prepare books its own start, ≥ 60/MAIL_RATE_PER_MINUTE s after
+the previous booking, also across threads; plus any Retry-After a 429 asked
+for, capped at 60 s per 429) and makes sure a token is cached. The spacing
 limiter never fails a send (Peter, 2026-10-15: one worker, 1–2 users; the
 earlier sliding window with per-thread slot reservations had locking and
 leak bugs). Under the
@@ -14,7 +15,7 @@ lock there is exactly one sendMail call with a short timeout (5 s connect,
 retrying. The lock covers one request
 (needs_info/rejected) or the whole (To, CC) group ("created"). On PostgreSQL
 (prod) those rows only; on SQLite (dev) the database-wide write lock.
-**How long:** a normal send is well under 1 s. Worst case per sendMail
+**How long (under the lock):** a normal send is well under 1 s. Worst case per sendMail
 ≈ 15 s (5 s connect + 10 s read; the write phase is a few KB). Rare cases
 add to it: a "created" group whose recipients changed since it was read is
 split and sends once per part, back to back (send never waits on the
@@ -22,6 +23,10 @@ limiter); if another thread dropped the token after a 401
 between prepare and send, the token is fetched under the lock (≤ 20 s).
 A Procurement status change on a locked request waits that long
 (`_get_locked` has no lock_timeout); other requests are not affected.
+**Wait before the lock** (no rows held): the spacing (2.4 s at the default
+rate) or a 429's Retry-After (≤ 60 s each). This wait has no fixed bound:
+every further 429 seen while waiting pushes it later again, so a run of 429s
+keeps it waiting until Graph stops throttling.
 **Why:** 1–2 Procurement users and a low email volume; restructuring to
 claim → commit → send → record adds a "sending" state and its own crash
 recovery, for a problem not yet seen. Moving the slow parts out of the lock

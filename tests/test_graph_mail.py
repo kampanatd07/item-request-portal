@@ -263,58 +263,124 @@ def test_secrets_never_reach_errors_or_logs(graph, fake_time, caplog):
 
 # --- Rate limit -------------------------------------------------------------------------------------
 
-def test_sends_are_spaced_by_60_over_the_rate(fake_time):
+def test_sends_are_spaced_by_60_over_the_rate(fake_time: FakeTime) -> None:
     # Spacing limiter (Peter, 2026-10-15): one send every 60/rate seconds.
     limiter = RateLimiter(25, fake_time.clock, fake_time.sleep)
-    starts = []
-    for _ in range(4):
-        limiter.wait()
-        limiter.mark_sent()
-        starts.append(fake_time.now)
+    starts = [limiter.wait() for _ in range(4)]
     gaps = [b - a for a, b in zip(starts, starts[1:])]
     assert gaps == [pytest.approx(60 / 25)] * 3 and len(fake_time.sleeps) == 3
 
 
-def test_send_never_waits_and_never_fails_on_the_limiter(graph, fake_time):
-    # send() runs under the row lock: it neither sleeps nor refuses.
+def test_concurrent_waits_get_starts_at_least_an_interval_apart() -> None:
+    # Review 2026-10-15: wait() only read the next start, so threads calling
+    # prepare() together all passed at once. Each wait() now books its start.
+    import threading
+
+    lock, clock = threading.Lock(), [1000.0]
+
+    def now() -> float:
+        with lock:
+            return clock[0]
+
+    def sleep(seconds: float) -> None:  # fake: moves the shared clock, no real wait
+        with lock:
+            clock[0] += seconds
+
+    limiter = RateLimiter(25, now, sleep)
+    gate, starts = threading.Barrier(8), []
+
+    def notifier() -> None:
+        gate.wait()
+        starts.append(limiter.wait())
+
+    threads = [threading.Thread(target=notifier) for _ in range(8)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+    starts.sort()
+    assert len(starts) == 8
+    assert all(b - a >= limiter.interval - 1e-9 for a, b in zip(starts, starts[1:]))
+
+
+def test_send_never_waits_never_fails_and_books_nothing(graph: FakeGraph,
+                                                        fake_time: FakeTime) -> None:
+    # send() runs under the row lock: it neither sleeps nor refuses, and the
+    # spacing is booked by prepare() alone.
     sender = _sender(graph, fake_time, rate=1)
     for _ in range(3):
         sender.send(_message())  # back to back, no prepare in between
     assert fake_time.sleeps == [] and len(graph.sends()) == 3
-    sender.prepare()  # the wait happens here, before any claim
+    sender.prepare()
+    assert fake_time.sleeps == []  # the sends booked no time
+    sender.prepare()  # the second booking waits for the first
     assert fake_time.sleeps == [60.0]
 
 
-def test_the_wait_holds_no_lock_while_sleeping(fake_time):
+def test_the_wait_holds_no_lock_while_sleeping(fake_time: FakeTime) -> None:
     limiter = RateLimiter(1, fake_time.clock, fake_time.sleep)
-    held = []
+    held: list[bool] = []
     real_sleep = fake_time.sleep
 
-    def sleep(seconds):
+    def sleep(seconds: float) -> None:
         held.append(limiter._lock.locked())
         real_sleep(seconds)
 
     limiter._sleep = sleep
-    limiter.mark_sent()
+    limiter.wait()
     limiter.wait()
     assert held == [False]
 
 
-def test_a_429_during_a_wait_pushes_that_wait_later_without_failing_it(fake_time):
+def test_a_429_during_a_wait_pushes_that_wait_later_without_failing_it(
+        fake_time: FakeTime) -> None:
     # A send waiting in prepare() while another thread gets a 429: it waits on.
     limiter = RateLimiter(60, fake_time.clock, fake_time.sleep)  # 1 s apart
-    limiter.mark_sent()
-    real_sleep, first = fake_time.sleep, [True]
+    limiter.wait()
+    real_sleep = fake_time.sleep
+    backed_off = False
 
-    def sleep(seconds):
+    def sleep(seconds: float) -> None:
+        nonlocal backed_off
         real_sleep(seconds)
-        if first.pop() if first else False:
+        if not backed_off:
+            backed_off = True
             limiter.back_off(30)  # another thread's 429, mid-wait
 
     limiter._sleep = sleep
     start = fake_time.now
     limiter.wait()  # no exception
     assert fake_time.now - start == pytest.approx(31.0)
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+def test_a_non_finite_retry_after_backs_off_one_second(graph: FakeGraph, fake_time: FakeTime,
+                                                       value: str) -> None:
+    # Review 2026-10-15: "nan" turned the back-off into no back-off at all.
+    sender = _sender(graph, fake_time)
+    graph.send_responses = [httpx.Response(429, headers={"Retry-After": value})]
+    with pytest.raises(MailError, match="HTTP 429"):
+        sender.send(_message())
+    sender.prepare()
+    assert fake_time.sleeps == [1.0]
+
+
+def test_a_retry_after_date_without_a_zone_is_read_as_utc(graph: FakeGraph, fake_time: FakeTime,
+                                                          monkeypatch: pytest.MonkeyPatch) -> None:
+    # Review 2026-10-15: "-0000" gave a naive datetime and fell back to 1 s.
+    from datetime import datetime, timedelta, timezone
+
+    from app.services import graph_mail
+
+    now = datetime(2026, 10, 21, 7, 28, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(graph_mail, "_utc_now", lambda: now)
+    later = (now + timedelta(seconds=30)).strftime("%a, %d %b %Y %H:%M:%S -0000")
+    sender = _sender(graph, fake_time)
+    graph.send_responses = [httpx.Response(429, headers={"Retry-After": later})]
+    with pytest.raises(MailError, match="HTTP 429"):
+        sender.send(_message())
+    sender.prepare()
+    assert fake_time.sleeps == [pytest.approx(30.0)]
 
 
 def test_retry_after_as_an_http_date_is_honoured(graph, fake_time, monkeypatch):

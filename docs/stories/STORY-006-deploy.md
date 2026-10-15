@@ -92,16 +92,20 @@ _(filled by /to-spec + /to-tickets)_
     rows). Load the domain set once per notifier run / page and pass it in.
 - Single "ส่งอีเมลอีกครั้ง" button (`routes/queue.py`) sends inside the HTTP
   request. A normal click returns in a second or two: the spacing wait is
-  ≤ 2.4 s at the default rate. The worst case is right after a 429: its
-  Retry-After wait in `prepare()` (≤ 60 s) + a token (≤ 20 s) + one send
-  (≈ 15 s). Check the platform's proxy timeout at deploy; if it is under
-  ~100 s, make that button fail fast while a back-off is running.
+  ≤ 2.4 s at the default rate (more if other sends are queued for their
+  turn). After a 429 it waits the Retry-After (≤ 60 s per 429) + a token
+  (≤ 20 s) + one send (≈ 15 s), and every further 429 meanwhile (e.g. a
+  "ส่งซ้ำทั้งหมด" running) pushes the wait later again — no fixed bound.
+  Check the platform's proxy timeout at deploy; make that button fail fast
+  while a back-off is running if clicks are seen to time out.
 - A 429 fails that send at once; its Retry-After (seconds or HTTP-date,
   capped at 60 s) pushes the next `prepare()` later, outside any lock. A
   Retry-After longer than 60 s can still draw another 429 after the cap.
-- Two notifier threads can pass the spacing wait together and send close
-  together (the limiter never refuses). Exchange's ~30/min leaves room at
-  1–2 users; a real 429 goes to the resend list.
+- Each `prepare()` books its own start, so concurrent notifiers are spaced
+  too (tested with 8 threads). `prepare()` runs before the notifier knows
+  whether anything will be sent: a superseded change or a group another
+  notifier already claimed still waits its turn (2.4 s, longer after a
+  429) and books a start it does not use. Harmless at our volume.
 - Further notes from the review of 2026-10-14 round 3 (not correctness, not
   deploy conditions):
   - Migrations and `create_admin` load Settings too, so outside dev they
@@ -119,6 +123,7 @@ _(filled by /to-spec + /to-tickets)_
     first prepare failure per call if this is ever seen.
   - A split "created" group (recipients changed under the lock) and a token
     dropped by another thread's 401 are the two rare paths that still do
-    more than one short call under the lock (see decisions.md).
+    more than one short call under the lock (see decisions.md). The split
+    group's extra parts go out back to back, unspaced (send books nothing).
   - "Send all" of 25+ groups takes about a minute at the default rate
     (spaced 2.4 s apart) — expected, not a hang.

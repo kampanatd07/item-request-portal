@@ -8,6 +8,7 @@ the client secret, the token or the email body.
 """
 
 import logging
+import math
 import re
 import threading
 import time
@@ -54,13 +55,15 @@ class RateLimiter:
     """Spaces sends at least 60/`per_minute` seconds apart (Peter, 2026-10-15).
 
     One value, `_next_at`: when the next send may start. `wait` (called in
-    `prepare`, before any row is locked) sleeps until then; `mark_sent` and
-    `back_off` (a 429's Retry-After) move it later. The lock is held only to
-    read or write `_next_at`, never while sleeping. The limiter never fails a
-    send: if two threads pass `wait` together they may send close together,
-    Exchange (~30/min per mailbox) still has room, and a real 429 is a
-    notify_failed for the resend list. One app worker; several workers would
-    each space their own sends.
+    `prepare`, before any row is locked) books a start: when `_next_at` has
+    come it moves it one interval on and returns, in one short critical
+    section, so concurrent callers get starts at least an interval apart;
+    otherwise it sleeps *outside* the lock and checks again. `back_off` (a
+    429's Retry-After) moves `_next_at` later, which also lengthens a wait
+    already running. The lock is only held to read or write `_next_at`. The
+    limiter never fails a send and `send` books nothing (a split "created"
+    group's extra parts go out unspaced; rare). One app worker; several
+    workers would each space their own sends.
     """
 
     def __init__(self, per_minute: int, clock: Clock = time.monotonic,
@@ -72,20 +75,18 @@ class RateLimiter:
         self._next_at = float("-inf")
         self._lock = threading.Lock()
 
-    def wait(self) -> None:
-        """Sleep until a send may start; re-checks after each sleep, so a 429
-        seen meanwhile makes it wait longer instead of failing."""
+    def wait(self) -> float:
+        """Book the next send start, sleeping (lock released) until it comes;
+        returns the booked start on the limiter's clock. Re-checks after each
+        sleep, so a 429 seen meanwhile makes it wait longer, never fail."""
         while True:
             with self._lock:
-                delay = self._next_at - self._clock()
-            if delay <= 0:
-                return
+                now = self._clock()
+                delay = self._next_at - now
+                if delay <= 0:
+                    self._next_at = now + self.interval
+                    return now
             self._sleep(delay)
-
-    def mark_sent(self) -> None:
-        """A send starts now: the next one waits a full interval."""
-        with self._lock:
-            self._next_at = max(self._next_at, self._clock() + self.interval)
 
     def back_off(self, seconds: float) -> None:
         """Graph throttled us: no send for this long (capped)."""
@@ -218,7 +219,6 @@ class GraphMailSender:
     def send(self, message: MailMessage) -> None:
         """One sendMail call: no waiting, no retry (it runs under row locks).
         Any failure is a MailError; the resend list does the retrying."""
-        self.limiter.mark_sent()
         response = self._post(self._payload(message))
         if response.status_code == 401:
             # The token may have been revoked before its expiry: the next
@@ -235,16 +235,19 @@ class GraphMailSender:
     @staticmethod
     def _retry_after(response: httpx.Response) -> float:
         """Retry-After in seconds: delta-seconds or an HTTP-date (RFC 9110);
-        1 s when missing or unreadable."""
+        1 s when missing, unreadable or not finite ("nan", "inf")."""
         value = response.headers.get("Retry-After", "").strip()
         try:
-            return float(value)
+            seconds = float(value)
         except ValueError:
-            pass
-        try:
-            return (parsedate_to_datetime(value) - _utc_now()).total_seconds()
-        except (TypeError, ValueError, IndexError):
-            return 1.0
+            try:
+                when = parsedate_to_datetime(value)
+            except (TypeError, ValueError, IndexError):
+                return 1.0
+            if when.tzinfo is None:  # "-0000": no zone given, HTTP dates are UTC
+                when = when.replace(tzinfo=timezone.utc)
+            seconds = (when - _utc_now()).total_seconds()
+        return seconds if math.isfinite(seconds) else 1.0
 
     @staticmethod
     def _raise_for(response: httpx.Response) -> None:
