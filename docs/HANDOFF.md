@@ -4,7 +4,7 @@
 > `docs/decisions.md` before doing anything. If chat history contradicts these
 > files, the files win.
 >
-> Last updated: 2026-10-01 · Owner: Peter (Procurement Strategy, Carabao Group)
+> Last updated: 2026-10-14 · Owner: Peter (Procurement Strategy, Carabao Group)
 
 ---
 
@@ -20,9 +20,10 @@ It replaces: Microsoft Forms → Peter checks manually → types into AX → ema
 ## 2. Status
 
 **Built and running on Peter's machine, with login and roles (STORY-001, done
-2026-09-30) and validated code override (STORY-010, done 2026-10-01). Not yet
-open to the plants** — it still has to be deployed (STORY-006), which now
-waits only for email notification (STORY-002).
+2026-09-30), validated code override (STORY-010, done 2026-10-01) and email
+notification (STORY-002, done 2026-10-14). Not yet open to the plants** — it
+still has to be deployed (STORY-006), which now waits for requester resubmit
+(STORY-009, must ship before the plants get access) and IT's Graph values (§7).
 
 | Area | State |
 |---|---|
@@ -37,10 +38,10 @@ waits only for email notification (STORY-002).
 | Export to 4 plant import templates | done — **never tested against real AX** |
 | Admin config pages | done |
 | Login / roles | done — STORY-001: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry, lockout, My requests |
-| Email notification | **not started — STORY-002** |
+| Email notification | done — STORY-002 tickets 01–06 (Graph sender tested with a fake transport only; first real send waits for IT, see §7) |
 | Deployment | **not started — STORY-006** |
 
-Tests: 442 passing (`pytest`).
+Tests: 610 passing (`pytest`).
 
 The suite runs in ~13 s: `create_all` + `seed` run once per pytest session
 into an in-memory template, and each test's `db_session` gets a copy through
@@ -135,6 +136,20 @@ After first run, upload in **Snapshot** page:
   on a D365 match goes back from a warning to a refusal (STORY-012)
 - Send a sample D365 item export showing the company / legal-entity column
   (STORY-012 is blocked on it)
+- Email (STORY-002) — ask IT for: an App Registration with the `Mail.Send`
+  **application** permission + admin consent, and an Application Access
+  Policy that limits it to one shared sender mailbox (e.g.
+  `item-portal@carabao.co.th`). Then provide `MS_TENANT_ID`, `MS_CLIENT_ID`,
+  `MS_CLIENT_SECRET`, `MAIL_SENDER`; plus `MAIL_REPLY_TO` (Procurement mailbox for
+  replies) before deploy. Outside `APP_ENV=dev` the app refuses to start
+  without the four Graph values, so deploy cannot go ahead before IT sends them. Steps are spelled out in `.env.example`. Then send
+  one real test email (any request through needs_info) and check it arrives,
+  with the Reply-To and the copy in the sender's Sent Items. Allowed originator email domains are data on the
+  Settings page (seeded: apm.co.th, acmf.co.th, apg.co.th, carabao.co.th)
+- **Client secret expiry:** an Azure client secret has an end date (often
+  6–24 months). Note it here when IT creates it and renew it before that
+  date — after it expires every email fails with "Graph credentials do not
+  work". Secret expires on: _(fill in)_
 - Fill `Carabao_Item_Master_Decision_Sheet.xlsx` (D1–D4); the register must be
   re-synced afterwards
 - The cut-over date after which **only** this portal issues central codes —

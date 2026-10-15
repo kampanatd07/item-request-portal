@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}คำขอของฉัน{% endblock %}
 {% block content %}
+<style>.request-row:target { background:#fff6d6; outline:2px solid #e0b100; }</style>
 {% set can_open_queue = has_role(request.state.account, "procurement") %}
 <div class="card">
   <h2 style="margin-top:0;">คำขอของฉัน</h2>
@@ -10,7 +11,8 @@
   <table>
     <tr><th>วันที่ส่ง</th><th>ชื่อสินค้า</th><th>โรงงาน</th><th>สถานะ</th><th>หมายเหตุจากจัดซื้อ</th><th>รหัส</th></tr>
     {% for r in requests %}
-    <tr>
+    {# Anchor for the link in notification emails; :target highlights the row. #}
+    <tr id="request-{{ r.id }}" class="request-row">
       <td class="muted" style="white-space:nowrap;">{{ r.created_at | thai_time("%d/%m/%Y %H:%M") }}</td>
       <td>{% if can_open_queue %}<a href="/queue/{{ r.id }}">{{ r.item_name }}</a>{% else %}{{ r.item_name }}{% endif %}</td>
       <td>{{ r.factory.code }}</td>

@@ -1,5 +1,78 @@
 # Decision Log
 
+## [2026-10-15] The mail limiter spaces bookings, not the actual sends
+**Decision:** `prepare()` first makes sure a token is cached, then books a
+send slot with `RateLimiter.wait()`. Bookings are ≥ 60/MAIL_RATE_PER_MINUTE s
+apart (2.4 s at 25/min), across threads too. The POSTs themselves are *not*
+guaranteed to be that far apart: after booking, a notifier still claims its
+rows, and that claim can wait on another notifier's lock, so two POSTs can
+go out close together. A token failure books nothing, since the token
+comes first.
+**Purpose:** stay under Exchange's per-mailbox limit (~30/min) on average,
+not exact spacing. Worst case when sends bunch up: Graph answers 429, that
+send is recorded as `notify_failed` and lands on the resend list, and the
+Retry-After pushes later bookings back. No email is lost.
+**Why:** sending inside the row lock while waiting outside it leaves a gap
+of unknown length between "slot booked" and "POST". Closing that gap means
+one queued mail worker, a story-sized change, for 1–2 users at low volume.
+**Correction:** the message of commit 4ec519f says "a token failure
+before the post no longer wastes a turn" and "every pair of starts is >=
+one interval apart". At 4ec519f the slot was booked *before* the token, so
+a token failure did waste a turn (fixed in the commit after it). The
+eight-thread test checks the booked starts, not the POSTs.
+**Revisit when:** 429s show up often on the resend list after go-live.
+Option: a single mail worker with a queue (see STORY-006 notes).
+
+## [2026-10-14] Known limit: request rows stay locked during one short Graph call
+**Decision:** Keep claim → send → record in one transaction for v1, but with
+nothing slow inside it. Before the claim, `prepare()` makes sure a token is
+cached, then books a send slot (bookings ≥ 60/MAIL_RATE_PER_MINUTE s apart,
+also across threads, though the sends themselves may bunch up: see
+2026-10-15; plus any Retry-After a 429 asked for, capped at 60 s per 429). The spacing
+limiter never fails a send (Peter, 2026-10-15: one worker, 1–2 users; the
+earlier sliding window with per-thread slot reservations had locking and
+leak bugs). Under the
+lock there is exactly one sendMail call with a short timeout (5 s connect,
+10 s read), no retry and no wait: a 401/429/5xx/timeout is recorded as
+`notify_failed` and the lock is released; the resend list does the
+retrying. The lock covers one request
+(needs_info/rejected) or the whole (To, CC) group ("created"). On PostgreSQL
+(prod) those rows only; on SQLite (dev) the database-wide write lock.
+**How long (under the lock):** a normal send is well under 1 s. Worst case per sendMail
+≈ 15 s (5 s connect + 10 s read; the write phase is a few KB). Rare cases
+add to it: a "created" group whose recipients changed since it was read is
+split and sends once per part, back to back (send never waits on the
+limiter); if another thread dropped the token after a 401
+between prepare and send, the token is fetched under the lock (≤ 20 s).
+A Procurement status change on a locked request waits that long
+(`_get_locked` has no lock_timeout); other requests are not affected.
+**Wait before the lock** (no rows held): the spacing (2.4 s at the default
+rate) or a 429's Retry-After (≤ 60 s each). This wait has no fixed bound:
+every further 429 seen while waiting pushes it later again, so a run of 429s
+keeps it waiting until Graph stops throttling.
+**Why:** 1–2 Procurement users and a low email volume; restructuring to
+claim → commit → send → record adds a "sending" state and its own crash
+recovery, for a problem not yet seen. Moving the slow parts out of the lock
+was cheap and removes the multi-minute worst case.
+**Alternatives considered:** a separate claim transaction with a `sending`
+marker — deferred, not rejected. Retrying 429/5xx inside the send —
+rejected: it held the lock for up to ~2–3 minutes.
+**Revisit when:** after go-live, a Graph call is seen to be slow (the
+`mail sent via Graph` log line, or Procurement reporting a hanging status
+change), or rate-limit / Graph failures pile up on the resend list.
+
+## [2026-10-01] Email through Microsoft Graph, not SMTP
+**Decision:** The portal sends email with Microsoft Graph `sendMail` using an
+app registration (client credentials) limited by an Application Access Policy
+to one shared sender mailbox. Code goes through a `MailSender` interface; dev
+and tests use log/fake senders.
+**Why:** Exchange Online turns SMTP AUTH Basic Auth off by default at the end
+of December 2026; building on SMTP would break right after go-live.
+**Alternatives considered:** SMTP AUTH on a shared mailbox — rejected, being
+retired; an external provider (SendGrid etc.) — rejected, needs SPF/DKIM for
+the company domain and sends company data through a third party.
+**Revisit when:** IT offers an approved relay, or Graph limits get in the way.
+
 ## [2026-09-29] Only Administrators consume the running register
 **Decision:** Approving a request, re-categorising a request that already has a
 code, and overriding a code are Administrator-only (the Data Steward + one

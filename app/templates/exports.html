@@ -22,6 +22,28 @@
   <div id="export-result"></div>
 </div>
 
+{% if unsent %}
+<div class="card">
+  <h3>อีเมลที่ยังไม่ได้ส่ง ({{ unsent|length }})</h3>
+  <p class="muted">แจ้งผู้ขอไม่สำเร็จ หรือค้างจากการ restart — กดส่งซ้ำได้ ระบบกันส่งซ้ำให้แล้ว
+  (กดสองครั้งก็ได้ฉบับเดียว) อีเมล "สร้างใน AX แล้ว" ส่งรวมต่อผู้รับ</p>
+  <table>
+    <tr><th>คำขอ</th><th>ประเภท</th><th>ผู้รับ</th><th>เหตุผลล่าสุด</th><th>ตั้งแต่</th></tr>
+    {% for p, to in unsent %}
+    <tr>
+      <td><a href="/queue/{{ p.req.id }}">#{{ p.req.id }}</a> {{ p.req.generated_code or "" }} {{ p.req.item_name }}</td>
+      <td>{{ mail_kinds[p.kind] }}</td>
+      <td>{{ to }}</td>
+      <td>{{ p.reason }}</td>
+      <td class="muted">{{ p.since|thai_time("%d/%m/%Y %H:%M") }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <button hx-post="/exports/notifications/resend" hx-target="#resend-result" hx-swap="innerHTML">ส่งซ้ำทั้งหมด</button>
+  <div id="resend-result"></div>
+</div>
+{% endif %}
+
 <div class="card">
   <h3>ไฟล์ export ล่าสุด</h3>
   <table>

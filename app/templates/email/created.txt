@@ -1,0 +1,21 @@
+{#- Plain text: Starlette's Jinja env autoescapes every template, so turn it off here. -#}
+{% autoescape false %}เรียน {{ greeting }}
+
+{% if items | length == 1 -%}
+Item ที่ขอไว้สร้างในระบบ AX ของโรงงาน {{ items[0].req.factory.code }} เรียบร้อยแล้ว
+สามารถใช้รหัสนี้เปิด PR/PO ได้
+{%- else -%}
+Item ที่ขอไว้ {{ items | length }} รายการ สร้างในระบบ AX เรียบร้อยแล้ว
+สามารถใช้รหัสเหล่านี้เปิด PR/PO ได้
+{%- endif %}
+{% for item in items %}{% set req = item.req %}
+รหัส: {{ req.generated_code }}
+  ชื่อสินค้า: {{ req.item_name }}
+  หน่วยนับ: {{ req.uom or "-" }} · โรงงาน: {{ req.factory.code }} — {{ req.factory.name }} · คำขอ #{{ req.id }}
+{%- if item.link %}
+  ดูคำขอในระบบ (สำหรับผู้มีบัญชีในระบบ): {{ item.link }}
+{%- endif %}
+{% endfor %}
+--
+อีเมลนี้ส่งอัตโนมัติจาก Item Request Portal — มีคำถามตอบกลับอีเมลนี้ได้
+{% endautoescape %}

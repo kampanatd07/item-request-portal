@@ -116,6 +116,10 @@ class ItemRequest(Base):
     size: Mapped[str | None] = mapped_column(String(100), nullable=True)
     variant: Mapped[str | None] = mapped_column(String(100), nullable=True)  # ชนิด/สี
     spec_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Who really asked, when Procurement submits on someone's behalf
+    # (STORY-002): the email, if given, receives the notification emails.
+    originator_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    originator_email: Mapped[str | None] = mapped_column(String(254), nullable=True)
     uom: Mapped[str | None] = mapped_column(String(30), nullable=True)
     # Export-only fields (slice 4). search_name defaults to a truncation of the
     # composed name; the taxonomy slice replaces the default with a smart value.
@@ -291,6 +295,12 @@ class RequestEvent(Base):
     action: Mapped[str] = mapped_column(String(50))  # submitted / approved / rejected / ...
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # The event this one is about: a notified / notify_failed event points at
+    # the status change it announced (STORY-002), so "already sent?" is a
+    # column lookup, never a search through detail text.
+    ref_event_id: Mapped[int | None] = mapped_column(
+        ForeignKey("request_events.id", name="fk_request_events_ref_event_id"),
+        nullable=True, index=True)
 
     request: Mapped[ItemRequest] = relationship(back_populates="events")
 
@@ -355,4 +365,18 @@ class RetiredCode(Base):
     reason: Mapped[str] = mapped_column(String(20))
     actor: Mapped[str] = mapped_column(String(254))
     at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class MailDomain(Base):
+    """An email domain an originator email may use (STORY-002).
+
+    Reference data editable on the Settings page, so a new company domain needs
+    no deploy. Deliberately not tied to a Plant.
+    """
+
+    __tablename__ = "mail_domains"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    domain: Mapped[str] = mapped_column(String(253), unique=True)  # stored lower-case
+    active: Mapped[bool] = mapped_column(default=True)
 

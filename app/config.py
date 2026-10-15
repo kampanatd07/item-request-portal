@@ -1,4 +1,6 @@
-from pydantic import model_validator
+import logging
+
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings
 
 # Placeholder secrets that must never reach a non-dev environment.
@@ -24,6 +26,22 @@ class Settings(BaseSettings):
     # (STORY-001). No "remember me".
     session_max_hours: int = 8
 
+    # Email (STORY-002). Full portal address for links in emails; none when
+    # empty. Replies go to Procurement when MAIL_REPLY_TO is set.
+    public_base_url: str = ""
+    mail_reply_to: str = ""
+    # Microsoft Graph sender (ticket 02): all four set → real email. Outside
+    # dev all four are required (the app refuses to start); in dev any one
+    # missing → emails are only logged. SecretStr keeps the secret out of
+    # repr/logs.
+    ms_tenant_id: str = ""
+    ms_client_id: str = ""
+    ms_client_secret: SecretStr = SecretStr("")
+    mail_sender: str = ""
+    # Exchange allows about 30 messages a minute per mailbox.
+    # Checked at start-up: a bad value must stop the app, not fail every click.
+    mail_rate_per_minute: int = Field(default=25, ge=1)
+
     class Config:
         env_file = ".env"
 
@@ -32,6 +50,28 @@ class Settings(BaseSettings):
         # A known SECRET_KEY lets anyone forge a session cookie, so refuse to start.
         if self.app_env != "dev" and self.secret_key in _PLACEHOLDER_SECRETS:
             raise ValueError("SECRET_KEY must be set to a real secret when APP_ENV is not 'dev'")
+        return self
+
+    def graph_missing(self) -> list[str]:
+        """Names of the Graph settings that are empty (values never shown)."""
+        values = {"MS_TENANT_ID": self.ms_tenant_id, "MS_CLIENT_ID": self.ms_client_id,
+                  "MS_CLIENT_SECRET": self.ms_client_secret.get_secret_value(),
+                  "MAIL_SENDER": self.mail_sender}
+        return [name for name, value in values.items() if not value.strip()]
+
+    @model_validator(mode="after")
+    def _require_graph_outside_dev(self) -> "Settings":
+        # Without a real sender every request would be marked notified while
+        # no email went out, and nothing would show on the resend list.
+        missing = self.graph_missing()
+        if self.app_env != "dev" and missing:
+            raise ValueError(f"{', '.join(missing)} must be set when APP_ENV is not 'dev' "
+                             "(see .env.example)")
+        if missing and len(missing) < 4:
+            # Half-configured in dev is a mistake worth seeing, once at start.
+            logging.getLogger("app.mail").warning(
+                "mail: Graph settings incomplete (missing %s) — emails are only logged",
+                ", ".join(missing))
         return self
 
     @property

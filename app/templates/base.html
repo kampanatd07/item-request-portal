@@ -69,7 +69,9 @@
   <a href="/my-requests">คำขอของฉัน</a>
   {% if has_role(account, "procurement") %}
   <a href="/queue">คิวจัดซื้อ</a>
-  <a href="/exports">Export</a>
+  {# counted by session_account while its DB session is open; absent → no counter #}
+  {% set waiting = request.state.pending_mail_count|default(0) %}
+  <a href="/exports">Export{% if waiting %} (อีเมลค้าง {{ waiting }}){% endif %}</a>
   {% endif %}
   {% if has_role(account, "administrator") %}
   <a href="/admin/snapshots">Snapshot</a>

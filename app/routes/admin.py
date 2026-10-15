@@ -19,12 +19,30 @@ def _config_ctx(db: Session) -> dict:
         "categories": config_admin.list_categories(db),
         "terms": config_admin.list_terms(db),
         "group_maps": config_admin.list_group_maps(db),
+        "mail_domains": config_admin.list_mail_domains(db),
     }
 
 
 @router.get("/config", response_class=HTMLResponse)
 def config_page(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(request, "admin_config.html", _config_ctx(db))
+
+
+@router.post("/config/mail-domain", response_class=HTMLResponse)
+def add_mail_domain(request: Request, domain: str = Form(""), db: Session = Depends(get_db)):
+    try:
+        config_admin.add_mail_domain(db, domain)
+    except ConfigError as e:
+        return templates.TemplateResponse(
+            request, "partials/form_error.html", {"message": str(e)}, status_code=422
+        )
+    return templates.TemplateResponse(request, "partials/config_tables.html", _config_ctx(db))
+
+
+@router.post("/config/mail-domain/{domain_id}/toggle", response_class=HTMLResponse)
+def toggle_mail_domain(request: Request, domain_id: int, db: Session = Depends(get_db)):
+    config_admin.toggle_mail_domain(db, domain_id)
+    return templates.TemplateResponse(request, "partials/config_tables.html", _config_ctx(db))
 
 
 @router.post("/config/uom", response_class=HTMLResponse)

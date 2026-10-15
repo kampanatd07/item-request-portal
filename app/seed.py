@@ -24,6 +24,7 @@ from app.models import (
     Factory,
     FactoryCodeSystem,
     GroupExportMap,
+    MailDomain,
     ProcurementCategory,
     RunningRegister,
     SearchTerm,
@@ -361,6 +362,13 @@ def seed(db: Session) -> None:
                 code_group_id=grp.id, item_group_id=igid,
                 model_group_id=mgid, group_type_code=gtc,
             ))
+
+    # Email domains for originator emails (STORY-002). Insert-only: a domain an
+    # Administrator switched off stays off when seed runs again.
+    for domain in _load_json("mail_domains.json"):
+        domain = domain.strip().lower()
+        if db.scalar(select(MailDomain).where(MailDomain.domain == domain)) is None:
+            db.add(MailDomain(domain=domain))
 
     db.commit()
 

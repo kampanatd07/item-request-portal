@@ -92,12 +92,45 @@ def _require_administrator(account: Account) -> None:
 
 def originator_of(req: ItemRequest) -> str | None:
     """Who really asked for this request, if it was submitted on their behalf."""
-    for event in req.events:
-        if event.action == "submitted" and event.detail:
-            for line in event.detail.splitlines():
-                if line.startswith(ON_BEHALF_PREFIX):
-                    return line.removeprefix(ON_BEHALF_PREFIX)
-    return None
+    return req.originator_name
+
+
+def _check_originator(db: Session, name: str | None,
+                      email: str | None) -> tuple[str | None, str | None]:
+    """Normalised originator name and email, or a Thai RequestError.
+
+    The email must belong to a named person, look like an Account email, and
+    use an active allowed domain (Settings page) — notification emails carry
+    internal item data, so a typo must not send them outside the company.
+    """
+    import unicodedata
+
+    from app.services.auth import _EMAIL_RE, normalize_email
+    from app.services.config_admin import active_mail_domains
+    from app.services.snapshots import fix_thai
+
+    # NFC then recompose SARA AM, never NFKC (HANDOFF §6.2), so a name typed as
+    # NIKHAHIT + SARA AA is stored the same way as everywhere else.
+    name = " ".join(fix_thai(unicodedata.normalize("NFC", name or "")).split()) or None
+    email = normalize_email(email or "") or None
+    # Column limits: PostgreSQL raises instead of truncating (a 500, not Thai).
+    if name is not None and len(name) > 100:
+        raise RequestError("ชื่อผู้ขอจริงยาวเกิน 100 ตัวอักษร")
+    if email is None:
+        return name, None
+    if len(email) > 254:
+        raise RequestError("อีเมลผู้ขอจริงยาวเกิน 254 ตัวอักษร")
+    if name is None:
+        raise RequestError("ใส่อีเมลผู้ขอจริงแล้วต้องใส่ชื่อในช่อง \"ขอแทน\" ด้วย")
+    if not _EMAIL_RE.fullmatch(email):
+        raise RequestError("รูปแบบอีเมลผู้ขอจริงไม่ถูกต้อง")
+    allowed = active_mail_domains(db)
+    if not allowed:
+        raise RequestError("ยังไม่มีโดเมนอีเมลที่อนุญาต — ผู้ดูแลระบบเพิ่มได้ในหน้าตั้งค่า "
+                           "ยังใส่อีเมลผู้ขอจริงไม่ได้")
+    if email.rsplit("@", 1)[1] not in allowed:
+        raise RequestError(f"อีเมลผู้ขอจริงต้องเป็นโดเมนของบริษัท ({', '.join(sorted(allowed))})")
+    return name, email
 
 
 def _canonical_uom(db: Session, raw: str | None) -> str | None:
@@ -143,6 +176,7 @@ def submit_request(
     purchase_price: str | None = None,
     procurement_category: str | None = None,
     on_behalf_of: str | None = None,
+    originator_email: str | None = None,
 ) -> ItemRequest:
     """Submit a request in the Account's own name.
 
@@ -154,6 +188,8 @@ def submit_request(
     if account.role == "requester":
         factory_id = account.factory_id
         on_behalf_of = None
+        originator_email = None
+    on_behalf_of, originator_email = _check_originator(db, on_behalf_of, originator_email)
     factory = db.get(Factory, factory_id) if factory_id is not None else None
     if factory is None or not factory.active:
         raise RequestError("กรุณาเลือกโรงงาน")
@@ -195,6 +231,8 @@ def submit_request(
     req = ItemRequest(
         requester_name=account.display_name,
         requester_email=account.email,
+        originator_name=on_behalf_of,
+        originator_email=originator_email,
         factory_id=factory_id,
         code_system_id=code_system_id,
         group_id=group_id,
@@ -225,8 +263,9 @@ def submit_request(
     query = " ".join(p for p in [item_name, brand or "", model or ""] if p)
     matches = snapshots.search_similar(db, source=source, query=query, limit=3)
     lines = []
-    if on_behalf_of and on_behalf_of.strip():
-        lines.append(ON_BEHALF_PREFIX + " ".join(on_behalf_of.split()))
+    if on_behalf_of:
+        lines.append(ON_BEHALF_PREFIX + on_behalf_of
+                     + (f" <{originator_email}>" if originator_email else ""))
     if matches:
         lines.append(
             "duplicate candidates: "

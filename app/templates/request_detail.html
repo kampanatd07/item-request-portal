@@ -8,7 +8,7 @@
   <h2>คำขอ #{{ req.id }} — {{ req.item_name }}</h2>
   <table>
     <tr><th>ผู้ขอ</th><td>{{ req.requester_name }} ({{ req.requester_email }})</td></tr>
-    {% if originator %}<tr><th>ขอแทน</th><td>{{ originator }}</td></tr>{% endif %}
+    {% if originator %}<tr><th>ขอแทน</th><td>{{ originator }}{% if req.originator_email %} ({{ req.originator_email }}){% endif %}</td></tr>{% endif %}
     <tr><th>โรงงาน</th><td>{{ req.factory.code }} — {{ req.factory.name }}</td></tr>
     <tr><th>ระบบรหัส</th><td>{{ req.code_system.name_th }}</td></tr>
     <tr><th>หมวด</th><td>{{ req.group.code }} — {{ req.group.name }}</td></tr>
@@ -35,6 +35,8 @@
   <div><p class="muted">กำลังตรวจสอบ...</p></div>
 </div>
 
+{% include "partials/mail_panel.html" %}
+
 <div class="card" id="status-panel">
   {% include "partials/status_panel.html" %}
 </div>
@@ -45,7 +47,7 @@
     {% for e in req.events %}
     <tr>
       <td class="muted">{{ e.at.strftime("%d/%m/%Y %H:%M") }}</td>
-      <td>{{ status_labels.get(e.action, e.action) }}</td>
+      <td>{{ event_labels.get(e.action) or status_labels.get(e.action, e.action) }}</td>
       <td>{{ e.actor }}</td>
       <td>{{ e.detail or "" }}</td>
     </tr>

@@ -1,0 +1,18 @@
+{#- Plain text: Starlette's Jinja env autoescapes every template, so turn it off here. -#}
+{% autoescape false %}เรียน {{ greeting }}
+
+คำขอ #{{ req.id }} {{ req.item_name }} (โรงงาน {{ req.factory.code }}) ไม่ได้รับอนุมัติ
+{%- if req.generated_code %}
+
+*** รหัส {{ req.generated_code }} ยกเลิกแล้ว ห้ามใช้ ***
+ห้ามใช้รหัสนี้เปิด PR/PO — รหัสถูกยกเลิกถาวรและจะไม่ถูกนำกลับมาใช้
+{%- endif %}
+
+เหตุผล: {{ reason }}
+{%- if link %}
+ดูคำขอในระบบ (สำหรับผู้มีบัญชีในระบบ): {{ link }}
+{%- endif %}
+
+--
+อีเมลนี้ส่งอัตโนมัติจาก Item Request Portal — มีคำถามตอบกลับอีเมลนี้ได้
+{% endautoescape %}

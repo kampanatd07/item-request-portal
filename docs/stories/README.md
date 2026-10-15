@@ -6,11 +6,11 @@ story file plus `docs/HANDOFF.md` alone, without chat history.
 | ID | Story | Depends on | Parallel with |
 |---|---|---|---|
 | [001](STORY-001-auth-roles.md) | Login + roles — **done** (merged 2026-09-30) | — | — (foundation) |
-| [002](STORY-002-email-notification.md) | Email requester when item is created | 001 | 003, 004 |
+| [002](STORY-002-email-notification.md) | Email requester when item is created — **done** (2026-10-14) | 001 | 003, 004 |
 | [003](STORY-003-uom-standard.md) | 24-unit UoM standard + Base/Purchase UoM + pack size | — | 002, 004 |
 | [004](STORY-004-item-attributes.md) | Legacy No., Scope Owner, Lifecycle State | — | 002, 003 |
 | [005](STORY-005-register-sync.md) | Re-sync running register from Decision Sheet | Peter fills D1–D4 | — |
-| [006](STORY-006-deploy.md) | Deploy to Render/Railway + Postgres | 001, 002, 010 | — |
+| [006](STORY-006-deploy.md) | Deploy to Render/Railway + Postgres | 001, 002, 009, 010 | — |
 | [007](STORY-007-naming-alignment.md) | Names: `mL`, `in`, no `,` (align with standard) | — | 002, 004 |
 | [008](STORY-008-classification-flags.md) | Flag Sub-Category 99 (reason required) and possible fixed assets | — | 002, 007 |
 | [009](STORY-009-requester-resubmit.md) | Requester edits and resubmits a Needs Info request (before plants open) | 001 | 002 |

@@ -19,6 +19,16 @@ STATUS_LABELS = {
     "notified": "แจ้งผู้ขอแล้ว",
 }
 templates.env.globals["status_labels"] = STATUS_LABELS
+# Request-history rows that are not status changes (STORY-002).
+templates.env.globals["event_labels"] = {
+    "notify_not_applicable": "ไม่ต้องแจ้งทางอีเมล",
+}
+# Which email is owed, on the resend list (STORY-002 ticket 06).
+templates.env.globals["mail_kinds"] = {
+    "created": "สร้างใน AX แล้ว",
+    "needs_info": "ขอข้อมูลเพิ่ม",
+    "rejected": "ไม่อนุมัติ",
+}
 templates.env.globals["has_role"] = has_role
 templates.env.globals["session_hours"] = settings.session_max_hours
 
@@ -33,3 +43,4 @@ def thai_time(value: datetime, fmt: str = "%H:%M") -> str:
 
 
 templates.env.filters["thai_time"] = thai_time
+

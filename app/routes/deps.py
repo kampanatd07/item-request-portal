@@ -96,7 +96,23 @@ def session_account(
     # with the original login time.
     request.state.account = check.account
     request.state.login_at = check.login_at
+    _count_pending_mail(request, db, check.account, clock)
     return check.account
+
+
+def _count_pending_mail(request: Request, db: Session, account: Account, clock: Clock) -> None:
+    """The menu's "Export (อีเมลค้าง N)" (STORY-002 ticket 06), counted here while
+    the request's session is open; templates only read the number.
+
+    Procurement and above only, and only for full pages: an HTMX fragment has
+    no menu, so it does not pay for the query.
+    """
+    from app.services.notify import pending_notifications
+
+    if request.headers.get("HX-Request") or account.must_change_password \
+            or not has_role(account, "procurement"):
+        return
+    request.state.pending_mail_count = len(pending_notifications(db, clock()))
 
 
 def current_account(account: Account = Depends(session_account)) -> Account:

@@ -187,13 +187,43 @@ def account_for(db, role: str = "procurement", plant: str | None = None):
     return account
 
 
+class FakeMailSender:
+    """Records every message instead of sending; `fail_with` makes sends fail."""
+
+    def __init__(self):
+        self.sent = []
+        self.fail_with: str | None = None
+
+    def send(self, message):
+        from app.services.mail import MailError
+
+        if self.fail_with:
+            raise MailError(self.fail_with)
+        self.sent.append(message)
+
+
 @pytest.fixture()
-def app_db(db_session):
+def mail_outbox():
+    """The fake mail sender the app uses in this test (no network, AC4)."""
+    return FakeMailSender()
+
+
+@pytest.fixture()
+def app_db(db_session, mail_outbox):
     """Point the app at the test DB for the duration of a test."""
     def _override_db():
         yield db_session
 
     app.dependency_overrides[get_db] = _override_db
+    # Background work (emails) opens its own session on the same test database.
+    from sqlalchemy.orm import sessionmaker
+
+    from app.database import get_session_factory
+    from app.services.mail import get_mail_sender
+
+    app.dependency_overrides[get_session_factory] = lambda: sessionmaker(
+        bind=db_session.get_bind(), expire_on_commit=False)
+    app.dependency_overrides[get_mail_sender] = lambda: mail_outbox
     yield db_session
     app.dependency_overrides.clear()
 

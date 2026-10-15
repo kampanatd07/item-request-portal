@@ -1,4 +1,23 @@
 <div class="card">
+  <h3>โดเมนอีเมลที่อนุญาต</h3>
+  <p class="muted">อีเมลผู้ขอจริง (ตอนจัดซื้อส่งคำขอแทน) ต้องเป็นโดเมนที่เปิดใช้งานในรายการนี้ — ตรงตัวเท่านั้น โดเมนย่อยต้องเพิ่มแยก</p>
+  <table>
+    <tr><th>โดเมน</th><th>สถานะ</th><th></th></tr>
+    {% for d in mail_domains %}
+    <tr>
+      <td><code>{{ d.domain }}</code></td>
+      <td>{% if d.active %}<span class="badge approved">ใช้งาน</span>{% else %}<span class="badge rejected">ปิด</span>{% endif %}</td>
+      <td><button class="secondary" hx-post="/admin/config/mail-domain/{{ d.id }}/toggle" hx-target="#config-tables" hx-swap="innerHTML">สลับ</button></td>
+    </tr>
+    {% endfor %}
+  </table>
+  <form hx-post="/admin/config/mail-domain" hx-target="#config-tables" hx-swap="innerHTML" class="row" style="align-items:end; gap:8px;">
+    <div><label>โดเมน</label><input name="domain" placeholder="เช่น carabao.co.th"></div>
+    <div style="flex:0"><button type="submit">เพิ่ม</button></div>
+  </form>
+</div>
+
+<div class="card">
   <h3>หน่วยนับ (UOM)</h3>
   <table>
     <tr><th>รหัส</th><th>ชื่อ</th><th>ตัวสะกดอื่นที่รวมแล้ว</th><th>สถานะ</th><th></th></tr>

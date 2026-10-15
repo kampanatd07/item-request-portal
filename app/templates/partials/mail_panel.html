@@ -1,0 +1,10 @@
+{% if unsent or message %}
+<div class="card" id="mail-panel">
+  <h3>อีเมลแจ้งผู้ขอ</h3>
+  {% if message %}<div class="{{ 'error' if unsent else 'success' }}">{{ message }}</div>{% endif %}
+  {% if unsent %}
+  <p>ยังไม่ได้ส่ง: {{ mail_kinds[unsent.kind] }} — เหตุผลล่าสุด: {{ unsent.reason }}</p>
+  <button hx-post="/queue/{{ req_id }}/notification/resend" hx-target="#mail-panel" hx-swap="outerHTML">ส่งอีเมลอีกครั้ง</button>
+  {% endif %}
+</div>
+{% endif %}

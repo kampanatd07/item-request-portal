@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="th">
+<body style="font-family:'Segoe UI',Tahoma,sans-serif; color:#222; max-width:600px;">
+  <p>เรียน {{ greeting }}</p>
+  <p>คำขอ <strong>#{{ req.id }} {{ req.item_name }}</strong> (โรงงาน {{ req.factory.code }})
+     <strong>ต้องการข้อมูลเพิ่ม</strong> ก่อนดำเนินการต่อ</p>
+  <p style="background:#fbeaf0; color:#72243e; padding:10px 14px; border-radius:6px;">
+     {{ reason }}</p>
+  <p>กรุณาตอบกลับอีเมลนี้หรือติดต่อฝ่ายจัดซื้อพร้อมข้อมูลที่ขอ</p>
+  {% if link %}<p><a href="{{ link }}">ดูคำขอในระบบ</a> <span style="color:#666;">(สำหรับผู้มีบัญชีในระบบ)</span></p>{% endif %}
+  <p style="color:#666; font-size:13px;">อีเมลนี้ส่งอัตโนมัติจาก Item Request Portal</p>
+</body>
+</html>
