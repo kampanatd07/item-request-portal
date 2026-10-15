@@ -56,8 +56,8 @@ The app only runs on Peter's laptop. Plants need a URL.
 6. **Before go-live:** confirm with Peter that the company data policy allows
    external hosting of item data (flagged in decisions.md 2026-07-24)
 7. The app runs as **one worker process**, or `MAIL_RATE_PER_MINUTE` × number
-   of worker processes (all instances included) ≤ 25. The mail rate limiter
-   counts per process, while Exchange Online limits sends per mailbox
+   of worker processes (all instances included) ≤ 25. The mail limiter
+   spaces sends per process (≥ 60/rate s apart), while Exchange Online limits sends per mailbox
    (about 30 a minute), so several workers at the default 25 would exceed
    it (STORY-002 ticket 02). Record the worker count chosen in the Dockerfile /
    start command and in README
@@ -91,16 +91,17 @@ _(filled by /to-spec + /to-tickets)_
     page all call it: about 4 identical queries per request (≈ 200 for 50
     rows). Load the domain set once per notifier run / page and pass it in.
 - Single "ส่งอีเมลอีกครั้ง" button (`routes/queue.py`) sends inside the HTTP
-  request. Since the 2026-10-14 fix there is no retry or Retry-After wait,
-  so a normal click returns in a second or two; the worst case is now the
-  rate-limit wait in `prepare()` (up to 60 s, only when 25 emails already
-  started in that minute, e.g. right after "ส่งซ้ำทั้งหมด") + a token
-  (≤ 20 s) + one send (≈ 15 s). Check the platform's proxy timeout at
-  deploy; if it is under ~100 s, make that button fail fast when no slot
-  is free instead of waiting.
-- A 429 fails that send at once; its Retry-After (capped at 60 s) holds back
-  the next `prepare()`, outside any lock. A Retry-After longer than 60 s can
-  still draw another 429 after the cap.
+  request. A normal click returns in a second or two: the spacing wait is
+  ≤ 2.4 s at the default rate. The worst case is right after a 429: its
+  Retry-After wait in `prepare()` (≤ 60 s) + a token (≤ 20 s) + one send
+  (≈ 15 s). Check the platform's proxy timeout at deploy; if it is under
+  ~100 s, make that button fail fast while a back-off is running.
+- A 429 fails that send at once; its Retry-After (seconds or HTTP-date,
+  capped at 60 s) pushes the next `prepare()` later, outside any lock. A
+  Retry-After longer than 60 s can still draw another 429 after the cap.
+- Two notifier threads can pass the spacing wait together and send close
+  together (the limiter never refuses). Exchange's ~30/min leaves room at
+  1–2 users; a real 429 goes to the resend list.
 - Further notes from the review of 2026-10-14 round 3 (not correctness, not
   deploy conditions):
   - Migrations and `create_admin` load Settings too, so outside dev they
@@ -119,3 +120,5 @@ _(filled by /to-spec + /to-tickets)_
   - A split "created" group (recipients changed under the lock) and a token
     dropped by another thread's 401 are the two rare paths that still do
     more than one short call under the lock (see decisions.md).
+  - "Send all" of 25+ groups takes about a minute at the default rate
+    (spaced 2.4 s apart) — expected, not a hang.

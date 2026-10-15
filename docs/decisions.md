@@ -2,9 +2,12 @@
 
 ## [2026-10-14] Known limit: request rows stay locked during one short Graph call
 **Decision:** Keep claim → send → record in one transaction for v1, but with
-nothing slow inside it. Before the claim, `prepare()` reserves a rate-limit
-slot for this thread (waiting there if needed, including any Retry-After a
-429 asked for, capped at 60 s) and makes sure a token is cached. Under the
+nothing slow inside it. Before the claim, `prepare()` waits for the send
+spacing (sends ≥ 60/MAIL_RATE_PER_MINUTE s apart, plus any Retry-After a 429
+asked for, capped at 60 s) and makes sure a token is cached. The spacing
+limiter never fails a send (Peter, 2026-10-15: one worker, 1–2 users; the
+earlier sliding window with per-thread slot reservations had locking and
+leak bugs). Under the
 lock there is exactly one sendMail call with a short timeout (5 s connect,
 10 s read), no retry and no wait: a 401/429/5xx/timeout is recorded as
 `notify_failed` and the lock is released; the resend list does the
@@ -14,8 +17,8 @@ retrying. The lock covers one request
 **How long:** a normal send is well under 1 s. Worst case per sendMail
 ≈ 15 s (5 s connect + 10 s read; the write phase is a few KB). Rare cases
 add to it: a "created" group whose recipients changed since it was read is
-split and sends once per part (parts after the first need a free slot and
-fail rather than wait); if another thread dropped the token after a 401
+split and sends once per part, back to back (send never waits on the
+limiter); if another thread dropped the token after a 401
 between prepare and send, the token is fetched under the lock (≤ 20 s).
 A Procurement status change on a locked request waits that long
 (`_get_locked` has no lock_timeout); other requests are not affected.

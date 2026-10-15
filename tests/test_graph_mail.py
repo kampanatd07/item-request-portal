@@ -263,29 +263,83 @@ def test_secrets_never_reach_errors_or_logs(graph, fake_time, caplog):
 
 # --- Rate limit -------------------------------------------------------------------------------------
 
-def test_the_limiter_never_lets_more_than_n_sends_start_in_a_minute(fake_time):
-    limiter = RateLimiter(3, fake_time.clock, fake_time.sleep)
+def test_sends_are_spaced_by_60_over_the_rate(fake_time):
+    # Spacing limiter (Peter, 2026-10-15): one send every 60/rate seconds.
+    limiter = RateLimiter(25, fake_time.clock, fake_time.sleep)
     starts = []
-    for i in range(10):
-        fake_time.now += 5 if i % 4 == 0 else 0.5
-        limiter.acquire()
+    for _ in range(4):
+        limiter.wait()
+        limiter.mark_sent()
         starts.append(fake_time.now)
-    for t in starts:
-        assert sum(1 for s in starts if t <= s < t + 60) <= 3
-    assert fake_time.sleeps  # it had to wait, without really sleeping
+    gaps = [b - a for a, b in zip(starts, starts[1:])]
+    assert gaps == [pytest.approx(60 / 25)] * 3 and len(fake_time.sleeps) == 3
 
 
-def test_send_never_waits_for_the_limiter_prepare_does(graph, fake_time):
-    # Review 2026-10-14: send runs under the row lock, so it must not wait.
-    sender = _sender(graph, fake_time, rate=2)
-    sender.send(_message())
-    sender.send(_message())
-    with pytest.raises(MailError, match="อัตราการส่ง"):
-        sender.send(_message())  # the minute is full: fail, do not wait
-    assert fake_time.sleeps == [] and len(graph.sends()) == 2
-    sender.prepare()  # before the claim: the wait happens here
-    sender.send(_message())
-    assert fake_time.sleeps == [60.0] and len(graph.sends()) == 3
+def test_send_never_waits_and_never_fails_on_the_limiter(graph, fake_time):
+    # send() runs under the row lock: it neither sleeps nor refuses.
+    sender = _sender(graph, fake_time, rate=1)
+    for _ in range(3):
+        sender.send(_message())  # back to back, no prepare in between
+    assert fake_time.sleeps == [] and len(graph.sends()) == 3
+    sender.prepare()  # the wait happens here, before any claim
+    assert fake_time.sleeps == [60.0]
+
+
+def test_the_wait_holds_no_lock_while_sleeping(fake_time):
+    limiter = RateLimiter(1, fake_time.clock, fake_time.sleep)
+    held = []
+    real_sleep = fake_time.sleep
+
+    def sleep(seconds):
+        held.append(limiter._lock.locked())
+        real_sleep(seconds)
+
+    limiter._sleep = sleep
+    limiter.mark_sent()
+    limiter.wait()
+    assert held == [False]
+
+
+def test_a_429_during_a_wait_pushes_that_wait_later_without_failing_it(fake_time):
+    # A send waiting in prepare() while another thread gets a 429: it waits on.
+    limiter = RateLimiter(60, fake_time.clock, fake_time.sleep)  # 1 s apart
+    limiter.mark_sent()
+    real_sleep, first = fake_time.sleep, [True]
+
+    def sleep(seconds):
+        real_sleep(seconds)
+        if first.pop() if first else False:
+            limiter.back_off(30)  # another thread's 429, mid-wait
+
+    limiter._sleep = sleep
+    start = fake_time.now
+    limiter.wait()  # no exception
+    assert fake_time.now - start == pytest.approx(31.0)
+
+
+def test_retry_after_as_an_http_date_is_honoured(graph, fake_time, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from email.utils import format_datetime
+
+    from app.services import graph_mail
+
+    now = datetime.now(timezone.utc)
+    monkeypatch.setattr(graph_mail, "_utc_now", lambda: now)
+    sender = _sender(graph, fake_time)
+    graph.send_responses = [httpx.Response(429, headers={
+        "Retry-After": format_datetime(now + timedelta(seconds=20), usegmt=True)})]
+    with pytest.raises(MailError, match="HTTP 429"):
+        sender.send(_message())
+    sender.prepare()
+    assert fake_time.sleeps == [pytest.approx(20.0, abs=1.0)]
+
+
+def test_a_successful_send_is_logged(graph, fake_time, caplog):
+    # Review 2026-10-14 round 4: the log line had become unreachable.
+    with caplog.at_level(logging.INFO, logger="app.mail"):
+        _sender(graph, fake_time).send(_message(cc=["proc@carabao.co.th"]))
+    assert ("mail sent via Graph to=somchai@apm.co.th cc=proc@carabao.co.th "
+            "subject=[Item Portal] รหัส 90001000001") in caplog.text
 
 
 def test_a_429_makes_the_next_prepare_wait_the_retry_after(graph, fake_time):
@@ -311,25 +365,6 @@ def test_a_huge_retry_after_is_capped(graph, fake_time):
         sender.send(_message())
     sender.prepare()
     assert fake_time.sleeps == [float(BACK_OFF_CAP_SECONDS)]
-
-
-def test_prepare_reserves_the_slot_its_own_send_spends(graph, fake_time):
-    # Review of 2026-10-14 round 3: two notifiers could both pass prepare() on
-    # the last free slot; the second then failed under its lock.
-    from concurrent.futures import ThreadPoolExecutor
-
-    sender = _sender(graph, fake_time, rate=1)
-    a, b = ThreadPoolExecutor(1), ThreadPoolExecutor(1)  # one thread per notifier
-    try:
-        a.submit(sender.prepare).result()
-        b.submit(sender.prepare).result()  # must wait: A holds the only slot
-        assert fake_time.sleeps == [60.0]
-        a.submit(sender.send, _message()).result()
-        b.submit(sender.send, _message()).result()  # its own reserved slot
-    finally:
-        a.shutdown()
-        b.shutdown()
-    assert len(graph.sends()) == 2
 
 
 def test_prepare_fetches_the_token_before_the_claim(graph, fake_time):
@@ -428,17 +463,6 @@ def test_the_secret_does_not_show_in_settings_repr(graph_settings):
 
 
 # --- Code review fixes ----------------------------------------------------------------------------
-
-def test_reserve_waits_once_and_take_spends_it_without_waiting(fake_time):
-    limiter = RateLimiter(1, fake_time.clock, fake_time.sleep)
-    limiter.acquire()
-    limiter.reserve()  # waits for the window, then holds the slot
-    assert fake_time.sleeps == [60.0]
-    limiter.reserve()  # already holding one: no second slot, no wait
-    assert limiter.take() is True and fake_time.sleeps == [60.0]
-    assert limiter.take() is False  # nothing reserved, window full: no wait
-    assert fake_time.sleeps == [60.0]
-
 
 def test_the_notifier_waits_for_the_limiter_before_locking_rows(app_db, monkeypatch):
     """The rate-limit wait must not happen while the request row is locked."""

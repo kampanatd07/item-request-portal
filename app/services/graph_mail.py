@@ -11,15 +11,20 @@ import logging
 import re
 import threading
 import time
-from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 
 import httpx
 
 from app.services.mail import MailError, MailMessage
 
 log = logging.getLogger("app.mail")
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 TOKEN_URL = "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
 SEND_URL = "https://graph.microsoft.com/v1.0/users/{sender}/sendMail"
@@ -33,7 +38,6 @@ TIMEOUT = httpx.Timeout(15.0, connect=5.0)
 # sendMail runs while the notifier holds the request rows: one short try,
 # no retry and no Retry-After wait; a failure goes on the resend list.
 SEND_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
-WINDOW_SECONDS = 60.0
 # A 429's Retry-After holds back the next sends (in prepare, outside any
 # lock) for at most this long; past it they try again and may fail again.
 BACK_OFF_CAP_SECONDS = 60
@@ -47,73 +51,47 @@ Sleep = Callable[[float], None]
 
 
 class RateLimiter:
-    """At most `per_minute` sends *start* in any 60-second window (sliding).
+    """Spaces sends at least 60/`per_minute` seconds apart (Peter, 2026-10-15).
 
-    A send that would exceed it waits for the oldest start to leave the window.
-    Exchange Online allows about 30 messages a minute per mailbox; the default
-    25 leaves room. Per process: two app processes would need a shared limiter.
-
-    The notifier `reserve`s a slot before it locks request rows (it may wait
-    there) and its `send` then `take`s that slot without waiting. The
-    reservation is per thread, so concurrent notifiers cannot both count on
-    the same last slot. After a 429, `back_off` holds every new slot back.
+    One value, `_next_at`: when the next send may start. `wait` (called in
+    `prepare`, before any row is locked) sleeps until then; `mark_sent` and
+    `back_off` (a 429's Retry-After) move it later. The lock is held only to
+    read or write `_next_at`, never while sleeping. The limiter never fails a
+    send: if two threads pass `wait` together they may send close together,
+    Exchange (~30/min per mailbox) still has room, and a real 429 is a
+    notify_failed for the resend list. One app worker; several workers would
+    each space their own sends.
     """
 
     def __init__(self, per_minute: int, clock: Clock = time.monotonic,
                  sleep: Sleep = time.sleep) -> None:
         if per_minute < 1:
             raise ValueError("MAIL_RATE_PER_MINUTE must be at least 1")
-        self.per_minute = per_minute
+        self.interval = 60.0 / per_minute
         self._clock, self._sleep = clock, sleep
-        self._starts: deque[float] = deque()
+        self._next_at = float("-inf")
         self._lock = threading.Lock()
-        self._blocked_until = 0.0  # set by back_off (a 429's Retry-After)
-        self._local = threading.local()  # .reserved: this thread holds a slot
 
-    def _free_in(self) -> float:
-        """Seconds until a send may start (0 = now). Call with the lock held."""
-        now = self._clock()
-        while self._starts and self._starts[0] <= now - WINDOW_SECONDS:
-            self._starts.popleft()
-        blocked = self._blocked_until - now
-        if len(self._starts) < self.per_minute:
-            return max(blocked, 0.0)
-        return max(self._starts[0] + WINDOW_SECONDS - now, blocked)
+    def wait(self) -> None:
+        """Sleep until a send may start; re-checks after each sleep, so a 429
+        seen meanwhile makes it wait longer instead of failing."""
+        while True:
+            with self._lock:
+                delay = self._next_at - self._clock()
+            if delay <= 0:
+                return
+            self._sleep(delay)
+
+    def mark_sent(self) -> None:
+        """A send starts now: the next one waits a full interval."""
+        with self._lock:
+            self._next_at = max(self._next_at, self._clock() + self.interval)
 
     def back_off(self, seconds: float) -> None:
-        """Graph throttled us: no new slot for this long (capped)."""
-        until = self._clock() + min(max(seconds, 0.0), BACK_OFF_CAP_SECONDS)
-        self._blocked_until = max(self._blocked_until, until)
-
-    def acquire(self) -> None:
-        """Wait for a slot and take it (records this send's start)."""
-        with self._lock:  # held while waiting: sends queue up in order
-            while (wait := self._free_in()) > 0:
-                self._sleep(wait)
-            self._starts.append(self._clock())
-
-    def try_acquire(self) -> bool:
-        """Take a slot if one is free now; never waits."""
+        """Graph throttled us: no send for this long (capped)."""
+        delay = min(max(seconds, 0.0), BACK_OFF_CAP_SECONDS)
         with self._lock:
-            if self._free_in() > 0:
-                return False
-            self._starts.append(self._clock())
-            return True
-
-    def reserve(self) -> None:
-        """Wait for a slot and hold it for this thread's next `take` (one at a time)."""
-        if getattr(self._local, "reserved", False):
-            return
-        self.acquire()
-        self._local.reserved = True
-
-    def take(self) -> bool:
-        """Spend this thread's reserved slot, or take a free one; never waits
-        (used under row locks). False when the window is full."""
-        if getattr(self._local, "reserved", False):
-            self._local.reserved = False
-            return True
-        return self.try_acquire()
+            self._next_at = max(self._next_at, self._clock() + delay)
 
 
 @dataclass
@@ -231,17 +209,16 @@ class GraphMailSender:
             raise MailError(f"Graph: ติดต่อ Microsoft Graph ไม่ได้ ({type(e).__name__})") from None
 
     def prepare(self) -> None:
-        """Before the notifier locks any row: wait for a rate-limit slot and
-        make sure a token is cached, so `send` has nothing slow left to do."""
-        self.limiter.reserve()
+        """Before the notifier locks any row: wait for the send spacing (and
+        any Retry-After) and make sure a token is cached, so `send` has
+        nothing slow left to do."""
+        self.limiter.wait()
         self._access_token()
 
     def send(self, message: MailMessage) -> None:
         """One sendMail call: no waiting, no retry (it runs under row locks).
         Any failure is a MailError; the resend list does the retrying."""
-        if not self.limiter.take():
-            raise MailError("Graph: ถึงขีดจำกัดอัตราการส่ง (MAIL_RATE_PER_MINUTE) "
-                            "— ส่งอีกครั้งภายหลัง")
+        self.limiter.mark_sent()
         response = self._post(self._payload(message))
         if response.status_code == 401:
             # The token may have been revoked before its expiry: the next
@@ -252,15 +229,22 @@ class GraphMailSender:
             # Honoured by the next prepare(), outside any lock.
             self.limiter.back_off(self._retry_after(response))
         self._raise_for(response)
+        log.info("mail sent via Graph to=%s cc=%s subject=%s", ",".join(message.to),
+                 ",".join(message.cc) or "-", message.subject)
 
     @staticmethod
     def _retry_after(response: httpx.Response) -> float:
+        """Retry-After in seconds: delta-seconds or an HTTP-date (RFC 9110);
+        1 s when missing or unreadable."""
+        value = response.headers.get("Retry-After", "").strip()
         try:
-            return float(response.headers.get("Retry-After", "1"))
+            return float(value)
         except ValueError:
+            pass
+        try:
+            return (parsedate_to_datetime(value) - _utc_now()).total_seconds()
+        except (TypeError, ValueError, IndexError):
             return 1.0
-        log.info("mail sent via Graph to=%s cc=%s subject=%s", ",".join(message.to),
-                 ",".join(message.cc) or "-", message.subject)
 
     @staticmethod
     def _raise_for(response: httpx.Response) -> None:
