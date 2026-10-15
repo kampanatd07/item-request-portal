@@ -101,8 +101,9 @@ _(filled by /to-spec + /to-tickets)_
 - A 429 fails that send at once; its Retry-After (seconds or HTTP-date,
   capped at 60 s) pushes the next `prepare()` later, outside any lock. A
   Retry-After longer than 60 s can still draw another 429 after the cap.
-- Each `prepare()` books its own start, so concurrent notifiers are spaced
-  too (tested with 8 threads). `prepare()` runs before the notifier knows
+- Each `prepare()` books its own start (token first, then the booking), so
+  concurrent bookings are spaced too (tested with 8 threads). The POSTs are
+  not: see decisions.md 2026-10-15. `prepare()` runs before the notifier knows
   whether anything will be sent: a superseded change or a group another
   notifier already claimed still waits its turn (2.4 s, longer after a
   429) and books a start it does not use. Harmless at our volume.
@@ -127,3 +128,21 @@ _(filled by /to-spec + /to-tickets)_
     group's extra parts go out back to back, unspaced (send books nothing).
   - "Send all" of 25+ groups takes about a minute at the default rate
     (spaced 2.4 s apart) — expected, not a hang.
+- Limiter notes from the review of 2026-10-15 (accepted for v1, Peter;
+  see decisions.md 2026-10-15):
+  - A notifier that has already booked still sends after another thread's
+    429 and may draw a second 429 (also lands on the resend list).
+  - No first-come order: the single resend button can lose its turn to a
+    running "send all" more than once and wait longer, even without a 429.
+    This adds to the proxy-timeout note above.
+  - The 8-thread test checks the booked starts on a fake clock, whose sleep
+    does not hand control to other threads; it cannot see POSTs bunching.
+  - A thread that wakes late books `now + interval`, so the rate drifts a
+    little slower than configured, never faster.
+  - Retry-After is read with `float()`: "-5" means no back-off, "1e9" is
+    capped at 60 s. Both are harmless; the HTTP-date form stays (RFC 9110).
+  - `RateLimiter.wait()` returns the booked start only for the tests.
+  - **Fix if 429s are frequent after go-live:** one mail worker thread with
+    a queue (prepare → claim → send, one job at a time, in order). That
+    makes the spacing real and the order fair. It replaces the
+    BackgroundTasks setup, so it is its own story.

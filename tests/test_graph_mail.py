@@ -271,6 +271,18 @@ def test_sends_are_spaced_by_60_over_the_rate(fake_time: FakeTime) -> None:
     assert gaps == [pytest.approx(60 / 25)] * 3 and len(fake_time.sleeps) == 3
 
 
+def test_a_failed_token_in_prepare_books_no_send_slot(graph: FakeGraph,
+                                                      fake_time: FakeTime) -> None:
+    # Peter, 2026-10-15: prepare() books its slot only once the token is in
+    # hand, so a token failure (no send follows) costs no spacing.
+    sender = _sender(graph, fake_time, rate=1)
+    graph.token_responses = [httpx.Response(503)]
+    with pytest.raises(MailError, match="HTTP 503"):
+        sender.prepare()
+    sender.prepare()  # token fine now: books the first slot, no wait
+    assert fake_time.sleeps == []
+
+
 def test_concurrent_waits_get_starts_at_least_an_interval_apart() -> None:
     # Review 2026-10-15: wait() only read the next start, so threads calling
     # prepare() together all passed at once. Each wait() now books its start.

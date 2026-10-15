@@ -41,7 +41,7 @@ still has to be deployed (STORY-006), which now waits for requester resubmit
 | Email notification | done — STORY-002 tickets 01–06 (Graph sender tested with a fake transport only; first real send waits for IT, see §7) |
 | Deployment | **not started — STORY-006** |
 
-Tests: 609 passing (`pytest`).
+Tests: 610 passing (`pytest`).
 
 The suite runs in ~13 s: `create_all` + `seed` run once per pytest session
 into an in-memory template, and each test's `db_session` gets a copy through

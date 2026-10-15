@@ -1,11 +1,34 @@
 # Decision Log
 
+## [2026-10-15] The mail limiter spaces bookings, not the actual sends
+**Decision:** `prepare()` first makes sure a token is cached, then books a
+send slot with `RateLimiter.wait()`. Bookings are ≥ 60/MAIL_RATE_PER_MINUTE s
+apart (2.4 s at 25/min), across threads too. The POSTs themselves are *not*
+guaranteed to be that far apart: after booking, a notifier still claims its
+rows, and that claim can wait on another notifier's lock, so two POSTs can
+go out close together. A token failure books nothing, since the token
+comes first.
+**Purpose:** stay under Exchange's per-mailbox limit (~30/min) on average,
+not exact spacing. Worst case when sends bunch up: Graph answers 429, that
+send is recorded as `notify_failed` and lands on the resend list, and the
+Retry-After pushes later bookings back. No email is lost.
+**Why:** sending inside the row lock while waiting outside it leaves a gap
+of unknown length between "slot booked" and "POST". Closing that gap means
+one queued mail worker, a story-sized change, for 1–2 users at low volume.
+**Correction:** the message of commit 4ec519f says "a token failure
+before the post no longer wastes a turn" and "every pair of starts is >=
+one interval apart". At 4ec519f the slot was booked *before* the token, so
+a token failure did waste a turn (fixed in the commit after it). The
+eight-thread test checks the booked starts, not the POSTs.
+**Revisit when:** 429s show up often on the resend list after go-live.
+Option: a single mail worker with a queue (see STORY-006 notes).
+
 ## [2026-10-14] Known limit: request rows stay locked during one short Graph call
 **Decision:** Keep claim → send → record in one transaction for v1, but with
-nothing slow inside it. Before the claim, `prepare()` waits for the send
-spacing (each prepare books its own start, ≥ 60/MAIL_RATE_PER_MINUTE s after
-the previous booking, also across threads; plus any Retry-After a 429 asked
-for, capped at 60 s per 429) and makes sure a token is cached. The spacing
+nothing slow inside it. Before the claim, `prepare()` makes sure a token is
+cached, then books a send slot (bookings ≥ 60/MAIL_RATE_PER_MINUTE s apart,
+also across threads, though the sends themselves may bunch up: see
+2026-10-15; plus any Retry-After a 429 asked for, capped at 60 s per 429). The spacing
 limiter never fails a send (Peter, 2026-10-15: one worker, 1–2 users; the
 earlier sliding window with per-thread slot reservations had locking and
 leak bugs). Under the

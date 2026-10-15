@@ -55,9 +55,11 @@ class RateLimiter:
     """Spaces sends at least 60/`per_minute` seconds apart (Peter, 2026-10-15).
 
     One value, `_next_at`: when the next send may start. `wait` (called in
-    `prepare`, before any row is locked) books a start: when `_next_at` has
-    come it moves it one interval on and returns, in one short critical
-    section, so concurrent callers get starts at least an interval apart;
+    `prepare`, after the token and before any row is locked) books a start:
+    when `_next_at` has come it moves it one interval on and returns, in one
+    short critical section, so concurrent bookings are at least an interval
+    apart (the bookings, not the POSTs: a claim wait in between can bunch
+    POSTs; see decisions.md 2026-10-15);
     otherwise it sleeps *outside* the lock and checks again. `back_off` (a
     429's Retry-After) moves `_next_at` later, which also lengthens a wait
     already running. The lock is only held to read or write `_next_at`. The
@@ -210,11 +212,12 @@ class GraphMailSender:
             raise MailError(f"Graph: ติดต่อ Microsoft Graph ไม่ได้ ({type(e).__name__})") from None
 
     def prepare(self) -> None:
-        """Before the notifier locks any row: wait for the send spacing (and
-        any Retry-After) and make sure a token is cached, so `send` has
-        nothing slow left to do."""
-        self.limiter.wait()
+        """Before the notifier locks any row: make sure a token is cached, then
+        book a send slot (waiting out the spacing and any Retry-After), so
+        `send` has nothing slow left to do. Token first: a token failure means
+        no send, so it must not use up a slot."""
         self._access_token()
+        self.limiter.wait()
 
     def send(self, message: MailMessage) -> None:
         """One sendMail call: no waiting, no retry (it runs under row locks).
