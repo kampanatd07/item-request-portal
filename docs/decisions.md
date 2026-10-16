@@ -1,5 +1,34 @@
 # Decision Log
 
+## [2026-10-16] The Originator may resubmit a Needs Info request too
+**Decision:** A Needs Info request can be edited and resubmitted by its
+Requester, or by its Originator if the Originator has an active Account
+(matched on email) in the request's Plant. The Originator may edit every
+field except Plant and the originator fields; only the Requester can change
+who the request is for. "My requests" also lists requests where the Account
+is the Originator, in every status, labelled "ขอแทนโดย <Requester>".
+**Why:** the Needs Info email of an on-behalf request goes to the Originator,
+the person who actually has the missing detail. With only the Requester able
+to resubmit, Procurement would have to relay every reply by hand.
+**Alternatives considered:** Requester only (Procurement re-keys replies from
+email or phone), which is simpler and matches "Procurement stays the
+Requester". Rejected (Peter, STORY-009 grilling Q1) because it keeps
+Procurement in the middle of every on-behalf reply.
+
+## [2026-10-16] Resubmit emails to Procurement are best-effort
+**Decision:** When a Requester or Originator resubmits, every active
+Procurement and Administrator Account gets an email. It is sent in the
+background, and a failure is only logged: no `notified`/`notify_failed`
+event and no entry on the resend list. No email goes out when Procurement
+or an Administrator resubmits themselves, or for new submissions.
+**Why:** the email is a nudge. The request is in the queue whether or not the
+email arrives, and the queue is where Procurement works. Putting it on the
+resend list means teaching `pending_notifications`/`recipients` about a
+second kind of recipient, code that took several review rounds in
+STORY-002.
+**Revisit when:** Procurement misses resubmitted requests because an email
+did not arrive.
+
 ## [2026-10-15] The mail limiter spaces bookings, not the actual sends
 **Decision:** `prepare()` first makes sure a token is cached, then books a
 send slot with `RateLimiter.wait()`. Bookings are ≥ 60/MAIL_RATE_PER_MINUTE s
