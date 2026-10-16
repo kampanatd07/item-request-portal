@@ -16,7 +16,8 @@
     });
     document.addEventListener("htmx:beforeSwap", function (e) {
       var status = e.detail.xhr.status;
-      if (status !== 422 && status !== 403) return;
+      // 409: the request moved on meanwhile (e.g. a resubmit that lost the race).
+      if (status !== 422 && status !== 403 && status !== 409) return;
       e.detail.shouldSwap = true;
       e.detail.isError = false;
       var source = e.detail.xhr._source;

@@ -42,6 +42,14 @@ class RequestForbidden(RequestError):
     """The acting Account's Role may not do this; routes answer 403."""
 
 
+class RequestNotFound(RequestError):
+    """No such request; routes answer 404."""
+
+
+class RequestConflict(RequestError):
+    """The request moved on since the page was opened; routes answer 409."""
+
+
 def _retire(db: Session, code: str, req: ItemRequest, reason: str, account: Account) -> None:
     """Retire a thrown-away code in the caller's transaction; a refusal undoes it all.
 
@@ -269,6 +277,7 @@ def _validated_fields(
     search_name: str | None,
     purchase_price: str | None,
     procurement_category: str | None,
+    classify_blank: bool = True,
 ) -> RequestFields:
     """Check the category and compose the Item Name from the form fields, or
     raise a Thai RequestError. Shared by a new submission and a resubmit
@@ -327,10 +336,12 @@ def _validated_fields(
         uom=_canonical_uom(db, uom),
         # If the requester left search name blank, classify the BASE name into a
         # canonical category term (dictionary -> master neighbours -> LLM).
+        # A resubmit classifies before its claim and passes classify_blank=False,
+        # so the LLM is never asked while the row is held.
         search_name=_resolve_search_name(
             db, search_name, item_name, factory_id,
             product_type=(sub or group).product_type,
-        ),
+        ) if classify_blank else (search_name or "").strip()[:60],
         purchase_price=purchase_price or None,
         procurement_category=procurement_category or None,
     )
@@ -348,6 +359,215 @@ def _duplicate_line(db: Session, factory_id: int, typed_base: str, brand: str | 
         return None
     return "duplicate candidates: " + "; ".join(
         f"{i.item_number} {i.name[:60]} ({s:.0%})" for i, s in matches)
+
+
+# --- Resubmit (STORY-009) -------------------------------------------------------
+
+# Fields a resubmit compares, in the order the change lines list them; the
+# labels are the request form's. The category is compared separately.
+_RESUBMIT_FIELDS: list[tuple[str, str]] = [
+    ("base_name", "ชื่อเรียก"), ("brand", "แบรนด์"), ("model", "รุ่น"), ("size", "ขนาด"),
+    ("variant", "ชนิด/สี"), ("uom", "หน่วยนับ"), ("spec_note", "สเปค"),
+    ("search_name", "Search name"), ("purchase_price", "ราคาซื้อ"),
+    ("procurement_category", "Procurement Category"),
+]
+
+
+def _not_waiting(req: ItemRequest) -> RequestConflict:
+    from app.templating import STATUS_LABELS
+
+    return RequestConflict(
+        f"คำขอนี้ไม่ได้รอข้อมูลแล้ว (สถานะปัจจุบัน: {STATUS_LABELS.get(req.status, req.status)})")
+
+
+def resubmittable(db: Session, request_id: int, account: Account) -> ItemRequest:
+    """The request, if this Account may resubmit it now; else a RequestError.
+
+    Only the request's own Requester, whatever their Role: Procurement that did
+    not submit it gets 403 too. Ownership is checked before the status, so a
+    stranger learns nothing about the request.
+    """
+    from app.services.auth import normalize_email
+
+    req = db.get(ItemRequest, request_id)
+    if req is None:
+        raise RequestNotFound("ไม่พบคำขอนี้")
+    if normalize_email(req.requester_email) != account.email:
+        raise RequestForbidden("แก้ไขและส่งกลับได้เฉพาะคำขอของคุณเอง")
+    if req.status != "needs_info":
+        raise _not_waiting(req)
+    return req
+
+
+def needs_info_reason(db: Session, req: ItemRequest) -> str | None:
+    """What Procurement asked for: the latest needs_info event's note."""
+    return db.scalar(
+        select(RequestEvent.detail)
+        .where(RequestEvent.request_id == req.id, RequestEvent.action == "needs_info")
+        .order_by(RequestEvent.id.desc())
+        .limit(1)
+    )
+
+
+def _category_label(db: Session, group_id: int, subgroup_id: int | None) -> str:
+    group = db.get(CodeGroup, group_id)
+    sub = db.get(CodeGroup, subgroup_id) if subgroup_id is not None else None
+    return f"{group.code}-{sub.code}" if sub else group.code
+
+
+def _shown(value: object) -> str:
+    """A field value on one change line: '-' when empty, newlines flattened."""
+    text = " ".join(str(value).split()) if value is not None else ""
+    return text or "-"
+
+
+def _same(stored: object, posted: object) -> bool:
+    """Did the form post back what it was prefilled with? Compared as text with
+    whitespace collapsed: a browser drops a textarea's leading newline and
+    sends CRLF, and normalising (search name cut to 60, UoM aliases) must not
+    turn an untouched field into an edit."""
+    def text(value: object) -> str:
+        return " ".join(str(value).split()) if value is not None else ""
+
+    return text(stored) == text(posted)
+
+
+def _edited(req: ItemRequest, posted: dict[str, object]) -> list[str]:
+    """The form fields whose posted value differs from the stored one."""
+    edited = [name for name in ("code_system_id", "group_id", "subgroup_id")
+              if not _same(getattr(req, name), posted[name])]
+    edited += [name for name, _ in _RESUBMIT_FIELDS
+               if not _same(getattr(req, name), posted[name])]
+    return edited
+
+
+def _change_lines(db: Session, req: ItemRequest, fields: RequestFields,
+                  edited: list[str]) -> list[str]:
+    """'label: old → new' for each edited field, the new value as it will be stored."""
+    lines = []
+    if {"code_system_id", "group_id", "subgroup_id"} & set(edited):
+        lines.append(f"หมวด: {_category_label(db, req.group_id, req.subgroup_id)} → "
+                     f"{_category_label(db, fields.group_id, fields.subgroup_id)}")
+    lines += [f"{label}: {_shown(getattr(req, name))} → {_shown(getattr(fields, name))}"
+              for name, label in _RESUBMIT_FIELDS if name in edited]
+    return lines
+
+
+MAX_REPLY_LEN = 1000
+
+
+def _clean_reply(reply: str | None) -> str:
+    """One line, NFC + SARA AM fixed (HANDOFF §6.2), so a reply can never pass
+    for a system line of the `submitted` event (e.g. "duplicate candidates:")."""
+    import unicodedata
+
+    from app.services.snapshots import fix_thai
+
+    reply = " ".join(fix_thai(unicodedata.normalize("NFC", reply or "")).split())
+    if not reply:
+        raise RequestError("กรุณาเขียนข้อความตอบจัดซื้อ")
+    if len(reply) > MAX_REPLY_LEN:
+        raise RequestError(f"ข้อความตอบจัดซื้อยาวเกิน {MAX_REPLY_LEN} ตัวอักษร")
+    return reply
+
+
+def resubmit_request(
+    db: Session,
+    request_id: int,
+    account: Account,
+    *,
+    reply: str,
+    code_system_id: int,
+    group_id: int,
+    subgroup_id: int | None,
+    item_name: str,
+    brand: str | None = None,
+    model: str | None = None,
+    size: str | None = None,
+    variant: str | None = None,
+    spec_note: str | None = None,
+    uom: str | None = None,
+    search_name: str | None = None,
+    purchase_price: str | None = None,
+    procurement_category: str | None = None,
+) -> ItemRequest:
+    """The Requester answers Needs Info: edit the fields, send it back.
+
+    Plant is always the stored one. The row is claimed first with a
+    conditional UPDATE (needs_info → submitted, the notifier's pattern), so of
+    two attempts only one gets the row; then the fields are checked and saved
+    in that same transaction, and any refusal rolls the claim back. Nothing
+    slow happens under the claim: a blank Search name (which may ask the LLM)
+    is worked out before it. A field counts as edited only if the posted text
+    differs from the stored one; with no edit the request keeps its Item Name,
+    even one Procurement typed. Otherwise the name is recomposed.
+    """
+    from sqlalchemy import text
+
+    req = resubmittable(db, request_id, account)
+    reply = _clean_reply(reply)
+    # What was edited is judged on the posted Search name: clearing it is an
+    # edit, whatever the classifier then suggests.
+    posted_search_name = search_name
+    if not (search_name or "").strip() and item_name.strip():
+        chosen = (db.get(CodeGroup, subgroup_id) if subgroup_id is not None else None) \
+            or db.get(CodeGroup, group_id)
+        search_name = _resolve_search_name(
+            db, None, item_name, req.factory_id,
+            product_type=chosen.product_type if chosen else None)
+    db.rollback()  # end the read-only transaction: the claim starts a fresh one
+
+    claimed = db.execute(
+        # updated_at by hand: a raw UPDATE skips the ORM's onupdate.
+        text("UPDATE item_requests SET status = 'submitted', updated_at = CURRENT_TIMESTAMP "
+             "WHERE id = :id AND status = 'needs_info'"),
+        {"id": request_id},
+    ).rowcount
+    db.expire_all()
+    req = db.get(ItemRequest, request_id)
+    if claimed != 1:
+        db.rollback()
+        current = db.get(ItemRequest, request_id)
+        if current is None:  # deleted since resubmittable() saw it
+            raise RequestNotFound("ไม่พบคำขอนี้")
+        raise _not_waiting(current)
+
+    posted = {
+        "code_system_id": code_system_id, "group_id": group_id, "subgroup_id": subgroup_id,
+        "base_name": item_name, "brand": brand, "model": model, "size": size,
+        "variant": variant, "spec_note": spec_note, "uom": uom,
+        "search_name": posted_search_name,
+        "purchase_price": purchase_price, "procurement_category": procurement_category,
+    }
+    edited = _edited(req, posted)
+    if edited:
+        try:
+            fields = _validated_fields(
+                db, req.factory_id, code_system_id=code_system_id, group_id=group_id,
+                subgroup_id=subgroup_id, item_name=item_name, brand=brand, model=model,
+                size=size, variant=variant, spec_note=spec_note, uom=uom,
+                search_name=search_name, purchase_price=purchase_price,
+                procurement_category=procurement_category, classify_blank=False,
+            )
+        except RequestError:
+            db.rollback()  # back to needs_info, nothing written
+            raise
+        changes = _change_lines(db, req, fields, edited)
+        if fields.item_name != req.item_name:
+            changes.append(f"ชื่อสินค้า: {req.item_name} → {fields.item_name}")
+        for name, value in asdict(fields).items():
+            setattr(req, name, value)
+        db.add(RequestEvent(request_id=req.id, actor=account.email, action="request_edited",
+                            detail="\n".join(changes)))
+    req.review_note = None
+    lines = [reply]
+    duplicates = _duplicate_line(db, req.factory_id, item_name, brand, model)
+    if duplicates:
+        lines.append(duplicates)
+    db.add(RequestEvent(request_id=req.id, actor=account.email, action="submitted",
+                        detail="\n".join(lines)))
+    db.commit()
+    return req
 
 
 def change_status(

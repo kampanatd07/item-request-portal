@@ -1,16 +1,23 @@
 {% extends "base.html" %}
-{% block title %}ส่งคำขอสร้าง Item{% endblock %}
+{# `r` set = resubmitting that Needs Info request (STORY-009): prefilled, Plant
+   fixed and never posted, a required reply. Unset = a new request. #}
+{% block title %}{% if r %}แก้ไขและส่งกลับคำขอ #{{ r.id }}{% else %}ส่งคำขอสร้าง Item{% endif %}{% endblock %}
 {% block content %}
 <div class="card">
-  <h2>ส่งคำขอสร้าง Item</h2>
-  <form hx-post="/requests" hx-target="#form-result" hx-swap="innerHTML">
+  <h2>{% if r %}แก้ไขและส่งกลับคำขอ #{{ r.id }}{% else %}ส่งคำขอสร้าง Item{% endif %}</h2>
+  {% if r %}
+  <div class="card" style="background:#fff6d6;">
+    <strong>จัดซื้อต้องการ: {{ reason or "-" }}</strong>
+  </div>
+  {% endif %}
+  <form hx-post="{{ '/my-requests/%d/resubmit' % r.id if r else '/requests' }}" hx-target="#form-result" hx-swap="innerHTML">
     {% set account = request.state.account %}
     <div class="row">
       <div>
         <label>ผู้ขอ</label>
         <div>{{ account.display_name }} <span class="muted">({{ account.email }})</span></div>
       </div>
-      {% if not plant_locked %}
+      {% if not plant_locked and not r %}
       <div>
         <label for="on_behalf_of">ขอแทน (ถ้ามี)</label>
         <input id="on_behalf_of" name="on_behalf_of" placeholder="ชื่อผู้ขอจริง เช่น คนที่โทรมาแจ้ง">
@@ -23,6 +30,9 @@
     <div class="row">
       <div>
         <label>โรงงาน *</label>
+        {% if r %}
+        <div>{{ r.factory.code }} — {{ r.factory.name }}</div>
+        {% else %}
         {# A Requester gets only their own Plant, preselected; the server uses
            the Account's Plant whatever is posted. #}
         <select name="factory_id" required
@@ -45,13 +55,17 @@
           {% if plant_locked %}document.addEventListener('DOMContentLoaded', loadCategories);{% endif %}
         })();
         </script>
+        {% endif %}
       </div>
       <div>
         <label>ประเภท / ระบบรหัส *</label>
         <div id="system-slot">
+          {% if r %}{% with selected=r.code_system_id %}{% include "partials/system_select.html" %}{% endwith %}
+          {% else %}
           <select name="code_system_id" required disabled>
             <option>-- เลือกโรงงานก่อน --</option>
           </select>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -60,71 +74,101 @@
       <div>
         <label>หมวดสินค้า *</label>
         <div id="group-slot">
+          {% if r %}{% with selected=r.group_id %}{% include "partials/group_select.html" %}{% endwith %}
+          {% else %}
           <select name="group_id" required disabled>
             <option>-- เลือกระบบก่อน --</option>
           </select>
+          {% endif %}
         </div>
       </div>
       <div>
         <label>หมวดย่อย</label>
         <div id="subgroup-slot">
+          {% if r %}{% with selected=r.subgroup_id %}{% include "partials/subgroup_select.html" %}{% endwith %}
+          {% else %}
           <select name="subgroup_id" disabled>
             <option value="">-- ไม่มี --</option>
           </select>
+          {% endif %}
         </div>
       </div>
     </div>
 
     <label>ชื่อเรียกสินค้า * <span class="muted">(เฉพาะชื่อ ไม่ต้องใส่แบรนด์/รุ่น/ขนาด)</span></label>
-    <input name="item_name" required placeholder="เช่น Ball Bearing"
+    {# The Duplicate Check needs the Plant; on a resubmit it is not a form field. #}
+    {# dup_only: typing never brings suggestions that could auto-pick another
+       category on a resubmit (review 2026-10-16). #}
+    {% set plant_vals = ("hx-vals='{\"factory_id\": %d, \"dup_only\": \"1\"}'" % r.factory_id) if r else "" %}
+    <input id="item_name" name="item_name"{% if r %} value="{{ r.base_name or '' }}"{% endif %} required placeholder="เช่น Ball Bearing"
            hx-post="/fragments/duplicates" hx-target="#dup-slot" hx-swap="innerHTML"
-           hx-include="closest form" hx-trigger="keyup changed delay:600ms">
+           hx-include="closest form" {{ plant_vals | safe }}
+           hx-trigger="keyup changed delay:600ms">
+    {% if r %}
+    {# On load: duplicates only. The suggestions could auto-pick another
+       category before the Requester touched anything (review 2026-10-16). #}
+    <div hx-post="/fragments/duplicates" hx-target="#dup-slot" hx-swap="innerHTML"
+         hx-include="closest form" hx-trigger="load"
+         hx-vals='{"factory_id": {{ r.factory_id }}, "dup_only": "1"}'></div>
+    {% endif %}
     <div id="dup-slot"></div>
     <!-- both filled by out-of-band swaps from /fragments/duplicates -->
     <div id="cat-slot"></div>
     <div id="sn-slot"></div>
     <div class="row">
-      <div><label>แบรนด์</label><input name="brand" placeholder="เช่น SKF"
+      <div><label>แบรนด์</label><input name="brand"{% if r %} value="{{ r.brand or '' }}"{% endif %} placeholder="เช่น SKF"
            hx-post="/fragments/duplicates" hx-target="#dup-slot" hx-swap="innerHTML"
-           hx-include="closest form" hx-trigger="keyup changed delay:600ms"></div>
-      <div><label>รุ่น</label><input name="model" placeholder="เช่น UCF209-28"
+           hx-include="closest form" {{ plant_vals | safe }} hx-trigger="keyup changed delay:600ms"></div>
+      <div><label>รุ่น</label><input name="model"{% if r %} value="{{ r.model or '' }}"{% endif %} placeholder="เช่น UCF209-28"
            hx-post="/fragments/duplicates" hx-target="#dup-slot" hx-swap="innerHTML"
-           hx-include="closest form" hx-trigger="keyup changed delay:600ms"></div>
+           hx-include="closest form" {{ plant_vals | safe }} hx-trigger="keyup changed delay:600ms"></div>
       <div>
         <label>ขนาด</label>
-        <input name="size" placeholder='เช่น 4 นิ้ว, 10x20mm, กว้าง 10 สูง 20'
+        <input name="size"{% if r %} value="{{ r.size or '' }}"{% endif %} placeholder='เช่น 4 นิ้ว, 10x20mm, กว้าง 10 สูง 20'
                hx-post="/fragments/size" hx-target="#size-hint" hx-swap="innerHTML"
                hx-trigger="keyup changed delay:500ms">
         <div id="size-hint"></div>
       </div>
-      <div><label>ชนิด/สี</label><input name="variant" placeholder="เช่น EPDM ดำ"></div>
+      <div><label>ชนิด/สี</label><input name="variant"{% if r %} value="{{ r.variant or '' }}"{% endif %} placeholder="เช่น EPDM ดำ"></div>
       <div>
         <label>หน่วยนับ</label>
         <select name="uom">
-          <option value="" disabled selected>-- เลือกหน่วย --</option>
-          {% for u in uoms %}<option value="{{ u.code }}">{{ u.name }}</option>{% endfor %}
+          <option value="" disabled{{ "" if r and r.uom else " selected" }}>-- เลือกหน่วย --</option>
+          {% for u in uoms %}<option value="{{ u.code }}"{{ " selected" if r and u.code == r.uom }}>{{ u.name }}</option>{% endfor %}
+          {# A UoM switched off since: still the request's value, so keep it. #}
+          {% if r and r.uom and r.uom not in uoms | map(attribute="code") %}<option value="{{ r.uom }}" selected>{{ r.uom }} (ไม่ใช้แล้ว)</option>{% endif %}
         </select>
       </div>
     </div>
     <div class="row">
-      <div><label>Search name (ชื่อหมวด — ระบบแนะนำให้)</label><input name="search_name" id="search_name" placeholder="เช่น BEARING"></div>
-      <div><label>ราคาซื้อโดยประมาณ</label><input name="purchase_price" placeholder="เช่น 2320"></div>
+      <div><label>Search name (ชื่อหมวด — ระบบแนะนำให้)</label><input name="search_name" id="search_name"{% if r %} value="{{ r.search_name or '' }}"{% endif %} placeholder="เช่น BEARING"></div>
+      <div><label>ราคาซื้อโดยประมาณ</label><input name="purchase_price"{% if r %} value="{{ r.purchase_price or '' }}"{% endif %} placeholder="เช่น 2320"></div>
     </div>
     <label>Procurement Category</label>
     <div id="category-slot">
+      {% if r %}{% with selected=r.procurement_category %}{% include "partials/category_select.html" %}{% endwith %}
+      {% else %}
       <select name="procurement_category">
         <option value="">-- เลือกโรงงานก่อน --</option>
       </select>
+      {% endif %}
     </div>
     <label>สเปค / รายละเอียดเพิ่มเติม</label>
-    <textarea name="spec_note" rows="3" placeholder="ชนิด สี หรือรายละเอียดอื่นๆ"></textarea>
+    <textarea name="spec_note" rows="3" placeholder="ชนิด สี หรือรายละเอียดอื่นๆ">{% if r %}{{ "\n" }}{{ r.spec_note or '' }}{% endif %}</textarea>
 
     <div class="card" style="background:#f0f7f4; margin-top:16px;">
       <span class="muted">ชื่อสินค้าที่ระบบจะบันทึก (ประกอบอัตโนมัติ):</span>
-      <div id="name-preview" style="font-size:17px; font-weight:500; min-height:24px;">—</div>
+      {# Resubmit: the stored name until a field changes (no edit keeps it, even one Procurement typed). #}
+      <div id="name-preview" style="font-size:17px; font-weight:500; min-height:24px;">{{ r.item_name if r else "—" }}</div>
     </div>
 
+    {% if r %}
+    <label for="reply">ข้อความตอบจัดซื้อ * <span class="muted">(แก้อะไร หรือข้อมูลที่จัดซื้อขอ)</span></label>
+    <textarea id="reply" name="reply" rows="3" required></textarea>
+    <button type="submit">ส่งกลับให้จัดซื้อ</button>
+    {% else %}
     <button type="submit">ส่งคำขอ</button>
+    {% endif %}
   </form>
   <div id="form-result"></div>
 </div>

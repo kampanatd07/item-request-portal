@@ -6,7 +6,17 @@ from app.database import get_db
 from app.models import Account
 from app.routes.deps import current_account
 from app.services import catalog, snapshots
-from app.services.requests import RequestError, list_my_requests, submit_request
+from app.services.requests import (
+    RequestConflict,
+    RequestError,
+    RequestForbidden,
+    RequestNotFound,
+    list_my_requests,
+    needs_info_reason,
+    resubmit_request,
+    resubmittable,
+    submit_request,
+)
 from app.templating import templates
 
 router = APIRouter()
@@ -38,6 +48,96 @@ def my_requests(
 ):
     return templates.TemplateResponse(
         request, "my_requests.html", {"requests": list_my_requests(db, account)}
+    )
+
+
+def _error_status(e: RequestError) -> int:
+    if isinstance(e, RequestNotFound):
+        return 404
+    if isinstance(e, RequestForbidden):
+        return 403
+    if isinstance(e, RequestConflict):
+        return 409
+    return 422
+
+
+@router.get("/my-requests/{request_id}/resubmit", response_class=HTMLResponse)
+def resubmit_form(
+    request: Request,
+    request_id: int,
+    db: Session = Depends(get_db),
+    account: Account = Depends(current_account),
+) -> HTMLResponse:
+    from app.services import config_admin
+
+    try:
+        req = resubmittable(db, request_id, account)
+    except RequestError as e:
+        page = "forbidden.html" if isinstance(e, RequestForbidden) else "message.html"
+        return templates.TemplateResponse(request, page, {"message": str(e)},
+                                          status_code=_error_status(e))
+    def with_current(options: list, current: object) -> list:
+        # A system/group/sub-category switched off since is still the
+        # request's value: keep it selectable, or the browser would post the
+        # first option and an untouched form would look edited.
+        return options if current is None or current in options else [*options, current]
+
+    return templates.TemplateResponse(
+        request, "request_form.html",
+        {
+            "r": req,
+            "reason": needs_info_reason(db, req),
+            "uoms": catalog.list_uoms(db),
+            "plant_locked": True,
+            "systems": with_current(catalog.systems_for_factory(db, req.factory_id),
+                                    req.code_system),
+            "groups": with_current(catalog.groups_for_system(db, req.code_system_id),
+                                   req.group),
+            "subgroups": with_current(catalog.subgroups_for_group(db, req.group_id),
+                                      req.subgroup),
+            "categories": config_admin.active_categories(
+                db, snapshots.source_for_factory(db, req.factory_id)),
+        },
+    )
+
+
+@router.post("/my-requests/{request_id}/resubmit", response_class=HTMLResponse)
+def resubmit(
+    request: Request,
+    request_id: int,
+    code_system_id: int = Form(...),
+    group_id: int = Form(...),
+    subgroup_id: int | None = Form(None),
+    item_name: str = Form(""),
+    brand: str = Form(""),
+    model: str = Form(""),
+    size: str = Form(""),
+    variant: str = Form(""),
+    spec_note: str = Form(""),
+    uom: str = Form(""),
+    search_name: str = Form(""),
+    purchase_price: str = Form(""),
+    procurement_category: str = Form(""),
+    reply: str = Form(""),
+    db: Session = Depends(get_db),
+    account: Account = Depends(current_account),
+) -> HTMLResponse:
+    # No factory_id: the Plant is never read from the form on a resubmit.
+    try:
+        req = resubmit_request(
+            db, request_id, account, reply=reply, code_system_id=code_system_id,
+            group_id=group_id, subgroup_id=subgroup_id, item_name=item_name, brand=brand,
+            model=model, size=size, variant=variant, spec_note=spec_note, uom=uom,
+            search_name=search_name, purchase_price=purchase_price,
+            procurement_category=procurement_category,
+        )
+    except RequestError as e:
+        return templates.TemplateResponse(
+            request, "partials/form_error.html", {"message": str(e)},
+            status_code=_error_status(e),
+        )
+    return templates.TemplateResponse(
+        request, "partials/resubmit_success.html", {"req": req}
     )
 
 
@@ -84,8 +184,9 @@ def duplicates_fragment(
     brand: str = Form(""),
     model: str = Form(""),
     subgroup_id: str = Form(""),
+    dup_only: str = Form(""),
     db: Session = Depends(get_db),
-):
+) -> HTMLResponse:
     query = " ".join(p for p in [item_name, brand, model] if p).strip()
     source = snapshots.source_for_factory(db, factory_id)
     if len(query) < 3:
@@ -95,6 +196,15 @@ def duplicates_fragment(
         )
     no_snapshot = snapshots.latest_import(db, source) is None
     items = [] if no_snapshot else snapshots.search_similar(db, source=source, query=query)
+    if dup_only:
+        # A resubmit form on load: its category and search name are already
+        # chosen, so no suggestion (which could auto-pick another category,
+        # and may ask the LLM) — only the duplicates.
+        return templates.TemplateResponse(
+            request, "partials/duplicate_list.html",
+            {"items": items, "query_too_short": False, "no_snapshot": no_snapshot,
+             "suggest": None},
+        )
 
     # Piggyback the search-name suggestion on this same request and deliver it
     # via an out-of-band swap — one round-trip, and it can't fail to trigger.

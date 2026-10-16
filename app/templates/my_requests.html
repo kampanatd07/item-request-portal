@@ -16,7 +16,8 @@
       <td class="muted" style="white-space:nowrap;">{{ r.created_at | thai_time("%d/%m/%Y %H:%M") }}</td>
       <td>{% if can_open_queue %}<a href="/queue/{{ r.id }}">{{ r.item_name }}</a>{% else %}{{ r.item_name }}{% endif %}</td>
       <td>{{ r.factory.code }}</td>
-      <td><span class="badge {{ r.status }}">{{ status_labels[r.status] }}</span></td>
+      <td><span class="badge {{ r.status }}">{{ status_labels[r.status] }}</span>
+        {% if r.status == "needs_info" %}<br><a class="button" href="/my-requests/{{ r.id }}/resubmit">แก้ไขและส่งกลับ</a>{% endif %}</td>
       <td>{{ r.review_note or "" }}</td>
       <td>
         {# The reason for a burned code is in the note column, so not repeated here. #}

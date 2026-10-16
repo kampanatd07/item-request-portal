@@ -1,6 +1,10 @@
 <select name="procurement_category">
   <option value="">-- ไม่ระบุ --</option>
   {% for c in categories %}
-  <option value="{{ c.label }}">{{ c.label }}</option>
+  <option value="{{ c.label }}"{{ " selected" if c.label == selected }}>{{ c.label }}</option>
   {% endfor %}
+  {# A category switched off since: still the request's value, so keep it. #}
+  {% if selected and selected not in categories | map(attribute="label") %}
+  <option value="{{ selected }}" selected>{{ selected }} (ไม่ใช้แล้ว)</option>
+  {% endif %}
 </select>
