@@ -1,5 +1,5 @@
 import re
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -193,6 +193,86 @@ def submit_request(
     factory = db.get(Factory, factory_id) if factory_id is not None else None
     if factory is None or not factory.active:
         raise RequestError("กรุณาเลือกโรงงาน")
+    fields = _validated_fields(
+        db, factory_id, code_system_id=code_system_id, group_id=group_id,
+        subgroup_id=subgroup_id, item_name=item_name, brand=brand, model=model, size=size,
+        variant=variant, spec_note=spec_note, uom=uom, search_name=search_name,
+        purchase_price=purchase_price, procurement_category=procurement_category,
+    )
+
+    req = ItemRequest(
+        requester_name=account.display_name,
+        requester_email=account.email,
+        originator_name=on_behalf_of,
+        originator_email=originator_email,
+        factory_id=factory_id,
+        **asdict(fields),
+        status="submitted",
+    )
+    db.add(req)
+    db.flush()
+
+    # Record top duplicate candidates at submission time in the audit trail, so
+    # the reviewer sees what the requester saw even after the snapshot changes.
+    lines = []
+    if on_behalf_of:
+        lines.append(ON_BEHALF_PREFIX + on_behalf_of
+                     + (f" <{originator_email}>" if originator_email else ""))
+    duplicates = _duplicate_line(db, factory_id, item_name, brand, model)
+    if duplicates:
+        lines.append(duplicates)
+    db.add(
+        RequestEvent(
+            request_id=req.id, actor=account.email, action="submitted",
+            detail="\n".join(lines) or None,
+        )
+    )
+    db.commit()
+    return req
+
+
+@dataclass
+class RequestFields:
+    """The validated, composed values of an Item Request's form fields, ready
+    to set on the row; Plant and the originator are decided by the caller."""
+
+    code_system_id: int
+    group_id: int
+    subgroup_id: int | None
+    item_name: str
+    base_name: str | None
+    brand: str | None
+    model: str | None
+    size: str | None
+    variant: str | None
+    spec_note: str | None
+    uom: str | None
+    search_name: str
+    purchase_price: str | None
+    procurement_category: str | None
+
+
+def _validated_fields(
+    db: Session,
+    factory_id: int,
+    *,
+    code_system_id: int,
+    group_id: int,
+    subgroup_id: int | None,
+    item_name: str,
+    brand: str | None,
+    model: str | None,
+    size: str | None,
+    variant: str | None,
+    spec_note: str | None,
+    uom: str | None,
+    search_name: str | None,
+    purchase_price: str | None,
+    procurement_category: str | None,
+) -> RequestFields:
+    """Check the category and compose the Item Name from the form fields, or
+    raise a Thai RequestError. Shared by a new submission and a resubmit
+    (STORY-009), so the two can never drift. `item_name` is the Base Name."""
     if not item_name.strip():
         raise RequestError("กรุณากรอกชื่อเรียกสินค้า")
 
@@ -215,32 +295,33 @@ def submit_request(
     # Compose the standard product name. The [CATEGORY] segment is the
     # sub-category's taxonomy Name Prefix, so the name and the code always
     # describe the same category. Runs after validation so the prefix is trusted.
-    from app.services.naming import NamingError, compose_name
+    from app.services.naming import NamingError, clean_part, compose_name
     from app.services.units import normalize_size
 
     prefix_source = sub or group
+    size = normalize_size(size)  # once: the name and the stored size must agree
     try:
         composed_name = compose_name(
             item_name, brand=brand, model=model,
-            size=normalize_size(size), detail=variant,
+            size=size, detail=variant,
             category_prefix=prefix_source.name_prefix if prefix_source else None,
         )
     except NamingError as e:
         raise RequestError(str(e)) from e
 
-    req = ItemRequest(
-        requester_name=account.display_name,
-        requester_email=account.email,
-        originator_name=on_behalf_of,
-        originator_email=originator_email,
-        factory_id=factory_id,
+    return RequestFields(
         code_system_id=code_system_id,
         group_id=group_id,
         subgroup_id=subgroup_id,
         item_name=composed_name,
+        # Cleaned by the same rule compose_name applies to it, so composing
+        # from the stored fields gives this Item Name again (until Procurement
+        # types a name; a resubmit then recomposes on purpose, STORY-009 Q16).
+        # None when it cleans to nothing ("--" with a brand): ask again.
+        base_name=clean_part(item_name) or None,
         brand=brand or None,
         model=model or None,
-        size=normalize_size(size) or None,
+        size=size or None,
         variant=variant or None,
         spec_note=spec_note or None,
         uom=_canonical_uom(db, uom),
@@ -252,33 +333,21 @@ def submit_request(
         ),
         purchase_price=purchase_price or None,
         procurement_category=procurement_category or None,
-        status="submitted",
     )
-    db.add(req)
-    db.flush()
 
-    # Record top duplicate candidates at submission time in the audit trail, so
-    # the reviewer sees what the requester saw even after the snapshot changes.
+
+def _duplicate_line(db: Session, factory_id: int, typed_base: str, brand: str | None,
+                    model: str | None) -> str | None:
+    """'duplicate candidates: …' with the top 3 Snapshot matches, for a
+    `submitted` event; None when nothing matches. Pass the Base Name as the
+    form posted it (both submit and resubmit do), so the queries agree."""
     source = snapshots.source_for_factory(db, factory_id)
-    query = " ".join(p for p in [item_name, brand or "", model or ""] if p)
+    query = " ".join(p for p in [typed_base, brand or "", model or ""] if p)
     matches = snapshots.search_similar(db, source=source, query=query, limit=3)
-    lines = []
-    if on_behalf_of:
-        lines.append(ON_BEHALF_PREFIX + on_behalf_of
-                     + (f" <{originator_email}>" if originator_email else ""))
-    if matches:
-        lines.append(
-            "duplicate candidates: "
-            + "; ".join(f"{i.item_number} {i.name[:60]} ({s:.0%})" for i, s in matches)
-        )
-    db.add(
-        RequestEvent(
-            request_id=req.id, actor=account.email, action="submitted",
-            detail="\n".join(lines) or None,
-        )
-    )
-    db.commit()
-    return req
+    if not matches:
+        return None
+    return "duplicate candidates: " + "; ".join(
+        f"{i.item_number} {i.name[:60]} ({s:.0%})" for i, s in matches)
 
 
 def change_status(
