@@ -10,13 +10,14 @@ story file plus `docs/HANDOFF.md` alone, without chat history.
 | [003](STORY-003-uom-standard.md) | 24-unit UoM standard + Base/Purchase UoM + pack size | — | 002, 004 |
 | [004](STORY-004-item-attributes.md) | Legacy No., Scope Owner, Lifecycle State | — | 002, 003 |
 | [005](STORY-005-register-sync.md) | Re-sync running register from Decision Sheet | Peter fills D1–D4 | — |
-| [006](STORY-006-deploy.md) | Deploy to Render/Railway + Postgres | 001, 002, 009, 010 | — |
+| [006](STORY-006-deploy.md) | Deploy to Render/Railway + Postgres | 001, 002, 009, 010, 013 | — |
 | [007](STORY-007-naming-alignment.md) | Names: `mL`, `in`, no `,` (align with standard) | — | 002, 004 |
 | [008](STORY-008-classification-flags.md) | Flag Sub-Category 99 (reason required) and possible fixed assets | — | 002, 007 |
 | [009](STORY-009-requester-resubmit.md) | Requester edits and resubmits a Needs Info request (before plants open) | 001 | 002 |
 | [010](STORY-010-validate-code-override.md) | Validate code override against the Running Register — **done** (2026-10-01) | 001 | 002, 003 |
 | [011](STORY-011-account-admin-audit.md) | Account admin audit trail in DB (lower priority) | 001 | any |
 | [012](STORY-012-plant-aware-d365-snapshot.md) | Plant-aware D365 snapshot (blocked: waiting for Peter's sample export) | 010 | any |
+| [013](STORY-013-category-change-name-prefix.md) | Category change updates the name prefix (before plants open) | — | 009 |
 
 ## Status values
 `todo` → `planned` (spec + tickets written) → `in-progress` → `review` → `done`

@@ -1,6 +1,6 @@
 # STORY-006: Deploy for the 4 plants
 
-Status: todo · Depends on: STORY-001, STORY-002, STORY-009 (requesters must be able to answer Needs Info before the plants get access), STORY-010 (code override must be validated before deploy)
+Status: todo · Depends on: STORY-001, STORY-002, STORY-009 (requesters must be able to answer Needs Info before the plants get access), STORY-010 (code override must be validated before deploy), STORY-013 (a category change must not leave the old prefix in names exported to AX)
 
 ## Why
 The app only runs on Peter's laptop. Plants need a URL.
