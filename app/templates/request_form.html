@@ -97,9 +97,9 @@
 
     <label>ชื่อเรียกสินค้า * <span class="muted">(เฉพาะชื่อ ไม่ต้องใส่แบรนด์/รุ่น/ขนาด)</span></label>
     {# The Duplicate Check needs the Plant; on a resubmit it is not a form field. #}
-    {# dup_only: typing never brings suggestions that could auto-pick another
-       category on a resubmit (review 2026-10-16). #}
-    {% set plant_vals = ("hx-vals='{\"factory_id\": %d, \"dup_only\": \"1\"}'" % r.factory_id) if r else "" %}
+    {# no_autopick: typing on a resubmit brings the suggestions back, but never
+       picks a category for the Requester (review 2026-10-16). #}
+    {% set plant_vals = ("hx-vals='{\"factory_id\": %d, \"no_autopick\": \"1\"}'" % r.factory_id) if r else "" %}
     <input id="item_name" name="item_name"{% if r %} value="{{ r.base_name or '' }}"{% endif %} required placeholder="เช่น Ball Bearing"
            hx-post="/fragments/duplicates" hx-target="#dup-slot" hx-swap="innerHTML"
            hx-include="closest form" {{ plant_vals | safe }}

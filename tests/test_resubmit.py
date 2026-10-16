@@ -393,11 +393,13 @@ def test_an_inactive_sub_category_stays_selected(client_as, app_db):
 
 
 def test_typing_on_the_resubmit_form_never_auto_picks_a_category(client_as, app_db):
+    # Round 3 (Peter, 2026-10-16): typing shows the suggestions again, but the
+    # category is never picked for the Requester.
     c, _, req = _requester_with_request(client_as, app_db)
     page = c.get(_url(req)).text
     for field in ("item_name", "brand", "model"):
         tag = page.split(f'name="{field}"', 1)[1].split(">", 1)[0]
-        assert '"dup_only": "1"' in tag, field
+        assert '"no_autopick": "1"' in tag and "dup_only" not in tag, field
 
 
 def test_a_spec_note_posted_back_with_crlf_is_not_an_edit(client_as, app_db):
@@ -450,3 +452,69 @@ def test_the_preview_starts_with_the_stored_item_name(client_as, app_db):
     page = c.get(_url(req)).text
     preview = page.split('id="name-preview"', 1)[1].split("</div>", 1)[0]
     assert "BEARING - ชื่อที่จัดซื้อพิมพ์" in preview
+
+
+# --- Code review round 3 (2026-10-16): a new Base Name gets fresh suggestions -------------------
+
+def _confident_suggestion(app_db):
+    from app.services.categorizer import Suggestion
+
+    seal = central_ids(app_db, "APM", "900", "02")[3]
+    return [Suggestion(app_db.get(CodeGroup, seal.parent_id), seal, 0.95, "test")]
+
+
+def test_suggestions_without_auto_pick(client_as, app_db, monkeypatch):
+    from app.services import categorizer
+
+    monkeypatch.setattr(categorizer, "suggest_category",
+                        lambda db, name, **kw: _confident_suggestion(app_db))
+    c = client_as("requester", plant="APM")
+    factory = central_ids(app_db, "APM")[0]
+    data = {"factory_id": factory.id, "item_name": "Oil Seal", "no_autopick": "1"}
+    r = c.post("/fragments/duplicates", data=data)
+    assert "onclick=\"pickCategory(" in r.text  # the Requester may still pick it
+    assert "<script>pickCategory(" not in r.text  # but nothing is picked for them
+    new_form = c.post("/fragments/duplicates", data={**data, "no_autopick": ""}).text
+    assert "<script>pickCategory(" in new_form  # the new-request form is unchanged
+
+
+def _classify_records(monkeypatch, req, suggestion: str) -> list[str]:
+    from app.services import classifier
+
+    seen: list[str] = []
+
+    def fake(db, name, **kwargs):
+        seen.append(db.scalar(select(ItemRequest.status).where(ItemRequest.id == req.id)))
+        return {"suggestion": suggestion}
+
+    monkeypatch.setattr(classifier, "classify", fake)
+    return seen
+
+
+def test_a_new_base_name_gets_a_new_search_name_before_the_claim(client_as, app_db,
+                                                                 monkeypatch):
+    c, _, req = _requester_with_request(client_as, app_db, search_name="BEARING")
+    seen = _classify_records(monkeypatch, req, "HYDRAULIC HOSE")
+    r = c.post(_url(req), data=_form(req, item_name="Hydraulic Hose"))  # Search name untouched
+    assert r.status_code == 200, r.text
+    req = _fresh(app_db, req)
+    assert req.search_name == "HYDRAULIC HOSE"
+    assert seen == ["needs_info"]  # classified before the row was claimed
+    edited = [e for e in _events(app_db, req) if e.action == "request_edited"][-1]
+    assert "Search name: BEARING → HYDRAULIC HOSE" in edited.detail
+
+
+def test_a_search_name_the_requester_typed_wins(client_as, app_db, monkeypatch):
+    c, _, req = _requester_with_request(client_as, app_db, search_name="BEARING")
+    seen = _classify_records(monkeypatch, req, "HYDRAULIC HOSE")
+    r = c.post(_url(req), data=_form(req, item_name="Hydraulic Hose", search_name="HOSE"))
+    assert r.status_code == 200, r.text
+    assert _fresh(app_db, req).search_name == "HOSE"
+    assert seen == []
+
+
+def test_an_unchanged_base_name_keeps_the_search_name(client_as, app_db, monkeypatch):
+    c, _, req = _requester_with_request(client_as, app_db, search_name="BEARING")
+    seen = _classify_records(monkeypatch, req, "SOMETHING ELSE")
+    assert c.post(_url(req), data=_form(req, brand="NSK")).status_code == 200
+    assert _fresh(app_db, req).search_name == "BEARING" and seen == []

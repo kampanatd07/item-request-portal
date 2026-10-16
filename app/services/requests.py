@@ -509,6 +509,13 @@ def resubmit_request(
     # What was edited is judged on the posted Search name: clearing it is an
     # edit, whatever the classifier then suggests.
     posted_search_name = search_name
+    # A new Base Name with the Search name left as it was: work out a new one,
+    # as for a new request (Peter, 2026-10-16), or "Hydraulic Hose" would keep
+    # "BEARING". A Search name the Requester typed is kept.
+    refresh_search_name = not _same(req.base_name, item_name) and \
+        _same(req.search_name, search_name)
+    if refresh_search_name:
+        search_name = None
     if not (search_name or "").strip() and item_name.strip():
         chosen = (db.get(CodeGroup, subgroup_id) if subgroup_id is not None else None) \
             or db.get(CodeGroup, group_id)
@@ -540,6 +547,8 @@ def resubmit_request(
         "purchase_price": purchase_price, "procurement_category": procurement_category,
     }
     edited = _edited(req, posted)
+    if refresh_search_name and "search_name" not in edited:
+        edited.append("search_name")  # so its change line is logged
     if edited:
         try:
             fields = _validated_fields(

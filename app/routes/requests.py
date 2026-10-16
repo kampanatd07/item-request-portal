@@ -185,6 +185,7 @@ def duplicates_fragment(
     model: str = Form(""),
     subgroup_id: str = Form(""),
     dup_only: str = Form(""),
+    no_autopick: str = Form(""),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
     query = " ".join(p for p in [item_name, brand, model] if p).strip()
@@ -238,7 +239,9 @@ def duplicates_fragment(
             "no_snapshot": no_snapshot,
             "suggest": suggest,
             "categories": categories,
-            "auto_select": AUTO_SELECT_CONFIDENCE,
+            # A resubmit shows the suggestions but never picks one itself: the
+            # stored category was chosen on purpose (review 2026-10-16).
+            "auto_select": float("inf") if no_autopick else AUTO_SELECT_CONFIDENCE,
         },
     )
 
