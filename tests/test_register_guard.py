@@ -150,7 +150,8 @@ def test_procurement_reviews_edits_and_recategorises_before_a_code(db_session):
                     account=procurement)
     change_status(db_session, req.id, new_status="in_review", account=procurement)
     change_status(db_session, req.id, new_status="needs_info", account=procurement, note="สเปค?")
-    change_status(db_session, req.id, new_status="submitted", account=procurement)
+    change_status(db_session, req.id, new_status="submitted", account=procurement,
+                  note="ผู้ขอตอบแล้ว")
     change_status(db_session, req.id, new_status="rejected", account=procurement)
     db_session.refresh(req)
     assert req.status == "rejected" and req.subgroup.code == "02"

@@ -213,7 +213,7 @@ def test_the_form_is_prefilled_with_procurements_category_and_reason(client_as, 
     seal = central_ids(app_db, "APM", "900", "02")[3]
     # Procurement corrected the Sub-Category while it waited (before a code).
     change_status(app_db, req.id, new_status="submitted",
-                  account=account_for(app_db, "procurement"))
+                  account=account_for(app_db, "procurement"), note="ผู้ขอตอบแล้ว")
     change_category(app_db, req.id, subgroup_id=seal.id,
                     account=account_for(app_db, "procurement"))
     _needs_info(app_db, req, note="ขอรุ่นด้วย")

@@ -456,19 +456,70 @@ def _change_lines(db: Session, req: ItemRequest, fields: RequestFields,
 MAX_REPLY_LEN = 1000
 
 
-def _clean_reply(reply: str | None) -> str:
-    """One line, NFC + SARA AM fixed (HANDOFF §6.2), so a reply can never pass
-    for a system line of the `submitted` event (e.g. "duplicate candidates:")."""
+def _one_line(text: str | None, what: str) -> str:
+    """Required text on one line, NFC + SARA AM fixed (HANDOFF §6.2). One line,
+    so a reply cannot add a line below it that looks like a system line of the
+    `submitted` event; the text itself may still start with anything.
+    `what` names the field in the Thai errors."""
     import unicodedata
 
     from app.services.snapshots import fix_thai
 
-    reply = " ".join(fix_thai(unicodedata.normalize("NFC", reply or "")).split())
-    if not reply:
-        raise RequestError("กรุณาเขียนข้อความตอบจัดซื้อ")
-    if len(reply) > MAX_REPLY_LEN:
-        raise RequestError(f"ข้อความตอบจัดซื้อยาวเกิน {MAX_REPLY_LEN} ตัวอักษร")
-    return reply
+    text = " ".join(fix_thai(unicodedata.normalize("NFC", text or "")).split())
+    if not text:
+        raise RequestError(f"กรุณาระบุ{what}")
+    if len(text) > MAX_REPLY_LEN:
+        raise RequestError(f"{what}ยาวเกิน {MAX_REPLY_LEN} ตัวอักษร")
+    return text
+
+
+def _clean_reply(reply: str | None) -> str:
+    return _one_line(reply, "ข้อความตอบจัดซื้อ")
+
+
+def _claim_from_needs_info(db: Session, request_id: int) -> ItemRequest:
+    """Move the request from needs_info to submitted, or raise; the one way out
+    of Needs Info (resubmit and Procurement's requeue both use it).
+
+    A conditional UPDATE, the notifier's pattern: of two attempts only one
+    changes the row, the other gets 0 rows → RequestConflict (409), or
+    RequestNotFound if the row is gone. The row stays locked until the
+    caller commits, so the caller writes the rest in the same transaction.
+    """
+    from sqlalchemy import text
+
+    claimed = db.execute(
+        # updated_at by hand: a raw UPDATE skips the ORM's onupdate.
+        text("UPDATE item_requests SET status = 'submitted', updated_at = CURRENT_TIMESTAMP "
+             "WHERE id = :id AND status = 'needs_info'"),
+        {"id": request_id},
+    ).rowcount
+    db.expire_all()
+    if claimed != 1:
+        db.rollback()
+        current = db.get(ItemRequest, request_id)
+        if current is None:
+            raise RequestNotFound("ไม่พบคำขอนี้")
+        raise _not_waiting(current)
+    return db.get(ItemRequest, request_id)
+
+
+def requeue_request(db: Session, request_id: int, account: Account,
+                    note: str | None) -> ItemRequest:
+    """Procurement's "ผู้ขอส่งข้อมูลแล้ว รับเข้าคิวใหม่": back to the queue
+    without edits, e.g. after a reply by phone. The note is required (Q5) and
+    becomes the `submitted` event's detail; the Needs Info note is cleared
+    (Q20). No email (Q18). Procurement or Administrator only, checked here and
+    not just by the queue router, as every rule lives in the service."""
+    if not has_role(account, "procurement"):
+        raise RequestForbidden("รับเข้าคิวใหม่ได้เฉพาะฝ่ายจัดซื้อ — ผู้ขอใช้ 'แก้ไขและส่งกลับ'")
+    note = _one_line(note, "หมายเหตุว่าผู้ขอแจ้งอะไรมา")
+    req = _claim_from_needs_info(db, request_id)
+    req.review_note = None
+    db.add(RequestEvent(request_id=req.id, actor=account.email, action="submitted",
+                        detail=note))
+    db.commit()
+    return req
 
 
 def resubmit_request(
@@ -502,8 +553,6 @@ def resubmit_request(
     differs from the stored one; with no edit the request keeps its Item Name,
     even one Procurement typed. Otherwise the name is recomposed.
     """
-    from sqlalchemy import text
-
     req = resubmittable(db, request_id, account)
     reply = _clean_reply(reply)
     # What was edited is judged on the posted Search name: clearing it is an
@@ -523,21 +572,7 @@ def resubmit_request(
             db, None, item_name, req.factory_id,
             product_type=chosen.product_type if chosen else None)
     db.rollback()  # end the read-only transaction: the claim starts a fresh one
-
-    claimed = db.execute(
-        # updated_at by hand: a raw UPDATE skips the ORM's onupdate.
-        text("UPDATE item_requests SET status = 'submitted', updated_at = CURRENT_TIMESTAMP "
-             "WHERE id = :id AND status = 'needs_info'"),
-        {"id": request_id},
-    ).rowcount
-    db.expire_all()
-    req = db.get(ItemRequest, request_id)
-    if claimed != 1:
-        db.rollback()
-        current = db.get(ItemRequest, request_id)
-        if current is None:  # deleted since resubmittable() saw it
-            raise RequestNotFound("ไม่พบคำขอนี้")
-        raise _not_waiting(current)
+    req = _claim_from_needs_info(db, request_id)
 
     posted = {
         "code_system_id": code_system_id, "group_id": group_id, "subgroup_id": subgroup_id,
@@ -586,6 +621,10 @@ def change_status(
     # Approval mints a code from the register: Administrator only.
     if new_status == "approved":
         _require_administrator(account)
+    if new_status == "submitted":
+        # The only way back to submitted is out of Needs Info, and that has
+        # one path with its own claim and rules (STORY-009 ticket 03).
+        return requeue_request(db, request_id, account, note)
     req = _get_locked(db, request_id)
     if req is None:
         raise RequestError("ไม่พบคำขอนี้")

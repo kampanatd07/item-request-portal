@@ -16,6 +16,7 @@ from app.services.notify import (
 )
 from app.services.clock import Clock, get_clock
 from app.services.requests import (
+    RequestConflict,
     RequestError,
     RequestForbidden,
     SKIP_CONFIRM_LIMIT,
@@ -33,8 +34,10 @@ router = APIRouter(prefix="/queue")
 
 
 def _error(request: Request, e: RequestError) -> HTMLResponse:
-    # A Role refusal is 403 so it reads as "not allowed", not "bad input".
-    status = 403 if isinstance(e, RequestForbidden) else 422
+    # A Role refusal is 403 so it reads as "not allowed", not "bad input";
+    # a request that moved on meanwhile (e.g. a resubmit won) is 409.
+    status = 403 if isinstance(e, RequestForbidden) else \
+        409 if isinstance(e, RequestConflict) else 422
     return templates.TemplateResponse(
         request, "partials/form_error.html", {"message": str(e)}, status_code=status
     )

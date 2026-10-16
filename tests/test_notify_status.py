@@ -100,7 +100,7 @@ def test_the_same_change_is_announced_once(app_db):
 def test_a_stale_change_is_skipped_quietly(app_db):
     req = _submitted(app_db)
     change = _change(app_db, req, "needs_info", "?")
-    _change(app_db, req, "submitted")  # requester answered before the email went out
+    _change(app_db, req, "submitted", "ผู้ขอตอบแล้ว")  # requester answered before the email went out
     outbox = FakeMailSender()
     assert notify_status(_factory(app_db), req.id, change.id, outbox, "a@test.local") == "skipped"
     assert outbox.sent == []
@@ -111,7 +111,7 @@ def test_a_stale_change_is_skipped_quietly(app_db):
 def test_a_superseded_change_is_not_announced_but_the_new_one_is(app_db):
     req = _submitted(app_db)
     first = _change(app_db, req, "needs_info", "รอบแรก")
-    _change(app_db, req, "submitted")
+    _change(app_db, req, "submitted", "ผู้ขอตอบแล้ว")
     second = _change(app_db, req, "needs_info", "รอบสอง")
     outbox = FakeMailSender()
     # status is needs_info again, but `first` is no longer the latest change
@@ -123,7 +123,7 @@ def test_a_superseded_change_is_not_announced_but_the_new_one_is(app_db):
 def test_two_needs_info_rounds_give_two_emails(client, app_db, mail_outbox):
     req = _submitted(app_db)
     client.post(f"/queue/{req.id}/status", data={"new_status": "needs_info", "note": "รอบแรก"})
-    client.post(f"/queue/{req.id}/status", data={"new_status": "submitted"})
+    client.post(f"/queue/{req.id}/status", data={"new_status": "submitted", "note": "ผู้ขอตอบแล้ว"})
     client.post(f"/queue/{req.id}/status", data={"new_status": "needs_info", "note": "รอบสอง"})
     assert [("รอบแรก" in m.text, "รอบสอง" in m.text) for m in mail_outbox.sent] == [
         (True, False), (False, True)]
@@ -203,7 +203,7 @@ def test_two_concurrent_sends_of_one_change_deliver_one_email(tmp_path, seeded_t
 def test_a_change_without_a_note_does_not_repeat_an_older_reason(app_db):
     req = _submitted(app_db)
     _change(app_db, req, "needs_info", "ขอสเปค 25 mm")
-    _change(app_db, req, "submitted")
+    _change(app_db, req, "submitted", "ผู้ขอตอบแล้ว")
     second = _change(app_db, req, "needs_info")  # no note this time
     outbox = FakeMailSender()
     notify_status(_factory(app_db), req.id, second.id, outbox, "a@test.local")
