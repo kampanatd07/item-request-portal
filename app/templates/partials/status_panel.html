@@ -27,12 +27,19 @@
 </form>
 {% endif %}
 {% if req.status in ["submitted", "in_review", "needs_info"] %}
+{% if req.status == "needs_info" %}
+{# Back to the queue needs a note (STORY-009 Q5); rejecting does not, so each
+   button has its own form. #}
+<form hx-post="/queue/{{ req.id }}/status" hx-target="#status-panel" hx-swap="innerHTML">
+  <label>ผู้ขอแจ้งอะไรมา (เช่น ทางโทรศัพท์) *</label>
+  <input name="note" required>
+  <button name="new_status" value="submitted">ผู้ขอส่งข้อมูลแล้ว รับเข้าคิวใหม่</button>
+</form>
+{% endif %}
 <form hx-post="/queue/{{ req.id }}/status" hx-target="#status-panel" hx-swap="innerHTML">
   <label>หมายเหตุ (ถ้ามี)</label>
   <input name="note">
-  {% if req.status == "needs_info" %}
-  <button name="new_status" value="submitted">ผู้ขอส่งข้อมูลแล้ว รับเข้าคิวใหม่</button>
-  {% else %}
+  {% if req.status != "needs_info" %}
   {# Approval issues a Running Number: Administrator only (Governance v1 §3). #}
   {% if is_admin %}<button name="new_status" value="approved">อนุมัติ</button>{% endif %}
   {% if req.status == "submitted" %}

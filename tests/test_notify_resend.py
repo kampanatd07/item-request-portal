@@ -115,7 +115,7 @@ def test_a_failure_before_the_created_change_is_not_its_reason(client, app_db, m
     req = _submitted(app_db, a)
     _failed_change(app_db, req, "needs_info", "Graph: 503")  # an older round's failure
     admin = account_for(app_db, "administrator")
-    change_status(app_db, req.id, new_status="submitted", account=admin)
+    change_status(app_db, req.id, new_status="submitted", account=admin, note="ผู้ขอตอบแล้ว")
     change_status(app_db, req.id, new_status="approved", account=admin)
     batch = export_pending(app_db, central_ids(app_db)[0].id, account=account_for(app_db))
     client.post(f"/exports/{batch.id}/mark-created")
@@ -190,10 +190,10 @@ def test_a_lost_change_is_listed_only_after_the_grace_time(app_db):
 def test_a_stale_change_is_neither_listed_nor_resent(client, app_db, mail_outbox):
     answered = _submitted(app_db)
     _failed_change(app_db, answered, "needs_info")
-    _change(app_db, answered, "submitted")  # the requester answered: E is no longer current
+    _change(app_db, answered, "submitted", "ผู้ขอตอบแล้ว")  # the requester answered: E is no longer current
     superseded = _submitted(app_db)
     _failed_change(app_db, superseded, "needs_info")
-    _change(app_db, superseded, "submitted")
+    _change(app_db, superseded, "submitted", "ผู้ขอตอบแล้ว")
     _change(app_db, superseded, "needs_info", "รอบสอง")  # same status again, newer change
     notify_status(_factory(app_db), superseded.id,
                   latest_status_event(app_db, superseded.id).id, FakeMailSender(), "a@test.local")

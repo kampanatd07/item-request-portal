@@ -6,6 +6,7 @@ from app.database import SessionFactory, get_db, get_session_factory
 from app.models import Account, ItemRequest
 from app.routes.deps import current_account, require_role
 from app.services import override_preview
+from app.services.queue_view import latest_resubmit, resubmitted_ids
 from app.services.mail import MailSender, get_mail_sender
 from app.services.notify import (
     ANNOUNCED,
@@ -16,6 +17,7 @@ from app.services.notify import (
 )
 from app.services.clock import Clock, get_clock
 from app.services.requests import (
+    RequestConflict,
     RequestError,
     RequestForbidden,
     SKIP_CONFIRM_LIMIT,
@@ -33,17 +35,23 @@ router = APIRouter(prefix="/queue")
 
 
 def _error(request: Request, e: RequestError) -> HTMLResponse:
-    # A Role refusal is 403 so it reads as "not allowed", not "bad input".
-    status = 403 if isinstance(e, RequestForbidden) else 422
+    # A Role refusal is 403 so it reads as "not allowed", not "bad input";
+    # a request that moved on meanwhile (e.g. a resubmit won) is 409.
+    status = 403 if isinstance(e, RequestForbidden) else \
+        409 if isinstance(e, RequestConflict) else 422
     return templates.TemplateResponse(
         request, "partials/form_error.html", {"message": str(e)}, status_code=status
     )
 
 
 @router.get("", response_class=HTMLResponse)
-def queue_page(request: Request, status: str | None = None, db: Session = Depends(get_db)):
+def queue_page(request: Request, status: str | None = None,
+               db: Session = Depends(get_db)) -> HTMLResponse:
+    requests = list_queue(db, status)
     return templates.TemplateResponse(
-        request, "queue.html", {"requests": list_queue(db, status), "current": status}
+        request, "queue.html",
+        {"requests": requests, "current": status,
+         "resubmitted": resubmitted_ids(db, [r.id for r in requests])},
     )
 
 
@@ -81,6 +89,7 @@ def request_detail(request: Request, request_id: int, db: Session = Depends(get_
         request, "request_detail.html",
         {"req": req, "taxonomy": _taxonomy(db),
          "originator": originator_of(req) if req else None,
+         "resubmit": latest_resubmit(req) if req else None,
          "unsent": unsent[0] if unsent else None, "req_id": request_id},
     )
 

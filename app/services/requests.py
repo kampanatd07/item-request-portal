@@ -1,7 +1,7 @@
 import re
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -15,7 +15,7 @@ from app.models import (
     RunningRegister,
 )
 from app.services import snapshots
-from app.services.auth import has_role
+from app.services.auth import has_role, normalize_email
 
 # Allowed status transitions: guards against double-clicks and stale queue pages.
 TRANSITIONS: dict[str, set[str]] = {
@@ -40,6 +40,14 @@ class RequestError(Exception):
 
 class RequestForbidden(RequestError):
     """The acting Account's Role may not do this; routes answer 403."""
+
+
+class RequestNotFound(RequestError):
+    """No such request; routes answer 404."""
+
+
+class RequestConflict(RequestError):
+    """The request moved on since the page was opened; routes answer 409."""
 
 
 def _retire(db: Session, code: str, req: ItemRequest, reason: str, account: Account) -> None:
@@ -95,17 +103,20 @@ def originator_of(req: ItemRequest) -> str | None:
     return req.originator_name
 
 
-def _check_originator(db: Session, name: str | None,
-                      email: str | None) -> tuple[str | None, str | None]:
+def _check_originator(db: Session, name: str | None, email: str | None,
+                      keep_email: str | None = None) -> tuple[str | None, str | None]:
     """Normalised originator name and email, or a Thai RequestError.
 
     The email must belong to a named person, look like an Account email, and
     use an active allowed domain (Settings page) — notification emails carry
     internal item data, so a typo must not send them outside the company.
+    `keep_email`, the one already stored on a resubmitted request, skips the
+    domain check: a domain switched off since must not block other edits
+    (send-time checks still apply, see notify.recipients).
     """
     import unicodedata
 
-    from app.services.auth import _EMAIL_RE, normalize_email
+    from app.services.auth import _EMAIL_RE
     from app.services.config_admin import active_mail_domains
     from app.services.snapshots import fix_thai
 
@@ -124,6 +135,8 @@ def _check_originator(db: Session, name: str | None,
         raise RequestError("ใส่อีเมลผู้ขอจริงแล้วต้องใส่ชื่อในช่อง \"ขอแทน\" ด้วย")
     if not _EMAIL_RE.fullmatch(email):
         raise RequestError("รูปแบบอีเมลผู้ขอจริงไม่ถูกต้อง")
+    if email == keep_email:
+        return name, email
     allowed = active_mail_domains(db)
     if not allowed:
         raise RequestError("ยังไม่มีโดเมนอีเมลที่อนุญาต — ผู้ดูแลระบบเพิ่มได้ในหน้าตั้งค่า "
@@ -193,8 +206,102 @@ def submit_request(
     factory = db.get(Factory, factory_id) if factory_id is not None else None
     if factory is None or not factory.active:
         raise RequestError("กรุณาเลือกโรงงาน")
-    if not item_name.strip():
+    fields = _validated_fields(
+        db, factory_id, code_system_id=code_system_id, group_id=group_id,
+        subgroup_id=subgroup_id, item_name=item_name, brand=brand, model=model, size=size,
+        variant=variant, spec_note=spec_note, uom=uom, search_name=search_name,
+        purchase_price=purchase_price, procurement_category=procurement_category,
+    )
+
+    req = ItemRequest(
+        requester_name=account.display_name,
+        requester_email=account.email,
+        originator_name=on_behalf_of,
+        originator_email=originator_email,
+        factory_id=factory_id,
+        **asdict(fields),
+        status="submitted",
+    )
+    db.add(req)
+    db.flush()
+
+    # Record top duplicate candidates at submission time in the audit trail, so
+    # the reviewer sees what the requester saw even after the snapshot changes.
+    lines = []
+    if on_behalf_of:
+        lines.append(ON_BEHALF_PREFIX + on_behalf_of
+                     + (f" <{originator_email}>" if originator_email else ""))
+    duplicates = _duplicate_line(db, factory_id, item_name, brand, model)
+    if duplicates:
+        lines.append(duplicates)
+    db.add(
+        RequestEvent(
+            request_id=req.id, actor=account.email, action="submitted",
+            detail="\n".join(lines) or None,
+        )
+    )
+    db.commit()
+    return req
+
+
+@dataclass
+class RequestFields:
+    """The validated, composed values of an Item Request's form fields, ready
+    to set on the row; Plant and the originator are decided by the caller."""
+
+    code_system_id: int
+    group_id: int
+    subgroup_id: int | None
+    item_name: str
+    base_name: str | None
+    brand: str | None
+    model: str | None
+    size: str | None
+    variant: str | None
+    spec_note: str | None
+    uom: str | None
+    search_name: str
+    purchase_price: str | None
+    procurement_category: str | None
+
+
+def _require_base_name(item_name: str | None) -> None:
+    if not (item_name or "").strip():
         raise RequestError("กรุณากรอกชื่อเรียกสินค้า")
+
+
+def _validated_fields(
+    db: Session,
+    factory_id: int,
+    *,
+    code_system_id: int,
+    group_id: int,
+    subgroup_id: int | None,
+    item_name: str,
+    brand: str | None,
+    model: str | None,
+    size: str | None,
+    variant: str | None,
+    spec_note: str | None,
+    uom: str | None,
+    search_name: str | None,
+    purchase_price: str | None,
+    procurement_category: str | None,
+    classify_blank: bool = True,
+) -> RequestFields:
+    """Check the category and compose the Item Name from the form fields, or
+    raise a Thai RequestError. Shared by a new submission and a resubmit
+    (STORY-009), so the two can never drift. `item_name` is the Base Name."""
+    _require_base_name(item_name)
+    # The system must be one the Plant may request against, and switched on:
+    # the same list the form offers (catalog.systems_for_factory). Before
+    # STORY-009's closing review only the group was checked, so a hand-made
+    # post could use another Plant's system or the inactive stock systems.
+    from app.services.catalog import systems_for_factory
+
+    if code_system_id not in {s.id for s in systems_for_factory(db, factory_id)}:
+        raise RequestError("ระบบรหัสนี้ใช้กับโรงงานของคำขอไม่ได้ "
+                           "(ไม่ได้ผูกกับโรงงานนี้ หรือปิดใช้งานอยู่)")
 
     group = db.get(CodeGroup, group_id)
     if group is None or group.code_system_id != code_system_id or not group.active:
@@ -215,70 +322,430 @@ def submit_request(
     # Compose the standard product name. The [CATEGORY] segment is the
     # sub-category's taxonomy Name Prefix, so the name and the code always
     # describe the same category. Runs after validation so the prefix is trusted.
-    from app.services.naming import NamingError, compose_name
+    from app.services.naming import NamingError, clean_part, compose_name
     from app.services.units import normalize_size
 
     prefix_source = sub or group
+    size = normalize_size(size)  # once: the name and the stored size must agree
     try:
         composed_name = compose_name(
             item_name, brand=brand, model=model,
-            size=normalize_size(size), detail=variant,
+            size=size, detail=variant,
             category_prefix=prefix_source.name_prefix if prefix_source else None,
         )
     except NamingError as e:
         raise RequestError(str(e)) from e
 
-    req = ItemRequest(
-        requester_name=account.display_name,
-        requester_email=account.email,
-        originator_name=on_behalf_of,
-        originator_email=originator_email,
-        factory_id=factory_id,
+    return RequestFields(
         code_system_id=code_system_id,
         group_id=group_id,
         subgroup_id=subgroup_id,
         item_name=composed_name,
+        # Cleaned by the same rule compose_name applies to it, so composing
+        # from the stored fields gives this Item Name again (until Procurement
+        # types a name; a resubmit then recomposes on purpose, STORY-009 Q16).
+        # None when it cleans to nothing ("--" with a brand): ask again.
+        base_name=clean_part(item_name) or None,
         brand=brand or None,
         model=model or None,
-        size=normalize_size(size) or None,
+        size=size or None,
         variant=variant or None,
         spec_note=spec_note or None,
         uom=_canonical_uom(db, uom),
         # If the requester left search name blank, classify the BASE name into a
         # canonical category term (dictionary -> master neighbours -> LLM).
+        # A resubmit classifies before its claim and passes classify_blank=False,
+        # so the LLM is never asked while the row is held.
         search_name=_resolve_search_name(
             db, search_name, item_name, factory_id,
             product_type=(sub or group).product_type,
-        ),
+        ) if classify_blank else (search_name or "").strip()[:60],
         purchase_price=purchase_price or None,
         procurement_category=procurement_category or None,
-        status="submitted",
     )
-    db.add(req)
-    db.flush()
 
-    # Record top duplicate candidates at submission time in the audit trail, so
-    # the reviewer sees what the requester saw even after the snapshot changes.
+
+def _duplicate_line(db: Session, factory_id: int, typed_base: str, brand: str | None,
+                    model: str | None) -> str | None:
+    """'duplicate candidates: …' with the top 3 Snapshot matches, for a
+    `submitted` event; None when nothing matches. Pass the Base Name as the
+    form posted it (both submit and resubmit do), so the queries agree."""
     source = snapshots.source_for_factory(db, factory_id)
-    query = " ".join(p for p in [item_name, brand or "", model or ""] if p)
+    query = " ".join(p for p in [typed_base, brand or "", model or ""] if p)
     matches = snapshots.search_similar(db, source=source, query=query, limit=3)
-    lines = []
-    if on_behalf_of:
-        lines.append(ON_BEHALF_PREFIX + on_behalf_of
-                     + (f" <{originator_email}>" if originator_email else ""))
-    if matches:
-        lines.append(
-            "duplicate candidates: "
-            + "; ".join(f"{i.item_number} {i.name[:60]} ({s:.0%})" for i, s in matches)
-        )
-    db.add(
-        RequestEvent(
-            request_id=req.id, actor=account.email, action="submitted",
-            detail="\n".join(lines) or None,
-        )
+    if not matches:
+        return None
+    return "duplicate candidates: " + "; ".join(
+        f"{i.item_number} {i.name[:60]} ({s:.0%})" for i, s in matches)
+
+
+# --- Resubmit (STORY-009) -------------------------------------------------------
+
+# Fields a resubmit compares, in the order the change lines list them; the
+# labels are the request form's. The category is compared separately.
+_RESUBMIT_FIELDS: list[tuple[str, str]] = [
+    ("base_name", "ชื่อเรียก"), ("brand", "แบรนด์"), ("model", "รุ่น"), ("size", "ขนาด"),
+    ("variant", "ชนิด/สี"), ("uom", "หน่วยนับ"), ("spec_note", "สเปค"),
+    ("search_name", "Search name"), ("purchase_price", "ราคาซื้อ"),
+    ("procurement_category", "Procurement Category"),
+]
+
+
+def _not_waiting(req: ItemRequest) -> RequestConflict:
+    from app.templating import STATUS_LABELS
+
+    return RequestConflict(
+        f"คำขอนี้ไม่ได้รอข้อมูลแล้ว (สถานะปัจจุบัน: {STATUS_LABELS.get(req.status, req.status)})")
+
+
+def _requester_is(req: ItemRequest, email: str) -> bool:
+    return normalize_email(req.requester_email) == normalize_email(email)
+
+
+def _originator_is(req: ItemRequest, email: str) -> bool:
+    return bool(req.originator_email) and \
+        normalize_email(req.originator_email) == normalize_email(email)
+
+
+def named_on(req: ItemRequest, email: str) -> bool:
+    """The email is the request's Requester or Originator (no Plant or active
+    rule: who an event's actor was, e.g. for the queue card)."""
+    return _requester_is(req, email) or _originator_is(req, email)
+
+
+def is_requester(req: ItemRequest, account: Account) -> bool:
+    return _requester_is(req, account.email)
+
+
+def _named_originator(req: ItemRequest, account: Account) -> bool:
+    return _originator_is(req, account.email)
+
+
+def is_originator(req: ItemRequest, account: Account) -> bool:
+    """The Account is who the request was made for (and not its Requester)."""
+    return not is_requester(req, account) and _named_originator(req, account)
+
+
+def _may_own(req: ItemRequest, account: Account) -> bool:
+    """Requester, or an active Originator in the request's Plant (an Account
+    without a Plant, i.e. Procurement or Administrator, in any Plant).
+    decisions.md 2026-10-16."""
+    if is_requester(req, account):
+        return True
+    return (_named_originator(req, account) and account.active
+            and account.factory_id in (None, req.factory_id))
+
+
+def may_resubmit(req: ItemRequest, account: Account) -> bool:
+    """Whether "My requests" offers this Account the resubmit button."""
+    return req.status == "needs_info" and _may_own(req, account)
+
+
+def resubmittable(db: Session, request_id: int, account: Account) -> ItemRequest:
+    """The request, if this Account may resubmit it now; else a RequestError.
+
+    The request's own Requester, whatever their Role, or its Originator (see
+    `_may_own`): Procurement that neither submitted it nor asked for it gets
+    403 too. Ownership is checked before the status, so a stranger learns
+    nothing about the request.
+    """
+    req = db.get(ItemRequest, request_id)
+    if req is None:
+        raise RequestNotFound("ไม่พบคำขอนี้")
+    if not _may_own(req, account):
+        if is_originator(req, account) and account.active:
+            # Followed the Needs Info email from another Plant (ticket 04 rule).
+            raise RequestForbidden("บัญชีของคุณอยู่คนละโรงงานกับคำขอนี้ จึงแก้ไขในระบบไม่ได้ "
+                                   "— ตอบกลับทางอีเมลที่ได้รับแทนได้")
+        raise RequestForbidden("แก้ไขและส่งกลับได้เฉพาะคำขอของคุณเอง หรือคำขอที่มีคนขอแทนคุณ")
+    if req.status != "needs_info":
+        raise _not_waiting(req)
+    return req
+
+
+def originator_editable(req: ItemRequest, account: Account) -> bool:
+    """Only the Requester decides who a request is for, and only with a Role
+    that may name an originator at all (a Requester-role Account cannot, as on
+    a new request)."""
+    return is_requester(req, account) and has_role(account, "procurement")
+
+
+def needs_info_reason(db: Session, req: ItemRequest) -> str | None:
+    """What Procurement asked for: the latest needs_info event's note."""
+    return db.scalar(
+        select(RequestEvent.detail)
+        .where(RequestEvent.request_id == req.id, RequestEvent.action == "needs_info")
+        .order_by(RequestEvent.id.desc())
+        .limit(1)
     )
+
+
+def _category_label(db: Session, group_id: int, subgroup_id: int | None) -> str:
+    group = db.get(CodeGroup, group_id)
+    sub = db.get(CodeGroup, subgroup_id) if subgroup_id is not None else None
+    return f"{group.code}-{sub.code}" if sub else group.code
+
+
+def _flat(value: object) -> str:
+    """A field value as text on one line, whitespace collapsed; None is ''."""
+    return " ".join(str(value).split()) if value is not None else ""
+
+
+def _shown(value: object) -> str:
+    """A field value on one change line: '-' when empty, newlines flattened."""
+    return _flat(value) or "-"
+
+
+def _same(stored: object, posted: object) -> bool:
+    """Did the form post back what it was prefilled with? Compared as text with
+    whitespace collapsed: a browser drops a textarea's leading newline and
+    sends CRLF, and normalising (search name cut to 60, UoM aliases) must not
+    turn an untouched field into an edit."""
+    return _flat(stored) == _flat(posted)
+
+
+def _edited(req: ItemRequest, posted: dict[str, object]) -> list[str]:
+    """The form fields whose posted value differs from the stored one."""
+    edited = [name for name in ("code_system_id", "group_id", "subgroup_id")
+              if not _same(getattr(req, name), posted[name])]
+    edited += [name for name, _ in _RESUBMIT_FIELDS
+               if not _same(getattr(req, name), posted[name])]
+    return edited
+
+
+# One `request_edited` line is "label: old → new". The queue reads the Item
+# Name line back for the replaced-name warning (queue_view), so the format
+# lives here once.
+CHANGE_ARROW = " → "
+NAME_CHANGE_LABEL = "ชื่อสินค้า"
+
+
+def change_line(label: str, old: object, new: object) -> str:
+    return f"{label}: {old}{CHANGE_ARROW}{new}"
+
+
+def _change_lines(db: Session, req: ItemRequest, fields: RequestFields,
+                  edited: list[str]) -> list[str]:
+    """'label: old → new' for each edited field, the new value as it will be stored."""
+    lines = []
+    if {"code_system_id", "group_id", "subgroup_id"} & set(edited):
+        lines.append(change_line("หมวด", _category_label(db, req.group_id, req.subgroup_id),
+                                 _category_label(db, fields.group_id, fields.subgroup_id)))
+    lines += [change_line(label, _shown(getattr(req, name)), _shown(getattr(fields, name)))
+              for name, label in _RESUBMIT_FIELDS if name in edited]
+    return lines
+
+
+MAX_REPLY_LEN = 1000
+
+
+def _one_line(text: str | None, what: str) -> str:
+    """Required text on one line, NFC + SARA AM fixed (HANDOFF §6.2). One line,
+    so a reply cannot add a line below it that looks like a system line of the
+    `submitted` event; the text itself may still start with anything.
+    `what` names the field in the Thai errors."""
+    import unicodedata
+
+    from app.services.snapshots import fix_thai
+
+    text = " ".join(fix_thai(unicodedata.normalize("NFC", text or "")).split())
+    if not text:
+        raise RequestError(f"กรุณาระบุ{what}")
+    if len(text) > MAX_REPLY_LEN:
+        raise RequestError(f"{what}ยาวเกิน {MAX_REPLY_LEN} ตัวอักษร")
+    return text
+
+
+def _clean_reply(reply: str | None) -> str:
+    return _one_line(reply, "ข้อความตอบจัดซื้อ")
+
+
+def _claim_from_needs_info(db: Session, request_id: int) -> ItemRequest:
+    """Move the request from needs_info to submitted, or raise; the one way out
+    of Needs Info (resubmit and Procurement's requeue both use it).
+
+    A conditional UPDATE, the notifier's pattern: of two attempts only one
+    changes the row, the other gets 0 rows → RequestConflict (409), or
+    RequestNotFound if the row is gone. The row stays locked until the
+    caller commits, so the caller writes the rest in the same transaction.
+    """
+    from sqlalchemy import text
+
+    claimed = db.execute(
+        # updated_at by hand: a raw UPDATE skips the ORM's onupdate.
+        text("UPDATE item_requests SET status = 'submitted', updated_at = CURRENT_TIMESTAMP "
+             "WHERE id = :id AND status = 'needs_info'"),
+        {"id": request_id},
+    ).rowcount
+    db.expire_all()
+    if claimed != 1:
+        db.rollback()
+        current = db.get(ItemRequest, request_id)
+        if current is None:
+            raise RequestNotFound("ไม่พบคำขอนี้")
+        raise _not_waiting(current)
+    return db.get(ItemRequest, request_id)
+
+
+def notifies_procurement(account: Account) -> bool:
+    """A resubmit is emailed to Procurement only when someone outside it made
+    it: Procurement and Administrators are not told about their own action
+    (decisions.md 2026-10-16)."""
+    return not has_role(account, "procurement")
+
+
+@dataclass
+class Resubmitted:
+    req: ItemRequest
+    # The `submitted` event this resubmit wrote, when Procurement must be
+    # emailed about it; None otherwise. The id comes from the write itself,
+    # never from a later lookup that a status change could overtake.
+    notify_event_id: int | None
+
+
+def requeue_request(db: Session, request_id: int, account: Account,
+                    note: str | None) -> ItemRequest:
+    """Procurement's "ผู้ขอส่งข้อมูลแล้ว รับเข้าคิวใหม่": back to the queue
+    without edits, e.g. after a reply by phone. The note is required (Q5) and
+    becomes the `submitted` event's detail; the Needs Info note is cleared
+    (Q20). No email (Q18). Procurement or Administrator only, checked here and
+    not just by the queue router, as every rule lives in the service."""
+    if not has_role(account, "procurement"):
+        raise RequestForbidden("รับเข้าคิวใหม่ได้เฉพาะฝ่ายจัดซื้อ — ผู้ขอใช้ 'แก้ไขและส่งกลับ'")
+    note = _one_line(note, "หมายเหตุว่าผู้ขอแจ้งอะไรมา")
+    req = _claim_from_needs_info(db, request_id)
+    req.review_note = None
+    db.add(RequestEvent(request_id=req.id, actor=account.email, action="submitted",
+                        detail=note))
     db.commit()
     return req
+
+
+def resubmit_request(
+    db: Session,
+    request_id: int,
+    account: Account,
+    *,
+    reply: str,
+    code_system_id: int,
+    group_id: int,
+    subgroup_id: int | None,
+    item_name: str,
+    brand: str | None = None,
+    model: str | None = None,
+    size: str | None = None,
+    variant: str | None = None,
+    spec_note: str | None = None,
+    uom: str | None = None,
+    search_name: str | None = None,
+    purchase_price: str | None = None,
+    procurement_category: str | None = None,
+    on_behalf_of: str | None = None,
+    originator_email: str | None = None,
+) -> "Resubmitted":
+    """The Requester or Originator answers Needs Info: edit the fields, send it back.
+
+    Plant is always the stored one. The row is claimed first with a
+    conditional UPDATE (needs_info → submitted, the notifier's pattern), so of
+    two attempts only one gets the row; then the fields are checked and saved
+    in that same transaction, and any refusal rolls the claim back. Nothing
+    slow happens under the claim: a blank Search name (which may ask the LLM)
+    is worked out before it. A field counts as edited only if the posted text
+    differs from the stored one; with no edit the request keeps its Item Name,
+    even one Procurement typed. Otherwise the name is recomposed. The
+    originator fields are ignored unless `originator_editable`; a change to
+    them is checked as on a new request.
+    """
+    req = resubmittable(db, request_id, account)
+    reply = _clean_reply(reply)
+    # Required even when nothing else changed: an old row has no Base Name
+    # yet, and an empty one posted back would otherwise count as "unchanged".
+    _require_base_name(item_name)
+    # What was edited is judged on the posted Search name: clearing it is an
+    # edit, whatever the classifier then suggests.
+    posted_search_name = search_name
+    # A new Base Name with the Search name left as it was: work out a new one,
+    # as for a new request (Peter, 2026-10-16), or "Hydraulic Hose" would keep
+    # "BEARING". A Search name the Requester typed is kept.
+    refresh_search_name = not _same(req.base_name, item_name) and \
+        _same(req.search_name, search_name)
+    if refresh_search_name:
+        search_name = None
+    if not (search_name or "").strip() and item_name.strip():
+        chosen = (db.get(CodeGroup, subgroup_id) if subgroup_id is not None else None) \
+            or db.get(CodeGroup, group_id)
+        search_name = _resolve_search_name(
+            db, None, item_name, req.factory_id,
+            product_type=chosen.product_type if chosen else None)
+    # The fuzzy search over the snapshot is slow too: before the claim, not
+    # under it. The Plant never changes on a resubmit.
+    duplicates = _duplicate_line(db, req.factory_id, item_name, brand, model)
+    db.rollback()  # end the read-only transaction: the claim starts a fresh one
+    req = _claim_from_needs_info(db, request_id)
+
+    posted = {
+        "code_system_id": code_system_id, "group_id": group_id, "subgroup_id": subgroup_id,
+        "base_name": item_name, "brand": brand, "model": model, "size": size,
+        "variant": variant, "spec_note": spec_note, "uom": uom,
+        "search_name": posted_search_name,
+        "purchase_price": purchase_price, "procurement_category": procurement_category,
+    }
+    edited = _edited(req, posted)
+    if refresh_search_name and "search_name" not in edited:
+        edited.append("search_name")  # so its change line is logged
+    # A field not posted at all (None) keeps its value; only "" clears it.
+    if on_behalf_of is None:
+        on_behalf_of = req.originator_name
+    if originator_email is None:
+        originator_email = req.originator_email
+    originator_changes = []
+    if originator_editable(req, account) and not (
+            _same(req.originator_name, on_behalf_of)
+            and _same(req.originator_email, originator_email)):
+        try:
+            name, email = _check_originator(db, on_behalf_of, originator_email,
+                                            keep_email=req.originator_email)
+        except RequestError:
+            db.rollback()  # back to needs_info, nothing written
+            raise
+        for label, attr, value in (("ขอแทน", "originator_name", name),
+                                   ("อีเมลผู้ขอจริง", "originator_email", email)):
+            if getattr(req, attr) != value:
+                originator_changes.append(
+                    change_line(label, _shown(getattr(req, attr)), _shown(value)))
+                setattr(req, attr, value)
+    changes = []
+    if edited:
+        try:
+            fields = _validated_fields(
+                db, req.factory_id, code_system_id=code_system_id, group_id=group_id,
+                subgroup_id=subgroup_id, item_name=item_name, brand=brand, model=model,
+                size=size, variant=variant, spec_note=spec_note, uom=uom,
+                search_name=search_name, purchase_price=purchase_price,
+                procurement_category=procurement_category, classify_blank=False,
+            )
+        except RequestError:
+            db.rollback()  # back to needs_info, nothing written
+            raise
+        changes = _change_lines(db, req, fields, edited)
+        if fields.item_name != req.item_name:
+            changes.append(change_line(NAME_CHANGE_LABEL, req.item_name, fields.item_name))
+        for name, value in asdict(fields).items():
+            setattr(req, name, value)
+    changes += originator_changes  # last, so the field lines keep one order
+    if changes:
+        db.add(RequestEvent(request_id=req.id, actor=account.email, action="request_edited",
+                            detail="\n".join(changes)))
+    req.review_note = None
+    lines = [reply]
+    if duplicates:
+        lines.append(duplicates)
+    submitted = RequestEvent(request_id=req.id, actor=account.email, action="submitted",
+                             detail="\n".join(lines))
+    db.add(submitted)
+    db.commit()
+    return Resubmitted(req=req, notify_event_id=submitted.id
+                       if notifies_procurement(account) else None)
 
 
 def change_status(
@@ -288,6 +755,10 @@ def change_status(
     # Approval mints a code from the register: Administrator only.
     if new_status == "approved":
         _require_administrator(account)
+    if new_status == "submitted":
+        # The only way back to submitted is out of Needs Info, and that has
+        # one path with its own claim and rules (STORY-009 ticket 03).
+        return requeue_request(db, request_id, account, note)
     req = _get_locked(db, request_id)
     if req is None:
         raise RequestError("ไม่พบคำขอนี้")
@@ -669,15 +1140,22 @@ def override_code(
 
 
 def list_my_requests(db: Session, account: Account) -> list[ItemRequest]:
-    """The Account's own requests, newest first ("My requests").
+    """The Account's own requests and those made on its behalf, newest first
+    ("My requests"), in every status.
+
+    No Plant or active rule here, unlike `may_resubmit`: the Originator already
+    gets the same data by email, and hiding the row would leave "an email but
+    no request to find" (Peter, 2026-10-19). The row is read-only for them.
 
     Matched on email, which never changes for an Account. Compared without case
     or surrounding spaces, since requests typed in before login existed may
     carry the address as the person wrote it.
     """
+    me = account.email.lower()
     return list(db.scalars(
         select(ItemRequest)
-        .where(func.lower(func.trim(ItemRequest.requester_email)) == account.email.lower())
+        .where(or_(func.lower(func.trim(ItemRequest.requester_email)) == me,
+                   func.lower(func.trim(ItemRequest.originator_email)) == me))
         .order_by(ItemRequest.created_at.desc(), ItemRequest.id.desc())
     ))
 

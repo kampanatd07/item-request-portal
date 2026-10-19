@@ -16,6 +16,12 @@ _Avoid_: form, ticket, order
 The plant employee who submits an Item Request.
 _Avoid_: user, customer
 
+**Originator**:
+The plant employee a Procurement-submitted Item Request is made on behalf of.
+Receives the request's emails but is not its Requester; if they have an
+Account, they may also resubmit it from Needs Info.
+_Avoid_: on-behalf person, end user
+
 **Procurement**:
 The central team (Peter + 1–2 people) that reviews requests, readies them for
 Approval, exports them and imports the result into AX/D365. Only its
@@ -60,7 +66,7 @@ _Avoid_: pending, under review (it means review is done, not ongoing)
 
 **Needs Info**:
 Procurement sent the request back to the Requester for missing detail; the
-Requester resubmits it.
+Requester (or the Originator, if any) resubmits it.
 _Avoid_: returned, pending
 
 ### The item
@@ -187,7 +193,8 @@ The exact column layout AX/D365 of a Plant accepts; one per Plant.
 - An **Export Batch** holds requests of one **Plant** only.
 - An **Item Request** is submitted by one **Account**, which is its Requester.
   A Requester Account can only submit for its own **Plant**; Procurement picks
-  the Plant and stays the Requester even when asking on someone's behalf.
+  the Plant and stays the Requester even when asking on someone's behalf;
+  that someone is the request's **Originator**.
 
 ## Flagged ambiguities
 

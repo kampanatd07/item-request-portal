@@ -20,6 +20,24 @@
   </table>
 </div>
 
+{% if resubmit %}
+{# Above everything Procurement acts on, so the answer is read first (STORY-009). #}
+<div class="card" id="resubmit-summary" style="background:#fff6d6;">
+  <h3 style="margin-top:0;">{% if resubmit.by_owner %}ส่งกลับจากรอข้อมูล{% else %}รับเข้าคิวใหม่โดยจัดซื้อ{% endif %}</h3>
+  <p class="muted">{{ resubmit.actor }} · {{ resubmit.at | thai_time("%d/%m/%Y %H:%M") }}</p>
+  {% if resubmit.replaced_name %}
+  <p class="error"><strong>ชื่อที่จัดซื้อแก้ไว้ถูกแทนที่: {{ resubmit.replaced_name[0] }} → {{ resubmit.replaced_name[1] }}</strong></p>
+  {% endif %}
+  <p><strong>{% if resubmit.by_owner %}ข้อความตอบ{% else %}หมายเหตุ{% endif %}:</strong> {{ resubmit.reply }}</p>
+  {% if resubmit.changes %}
+  <p><strong>ที่แก้:</strong></p>
+  <ul>{% for line in resubmit.changes %}<li>{{ line }}</li>{% endfor %}</ul>
+  {% elif resubmit.by_owner %}
+  <p class="muted">ไม่ได้แก้ข้อมูล</p>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="card" id="name-panel">
   {% include "partials/name_panel.html" %}
 </div>
@@ -46,7 +64,7 @@
   <table>
     {% for e in req.events %}
     <tr>
-      <td class="muted">{{ e.at.strftime("%d/%m/%Y %H:%M") }}</td>
+      <td class="muted">{{ e.at | thai_time("%d/%m/%Y %H:%M") }}</td>
       <td>{{ event_labels.get(e.action) or status_labels.get(e.action, e.action) }}</td>
       <td>{{ e.actor }}</td>
       <td>{{ e.detail or "" }}</td>

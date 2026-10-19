@@ -53,6 +53,7 @@ def test_invalid_transition_raises(db_session):
 def test_needs_info_roundtrip(db_session):
     req = _make_request(db_session)
     change_status(db_session, req.id, new_status="needs_info", account=account_for(db_session), note="ขอสเปค")
-    change_status(db_session, req.id, new_status="submitted", account=account_for(db_session))
+    change_status(db_session, req.id, new_status="submitted", account=account_for(db_session),
+                  note="ผู้ขอตอบแล้ว")
     assert req.status == "submitted"
     assert [e.action for e in req.events] == ["submitted", "needs_info", "submitted"]

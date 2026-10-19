@@ -35,7 +35,8 @@ class NamingError(Exception):
     """User-facing Thai message."""
 
 
-def _clean_part(part: str | None) -> str:
+def clean_part(part: str | None) -> str:
+    """One name part, cleaned as `compose_name` cleans every part."""
     part = _FORBIDDEN.sub(" ", part or "")
     part = _BAD_SEPARATORS.sub(" ", part)
     part = _BLOCKED_WORDS.sub("", part)
@@ -77,9 +78,9 @@ def compose_name(
     When it is absent the name degrades gracefully to the two remaining
     segments rather than emitting a dangling separator.
     """
-    category = _clean_part(category_prefix).upper()[:MAX_CATEGORY_LEN]
-    name_seg = _join_unique([_clean_part(base), _clean_part(brand), _clean_part(model)])
-    detail_seg = _join_unique([_clean_part(size), _clean_part(detail)])
+    category = clean_part(category_prefix).upper()[:MAX_CATEGORY_LEN]
+    name_seg = _join_unique([clean_part(base), clean_part(brand), clean_part(model)])
+    detail_seg = _join_unique([clean_part(size), clean_part(detail)])
 
     if not name_seg:
         raise NamingError("กรุณากรอกชื่อเรียกสินค้า")

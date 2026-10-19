@@ -165,7 +165,7 @@ def test_closed_requests_and_changes_are_not_listed(db_session):
 def test_a_new_change_after_the_closed_one_is_owed_an_email(db_session):
     req = _submitted(db_session)
     _close(db_session, req, _change(db_session, req, "needs_info", "ขอสเปค"))
-    _change(db_session, req, "submitted")  # the requester answered (closed change superseded)
+    _change(db_session, req, "submitted", "ผู้ขอตอบแล้ว")  # the requester answered (closed change superseded)
     _change(db_session, req, "needs_info", "ขอรูปด้วย")
     assert _listed(db_session) == {(req.id, "needs_info")}
 

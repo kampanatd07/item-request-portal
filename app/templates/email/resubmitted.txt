@@ -1,0 +1,23 @@
+{#- Plain text: Starlette's Jinja env autoescapes every template, so turn it off here. -#}
+{% autoescape false %}คำขอ #{{ req.id }} ส่งกลับแล้ว หลังจากจัดซื้อขอข้อมูลเพิ่ม
+
+ชื่อสินค้า: {{ req.item_name }}
+โรงงาน: {{ req.factory.code }}
+ส่งกลับโดย: {{ actor_name }} ({{ summary.actor }})
+
+ข้อความตอบ: {{ summary.reply }}
+{% if summary.changes %}
+ที่แก้:
+{%- for line in summary.changes %}
+- {{ line }}
+{%- endfor %}
+{% else %}
+ไม่ได้แก้ข้อมูล
+{% endif %}
+{%- if link %}
+เปิดคำขอในคิว: {{ link }}
+{%- endif %}
+
+--
+อีเมลนี้ส่งอัตโนมัติจาก Item Request Portal (ตอบกลับอีเมลนี้ถึงผู้ส่งกลับโดยตรง)
+{% endautoescape %}

@@ -111,6 +111,9 @@ class ItemRequest(Base):
     # item_name is COMPOSED from (base ชื่อเรียก + brand + model + size + variant)
     # by services/naming.py — requesters never type the final name directly.
     item_name: Mapped[str] = mapped_column(String(300))
+    # The Base Name as it went into item_name (cleaned like the name part), so a
+    # resubmit form can be prefilled (STORY-009). Empty on older requests.
+    base_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     brand: Mapped[str | None] = mapped_column(String(100), nullable=True)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     size: Mapped[str | None] = mapped_column(String(100), nullable=True)
