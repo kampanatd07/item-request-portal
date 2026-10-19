@@ -1,6 +1,6 @@
 # STORY-009: Requester edits and resubmits a Needs Info request
 
-Status: planned · Depends on: STORY-001, STORY-002 · Must ship before the plants get access
+Status: done (2026-10-19) · Depends on: STORY-001, STORY-002 · Must ship before the plants get access
 Triage: ready-for-agent
 
 ## Why
@@ -266,3 +266,118 @@ already exist in AX/D365.
   typed; do not block.
 - Peter: conditional claim `WHERE status = 'needs_info'` for both ways out of
   Needs Info; 0 rows → 409; tested with two threads on file SQLite.
+
+## Closing check (2026-10-19)
+
+Tickets 01–06 are done and pushed (last commit 5f03c87). Suite: 711 passed.
+
+### Migration `db44eba12672` (adds `item_requests.base_name`)
+- Fresh temporary SQLite: `upgrade head` → seed → `downgrade -1` →
+  `upgrade head` → seed, all clean; `alembic check`: no differences between
+  the models and the schema.
+- A copy of dev.db in a temporary folder (2 requests, 13 events):
+  upgrade → downgrade → upgrade. A sha256 over every request column (except
+  `base_name`) and every event is the same at each step; `base_name` stays
+  NULL (no backfill, Q3). dev.db itself was only read: its sha256 is the
+  same before and after.
+- master has gained one commit since the branch (933689d, STORY-013 docs
+  only): no second migration head.
+
+### Branch review: `/code-review master..story/009-requester-resubmit`
+Checked against this story's acceptance criteria, its six tickets and
+decisions.md (2026-10-16, 2026-10-19). 9 findings. Same sorting as the
+ticket reviews: **(ก)** wrong data, someone acting who should not, or data
+lost, or an acceptance criterion not met; **(ข)** everything else, a note.
+Peter's decisions: fixed 1, 2, 4, 5, 7, 8, 9; 3 → a new story after the
+merge (TODO below); 6 not changed. Outcomes at the end of this file.
+
+#### (ก) Must fix
+
+1. **A resubmit accepts another Plant's code system, or an inactive one.**
+   `_validated_fields` checks only that the group belongs to the posted
+   `code_system_id`; it never checks that the code system is linked to the
+   request's Plant (`FactoryCodeSystem`) or is active. A resubmit locks the
+   Plant but a hand-made post can move a CBD request into an APM-only
+   system, or into the inactive stock system (whose groups are still
+   active). Wrong data, and against "Stock code systems stay inactive".
+   Verified in the code. The same gap exists on *new* requests since before
+   STORY-009 (shared validation), so one fix in `_validated_fields` closes
+   both. **Recommend: fix** (refuse with a Thai error; test both paths).
+2. **The server does not require a Base Name on old rows** (user story 15).
+   With `base_name` NULL, a posted empty `item_name` counts as "not edited"
+   (`_same(None, "")`), so the resubmit goes through and the Base Name stays
+   empty; only the browser's `required` enforces it. No data is wrong, but
+   the acceptance criterion is not met on the server. **Recommend: fix**:
+   refuse an empty Base Name on resubmit, in the service.
+
+#### (ข) Notes
+
+3. **The live preview does not show the name the server will save** (user
+   story 8). After the first keystroke the preview is a plain space-joined
+   string, without the category prefix, ` - ` separators or unit spacing.
+   Verified: the same `compose()` is on master for new requests, so this is
+   older than STORY-009. **Recommend: a separate story** (the preview should
+   ask the server's name composer), not a STORY-009 change.
+4. **The Duplicate Check search runs while the row is claimed**
+   (`_duplicate_line` after `_claim_from_needs_info`). On SQLite that holds
+   the database write lock for the fuzzy search over the snapshot (~22k
+   rows); other writers wait. No wrong data. **Recommend: fix** (cheap: work
+   it out before the claim, as the Search name already is).
+5. **Ownership rule written twice**: `queue_view._is_owner` repeats
+   `is_requester`/`_named_originator`. **Recommend: fix** (reuse them).
+6. **Two maps from RequestError to HTTP status** (`routes/requests.py
+   _error_status`, `routes/queue.py _error`). Already noted in ticket 03
+   (queue answers 422 for a deleted request). **Recommend: no change** in
+   this story.
+7. **"Who is Procurement" in two forms**: `procurement_recipients` lists the
+   roles by hand; `notifies_procurement` uses the `ROLES` order. Same result
+   today. **Recommend: fix** (derive the list from `ROLES`).
+8. **Same whitespace collapse twice** (`_same`'s inner `text()` and
+   `_shown`). **Recommend: fix** (one helper).
+9. **`queue_page` has no return type** (CLAUDE.md: type hints on all
+   functions); the branch changed it. **Recommend: fix.**
+
+#### Outcome (2026-10-19)
+
+- **1 fixed** in `_validated_fields`, shared by new requests and resubmits:
+  the code system must be in `catalog.systems_for_factory` (linked to the
+  request's Plant and active), the same list the form offers. **The bug is on
+  master too** (new requests). Tests in `tests/test_story009_closing.py`:
+  another Plant's system and the inactive stock system, both on a new request
+  and on a resubmit, plus over HTTP.
+- **2 fixed:** `resubmit_request` refuses an empty Base Name before the
+  claim, even when nothing else changed.
+- **4 fixed:** the Duplicate Check line is worked out before the claim. The
+  race tests of tickets 03/04 still catch a claim without
+  `AND status='needs_info'` (3 of 3 fail with it, 5 of 5 pass without).
+  Their helper comment in `tests/test_requeue.py` ("the winner holds the
+  claim; the other UPDATE must wait") no longer describes what the sleep
+  does; left as is because it is an existing test (Peter to decide).
+- **5, 7, 8, 9 fixed** as refactors: `requests.named_on` (queue card),
+  `procurement_recipients` derived from `ROLES`, one `_flat` helper,
+  `queue_page -> HTMLResponse`. No behaviour change, so no failing test
+  first; mutation checks show existing tests cover each (owner rule: 2 fail,
+  whitespace collapse: 2 fail, role list: 8 fail).
+- Tests: 9 new (written first, all 7 that check a fix failed before it).
+  Old tests: none changed. Suite: 720 passed.
+
+### TODO after STORY-009 merges
+- **Open a new story on master: the name preview does not match the saved
+  name**, on both the new-request page and the resubmit page (closing
+  review item 3). After the first keystroke the preview drops the category
+  prefix, the ` - ` separators and unit spacing; it should come from the
+  server's name composer.
+- Add to STORY-013's Notes the name-setter rule from ticket 05 (see its
+  Notes).
+
+#### Review of the closing fix diff only (2026-10-19)
+
+No new (ก). One (ข) note: if the request's stored code system has been
+switched off or unlinked since, the resubmit form still shows it selected
+(`with_current`); an untouched form passes, but editing another field is
+refused with "ระบบรหัสนี้ใช้กับโรงงานของคำขอไม่ได้". That matches how a
+switched-off stored group or sub-category already behaves. Also confirmed:
+`_validated_fields` has only the two callers; the Base Name check runs after
+the ownership and status checks; the Duplicate Check inputs are unchanged;
+`named_on` no longer matches an empty actor email to a missing originator
+(cannot happen: events always record the Account email).

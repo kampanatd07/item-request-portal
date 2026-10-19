@@ -265,6 +265,11 @@ class RequestFields:
     procurement_category: str | None
 
 
+def _require_base_name(item_name: str | None) -> None:
+    if not (item_name or "").strip():
+        raise RequestError("กรุณากรอกชื่อเรียกสินค้า")
+
+
 def _validated_fields(
     db: Session,
     factory_id: int,
@@ -287,8 +292,16 @@ def _validated_fields(
     """Check the category and compose the Item Name from the form fields, or
     raise a Thai RequestError. Shared by a new submission and a resubmit
     (STORY-009), so the two can never drift. `item_name` is the Base Name."""
-    if not item_name.strip():
-        raise RequestError("กรุณากรอกชื่อเรียกสินค้า")
+    _require_base_name(item_name)
+    # The system must be one the Plant may request against, and switched on:
+    # the same list the form offers (catalog.systems_for_factory). Before
+    # STORY-009's closing review only the group was checked, so a hand-made
+    # post could use another Plant's system or the inactive stock systems.
+    from app.services.catalog import systems_for_factory
+
+    if code_system_id not in {s.id for s in systems_for_factory(db, factory_id)}:
+        raise RequestError("ระบบรหัสนี้ใช้กับโรงงานของคำขอไม่ได้ "
+                           "(ไม่ได้ผูกกับโรงงานนี้ หรือปิดใช้งานอยู่)")
 
     group = db.get(CodeGroup, group_id)
     if group is None or group.code_system_id != code_system_id or not group.active:
@@ -385,12 +398,27 @@ def _not_waiting(req: ItemRequest) -> RequestConflict:
         f"คำขอนี้ไม่ได้รอข้อมูลแล้ว (สถานะปัจจุบัน: {STATUS_LABELS.get(req.status, req.status)})")
 
 
+def _requester_is(req: ItemRequest, email: str) -> bool:
+    return normalize_email(req.requester_email) == normalize_email(email)
+
+
+def _originator_is(req: ItemRequest, email: str) -> bool:
+    return bool(req.originator_email) and \
+        normalize_email(req.originator_email) == normalize_email(email)
+
+
+def named_on(req: ItemRequest, email: str) -> bool:
+    """The email is the request's Requester or Originator (no Plant or active
+    rule: who an event's actor was, e.g. for the queue card)."""
+    return _requester_is(req, email) or _originator_is(req, email)
+
+
 def is_requester(req: ItemRequest, account: Account) -> bool:
-    return normalize_email(req.requester_email) == account.email
+    return _requester_is(req, account.email)
 
 
 def _named_originator(req: ItemRequest, account: Account) -> bool:
-    return bool(req.originator_email) and normalize_email(req.originator_email) == account.email
+    return _originator_is(req, account.email)
 
 
 def is_originator(req: ItemRequest, account: Account) -> bool:
@@ -458,10 +486,14 @@ def _category_label(db: Session, group_id: int, subgroup_id: int | None) -> str:
     return f"{group.code}-{sub.code}" if sub else group.code
 
 
+def _flat(value: object) -> str:
+    """A field value as text on one line, whitespace collapsed; None is ''."""
+    return " ".join(str(value).split()) if value is not None else ""
+
+
 def _shown(value: object) -> str:
     """A field value on one change line: '-' when empty, newlines flattened."""
-    text = " ".join(str(value).split()) if value is not None else ""
-    return text or "-"
+    return _flat(value) or "-"
 
 
 def _same(stored: object, posted: object) -> bool:
@@ -469,10 +501,7 @@ def _same(stored: object, posted: object) -> bool:
     whitespace collapsed: a browser drops a textarea's leading newline and
     sends CRLF, and normalising (search name cut to 60, UoM aliases) must not
     turn an untouched field into an edit."""
-    def text(value: object) -> str:
-        return " ".join(str(value).split()) if value is not None else ""
-
-    return text(stored) == text(posted)
+    return _flat(stored) == _flat(posted)
 
 
 def _edited(req: ItemRequest, posted: dict[str, object]) -> list[str]:
@@ -629,6 +658,9 @@ def resubmit_request(
     """
     req = resubmittable(db, request_id, account)
     reply = _clean_reply(reply)
+    # Required even when nothing else changed: an old row has no Base Name
+    # yet, and an empty one posted back would otherwise count as "unchanged".
+    _require_base_name(item_name)
     # What was edited is judged on the posted Search name: clearing it is an
     # edit, whatever the classifier then suggests.
     posted_search_name = search_name
@@ -645,6 +677,9 @@ def resubmit_request(
         search_name = _resolve_search_name(
             db, None, item_name, req.factory_id,
             product_type=chosen.product_type if chosen else None)
+    # The fuzzy search over the snapshot is slow too: before the claim, not
+    # under it. The Plant never changes on a resubmit.
+    duplicates = _duplicate_line(db, req.factory_id, item_name, brand, model)
     db.rollback()  # end the read-only transaction: the claim starts a fresh one
     req = _claim_from_needs_info(db, request_id)
 
@@ -703,7 +738,6 @@ def resubmit_request(
                             detail="\n".join(changes)))
     req.review_note = None
     lines = [reply]
-    duplicates = _duplicate_line(db, req.factory_id, item_name, brand, model)
     if duplicates:
         lines.append(duplicates)
     submitted = RequestEvent(request_id=req.id, actor=account.email, action="submitted",

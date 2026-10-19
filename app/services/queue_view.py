@@ -11,8 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import ItemRequest, RequestEvent
-from app.services.auth import normalize_email
-from app.services.requests import CHANGE_ARROW, NAME_CHANGE_LABEL
+from app.services.requests import CHANGE_ARROW, NAME_CHANGE_LABEL, named_on
 
 NAME_LINE_PREFIX = f"{NAME_CHANGE_LABEL}: "
 
@@ -39,12 +38,6 @@ def resubmitted_ids(db: Session, request_ids: list[int]) -> set[int]:
         select(RequestEvent.request_id).distinct()
         .where(RequestEvent.request_id.in_(request_ids), RequestEvent.action == "needs_info")
     ))
-
-
-def _is_owner(req: ItemRequest, email: str) -> bool:
-    email = normalize_email(email)
-    return email in {normalize_email(req.requester_email),
-                     normalize_email(req.originator_email or "")}
 
 
 def _name_line(event: RequestEvent) -> str | None:
@@ -90,7 +83,7 @@ def _summary_at(req: ItemRequest, events: list[RequestEvent], found: int) -> Res
     return ResubmitSummary(
         actor=submitted.actor,
         at=submitted.at,
-        by_owner=_is_owner(req, submitted.actor),
+        by_owner=named_on(req, submitted.actor),
         # The reply is the first line; a Duplicate Check line may follow.
         reply=(submitted.detail or "").split("\n", 1)[0],
         changes=(events[edited_at].detail or "").splitlines() if edited else [],

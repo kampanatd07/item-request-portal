@@ -45,7 +45,8 @@ def _error(request: Request, e: RequestError) -> HTMLResponse:
 
 
 @router.get("", response_class=HTMLResponse)
-def queue_page(request: Request, status: str | None = None, db: Session = Depends(get_db)):
+def queue_page(request: Request, status: str | None = None,
+               db: Session = Depends(get_db)) -> HTMLResponse:
     requests = list_queue(db, status)
     return templates.TemplateResponse(
         request, "queue.html",

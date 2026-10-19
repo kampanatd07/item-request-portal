@@ -34,7 +34,7 @@ from sqlalchemy.orm import Session, aliased
 from app.config import settings
 from app.database import SessionFactory
 from app.services.auth import normalize_email
-from app.models import Account, ItemRequest, RequestEvent
+from app.models import ROLES, Account, ItemRequest, RequestEvent
 from app.services.mail import MailError, MailMessage, MailSender, prepare
 from app.services.queue_view import ResubmitSummary, resubmit_summary
 from app.templating import templates
@@ -542,10 +542,12 @@ def resend(session_factory: SessionFactory, created_ids: list[int],
 # --- Procurement hears about a resubmit (STORY-009 ticket 06) -----------------------------------------
 
 def procurement_recipients(db: Session) -> list[str]:
-    """Every active Procurement and Administrator Account."""
+    """Every active Account with Role Procurement or higher: the same rule as
+    `requests.notifies_procurement` (has_role over ROLES)."""
+    staff = ROLES[ROLES.index("procurement"):]
     return list(db.scalars(
         select(Account.email)
-        .where(Account.active, Account.role.in_(("procurement", "administrator")))
+        .where(Account.active, Account.role.in_(staff))
         .order_by(Account.email)
     ))
 
