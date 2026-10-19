@@ -1,7 +1,7 @@
 import re
 from dataclasses import asdict, dataclass, field
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -15,7 +15,7 @@ from app.models import (
     RunningRegister,
 )
 from app.services import snapshots
-from app.services.auth import has_role
+from app.services.auth import has_role, normalize_email
 
 # Allowed status transitions: guards against double-clicks and stale queue pages.
 TRANSITIONS: dict[str, set[str]] = {
@@ -103,17 +103,20 @@ def originator_of(req: ItemRequest) -> str | None:
     return req.originator_name
 
 
-def _check_originator(db: Session, name: str | None,
-                      email: str | None) -> tuple[str | None, str | None]:
+def _check_originator(db: Session, name: str | None, email: str | None,
+                      keep_email: str | None = None) -> tuple[str | None, str | None]:
     """Normalised originator name and email, or a Thai RequestError.
 
     The email must belong to a named person, look like an Account email, and
     use an active allowed domain (Settings page) — notification emails carry
     internal item data, so a typo must not send them outside the company.
+    `keep_email`, the one already stored on a resubmitted request, skips the
+    domain check: a domain switched off since must not block other edits
+    (send-time checks still apply, see notify.recipients).
     """
     import unicodedata
 
-    from app.services.auth import _EMAIL_RE, normalize_email
+    from app.services.auth import _EMAIL_RE
     from app.services.config_admin import active_mail_domains
     from app.services.snapshots import fix_thai
 
@@ -132,6 +135,8 @@ def _check_originator(db: Session, name: str | None,
         raise RequestError("ใส่อีเมลผู้ขอจริงแล้วต้องใส่ชื่อในช่อง \"ขอแทน\" ด้วย")
     if not _EMAIL_RE.fullmatch(email):
         raise RequestError("รูปแบบอีเมลผู้ขอจริงไม่ถูกต้อง")
+    if email == keep_email:
+        return name, email
     allowed = active_mail_domains(db)
     if not allowed:
         raise RequestError("ยังไม่มีโดเมนอีเมลที่อนุญาต — ผู้ดูแลระบบเพิ่มได้ในหน้าตั้งค่า "
@@ -380,23 +385,57 @@ def _not_waiting(req: ItemRequest) -> RequestConflict:
         f"คำขอนี้ไม่ได้รอข้อมูลแล้ว (สถานะปัจจุบัน: {STATUS_LABELS.get(req.status, req.status)})")
 
 
+def is_requester(req: ItemRequest, account: Account) -> bool:
+    return normalize_email(req.requester_email) == account.email
+
+
+def _named_originator(req: ItemRequest, account: Account) -> bool:
+    return bool(req.originator_email) and normalize_email(req.originator_email) == account.email
+
+
+def is_originator(req: ItemRequest, account: Account) -> bool:
+    """The Account is who the request was made for (and not its Requester)."""
+    return not is_requester(req, account) and _named_originator(req, account)
+
+
+def _may_own(req: ItemRequest, account: Account) -> bool:
+    """Requester, or an active Originator in the request's Plant (an Account
+    without a Plant, i.e. Procurement or Administrator, in any Plant).
+    decisions.md 2026-10-16."""
+    if is_requester(req, account):
+        return True
+    return (_named_originator(req, account) and account.active
+            and account.factory_id in (None, req.factory_id))
+
+
+def may_resubmit(req: ItemRequest, account: Account) -> bool:
+    """Whether "My requests" offers this Account the resubmit button."""
+    return req.status == "needs_info" and _may_own(req, account)
+
+
 def resubmittable(db: Session, request_id: int, account: Account) -> ItemRequest:
     """The request, if this Account may resubmit it now; else a RequestError.
 
-    Only the request's own Requester, whatever their Role: Procurement that did
-    not submit it gets 403 too. Ownership is checked before the status, so a
-    stranger learns nothing about the request.
+    The request's own Requester, whatever their Role, or its Originator (see
+    `_may_own`): Procurement that neither submitted it nor asked for it gets
+    403 too. Ownership is checked before the status, so a stranger learns
+    nothing about the request.
     """
-    from app.services.auth import normalize_email
-
     req = db.get(ItemRequest, request_id)
     if req is None:
         raise RequestNotFound("ไม่พบคำขอนี้")
-    if normalize_email(req.requester_email) != account.email:
-        raise RequestForbidden("แก้ไขและส่งกลับได้เฉพาะคำขอของคุณเอง")
+    if not _may_own(req, account):
+        raise RequestForbidden("แก้ไขและส่งกลับได้เฉพาะคำขอของคุณเอง หรือคำขอที่มีคนขอแทนคุณ")
     if req.status != "needs_info":
         raise _not_waiting(req)
     return req
+
+
+def originator_editable(req: ItemRequest, account: Account) -> bool:
+    """Only the Requester decides who a request is for, and only with a Role
+    that may name an originator at all (a Requester-role Account cannot, as on
+    a new request)."""
+    return is_requester(req, account) and has_role(account, "procurement")
 
 
 def needs_info_reason(db: Session, req: ItemRequest) -> str | None:
@@ -541,8 +580,10 @@ def resubmit_request(
     search_name: str | None = None,
     purchase_price: str | None = None,
     procurement_category: str | None = None,
+    on_behalf_of: str | None = None,
+    originator_email: str | None = None,
 ) -> ItemRequest:
-    """The Requester answers Needs Info: edit the fields, send it back.
+    """The Requester or Originator answers Needs Info: edit the fields, send it back.
 
     Plant is always the stored one. The row is claimed first with a
     conditional UPDATE (needs_info → submitted, the notifier's pattern), so of
@@ -551,7 +592,9 @@ def resubmit_request(
     slow happens under the claim: a blank Search name (which may ask the LLM)
     is worked out before it. A field counts as edited only if the posted text
     differs from the stored one; with no edit the request keeps its Item Name,
-    even one Procurement typed. Otherwise the name is recomposed.
+    even one Procurement typed. Otherwise the name is recomposed. The
+    originator fields are ignored unless `originator_editable`; a change to
+    them is checked as on a new request.
     """
     req = resubmittable(db, request_id, account)
     reply = _clean_reply(reply)
@@ -584,6 +627,28 @@ def resubmit_request(
     edited = _edited(req, posted)
     if refresh_search_name and "search_name" not in edited:
         edited.append("search_name")  # so its change line is logged
+    # A field not posted at all (None) keeps its value; only "" clears it.
+    if on_behalf_of is None:
+        on_behalf_of = req.originator_name
+    if originator_email is None:
+        originator_email = req.originator_email
+    originator_changes = []
+    if originator_editable(req, account) and not (
+            _same(req.originator_name, on_behalf_of)
+            and _same(req.originator_email, originator_email)):
+        try:
+            name, email = _check_originator(db, on_behalf_of, originator_email,
+                                            keep_email=req.originator_email)
+        except RequestError:
+            db.rollback()  # back to needs_info, nothing written
+            raise
+        for label, attr, value in (("ขอแทน", "originator_name", name),
+                                   ("อีเมลผู้ขอจริง", "originator_email", email)):
+            if getattr(req, attr) != value:
+                originator_changes.append(
+                    f"{label}: {_shown(getattr(req, attr))} → {_shown(value)}")
+                setattr(req, attr, value)
+    changes = []
     if edited:
         try:
             fields = _validated_fields(
@@ -601,6 +666,8 @@ def resubmit_request(
             changes.append(f"ชื่อสินค้า: {req.item_name} → {fields.item_name}")
         for name, value in asdict(fields).items():
             setattr(req, name, value)
+    changes += originator_changes  # last, so the field lines keep one order
+    if changes:
         db.add(RequestEvent(request_id=req.id, actor=account.email, action="request_edited",
                             detail="\n".join(changes)))
     req.review_note = None
@@ -1006,15 +1073,22 @@ def override_code(
 
 
 def list_my_requests(db: Session, account: Account) -> list[ItemRequest]:
-    """The Account's own requests, newest first ("My requests").
+    """The Account's own requests and those made on its behalf, newest first
+    ("My requests"), in every status.
+
+    No Plant or active rule here, unlike `may_resubmit`: the Originator already
+    gets the same data by email, and hiding the row would leave "an email but
+    no request to find" (Peter, 2026-10-19). The row is read-only for them.
 
     Matched on email, which never changes for an Account. Compared without case
     or surrounding spaces, since requests typed in before login existed may
     carry the address as the person wrote it.
     """
+    me = account.email.lower()
     return list(db.scalars(
         select(ItemRequest)
-        .where(func.lower(func.trim(ItemRequest.requester_email)) == account.email.lower())
+        .where(or_(func.lower(func.trim(ItemRequest.requester_email)) == me,
+                   func.lower(func.trim(ItemRequest.originator_email)) == me))
         .order_by(ItemRequest.created_at.desc(), ItemRequest.id.desc())
     ))
 

@@ -1,5 +1,21 @@
 # Decision Log
 
+## [2026-10-19] "My requests" shows Originator rows in any Plant; resubmit checks the Plant
+**Decision:** "My requests" lists every request where the Account is the
+Requester or the Originator, matched on email only, with no Plant or active
+rule. Resubmitting still requires an active Originator in the request's
+Plant (any Plant for an Account without one), so an Originator in another
+Plant sees the row read-only, without the "แก้ไขและส่งกลับ" button.
+**Why:** the Originator already receives the created and rejected emails,
+which carry the same data (item name, Procurement's note, the code). Hiding
+the row would leave them with an email and no request to find, and would
+protect nothing the email has not already shown.
+**Alternatives considered:** apply the resubmit rule to the list as well,
+so one definition decides "my request" (code review, STORY-009 ticket 04).
+Rejected (Peter) for the reason above.
+**Revisit when:** emails to Originators stop carrying request data, or a
+Plant must not see another Plant's requests for a reason beyond email.
+
 ## [2026-10-16] The Originator may resubmit a Needs Info request too
 **Decision:** A Needs Info request can be edited and resubmitted by its
 Requester, or by its Originator if the Originator has an active Account

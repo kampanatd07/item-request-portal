@@ -14,10 +14,11 @@
     {# Anchor for the link in notification emails; :target highlights the row. #}
     <tr id="request-{{ r.id }}" class="request-row">
       <td class="muted" style="white-space:nowrap;">{{ r.created_at | thai_time("%d/%m/%Y %H:%M") }}</td>
-      <td>{% if can_open_queue %}<a href="/queue/{{ r.id }}">{{ r.item_name }}</a>{% else %}{{ r.item_name }}{% endif %}</td>
+      <td>{% if can_open_queue %}<a href="/queue/{{ r.id }}">{{ r.item_name }}</a>{% else %}{{ r.item_name }}{% endif %}
+        {% if is_originator(r) %}<br><span class="muted">ขอแทนโดย {{ r.requester_name }}</span>{% endif %}</td>
       <td>{{ r.factory.code }}</td>
       <td><span class="badge {{ r.status }}">{{ status_labels[r.status] }}</span>
-        {% if r.status == "needs_info" %}<br><a class="button" href="/my-requests/{{ r.id }}/resubmit">แก้ไขและส่งกลับ</a>{% endif %}</td>
+        {% if may_resubmit(r) %}<br><a class="button" href="/my-requests/{{ r.id }}/resubmit">แก้ไขและส่งกลับ</a>{% endif %}</td>
       <td>{{ r.review_note or "" }}</td>
       <td>
         {# The reason for a burned code is in the note column, so not repeated here. #}

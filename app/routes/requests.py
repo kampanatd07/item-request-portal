@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Account
+from app.models import Account, ItemRequest
 from app.routes.deps import current_account
 from app.services import catalog, snapshots
 from app.services.requests import (
@@ -11,8 +11,11 @@ from app.services.requests import (
     RequestError,
     RequestForbidden,
     RequestNotFound,
+    is_originator,
     list_my_requests,
+    may_resubmit,
     needs_info_reason,
+    originator_editable,
     resubmit_request,
     resubmittable,
     submit_request,
@@ -45,9 +48,17 @@ def my_requests(
     request: Request,
     db: Session = Depends(get_db),
     account: Account = Depends(current_account),
-):
+) -> HTMLResponse:
+    def can_resubmit(req: ItemRequest) -> bool:
+        return may_resubmit(req, account)
+
+    def made_for_me(req: ItemRequest) -> bool:
+        return is_originator(req, account)
+
     return templates.TemplateResponse(
-        request, "my_requests.html", {"requests": list_my_requests(db, account)}
+        request, "my_requests.html",
+        {"requests": list_my_requests(db, account),
+         "may_resubmit": can_resubmit, "is_originator": made_for_me},
     )
 
 
@@ -89,6 +100,7 @@ def resubmit_form(
             "reason": needs_info_reason(db, req),
             "uoms": catalog.list_uoms(db),
             "plant_locked": True,
+            "originator_editable": originator_editable(req, account),
             "systems": with_current(catalog.systems_for_factory(db, req.factory_id),
                                     req.code_system),
             "groups": with_current(catalog.groups_for_system(db, req.code_system_id),
@@ -119,6 +131,9 @@ def resubmit(
     purchase_price: str = Form(""),
     procurement_category: str = Form(""),
     reply: str = Form(""),
+    # None = not posted (keep the stored value); "" = cleared.
+    on_behalf_of: str | None = Form(None),
+    originator_email: str | None = Form(None),
     db: Session = Depends(get_db),
     account: Account = Depends(current_account),
 ) -> HTMLResponse:
@@ -129,7 +144,8 @@ def resubmit(
             group_id=group_id, subgroup_id=subgroup_id, item_name=item_name, brand=brand,
             model=model, size=size, variant=variant, spec_note=spec_note, uom=uom,
             search_name=search_name, purchase_price=purchase_price,
-            procurement_category=procurement_category,
+            procurement_category=procurement_category, on_behalf_of=on_behalf_of,
+            originator_email=originator_email,
         )
     except RequestError as e:
         return templates.TemplateResponse(

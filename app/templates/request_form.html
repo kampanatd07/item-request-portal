@@ -15,9 +15,27 @@
     <div class="row">
       <div>
         <label>ผู้ขอ</label>
+        {# On a resubmit, the request's Requester: an Originator is not it. #}
+        {% if r %}
+        <div>{{ r.requester_name }} <span class="muted">({{ r.requester_email }})</span></div>
+        {% else %}
         <div>{{ account.display_name }} <span class="muted">({{ account.email }})</span></div>
+        {% endif %}
       </div>
-      {% if not plant_locked and not r %}
+      {% if r and originator_editable %}
+      {# Prefilled, or an untouched form would clear the originator. #}
+      <div>
+        <label for="on_behalf_of">ขอแทน (ถ้ามี)</label>
+        <input id="on_behalf_of" name="on_behalf_of" value="{{ r.originator_name or '' }}" placeholder="ชื่อผู้ขอจริง เช่น คนที่โทรมาแจ้ง">
+        <label for="originator_email">อีเมลผู้ขอจริง (ถ้ามี — ระบบจะส่งอีเมลแจ้งผลถึงคนนี้ และสำเนาถึงคุณ)</label>
+        <input id="originator_email" name="originator_email" type="email" value="{{ r.originator_email or '' }}" placeholder="name@carabao.co.th">
+      </div>
+      {% elif r and r.originator_name %}
+      <div>
+        <label>ขอแทน</label>
+        <div>{{ r.originator_name }}{% if r.originator_email %} <span class="muted">({{ r.originator_email }})</span>{% endif %}</div>
+      </div>
+      {% elif not plant_locked and not r %}
       <div>
         <label for="on_behalf_of">ขอแทน (ถ้ามี)</label>
         <input id="on_behalf_of" name="on_behalf_of" placeholder="ชื่อผู้ขอจริง เช่น คนที่โทรมาแจ้ง">
