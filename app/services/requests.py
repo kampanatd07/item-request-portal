@@ -480,14 +480,25 @@ def _edited(req: ItemRequest, posted: dict[str, object]) -> list[str]:
     return edited
 
 
+# One `request_edited` line is "label: old → new". The queue reads the Item
+# Name line back for the replaced-name warning (queue_view), so the format
+# lives here once.
+CHANGE_ARROW = " → "
+NAME_CHANGE_LABEL = "ชื่อสินค้า"
+
+
+def change_line(label: str, old: object, new: object) -> str:
+    return f"{label}: {old}{CHANGE_ARROW}{new}"
+
+
 def _change_lines(db: Session, req: ItemRequest, fields: RequestFields,
                   edited: list[str]) -> list[str]:
     """'label: old → new' for each edited field, the new value as it will be stored."""
     lines = []
     if {"code_system_id", "group_id", "subgroup_id"} & set(edited):
-        lines.append(f"หมวด: {_category_label(db, req.group_id, req.subgroup_id)} → "
-                     f"{_category_label(db, fields.group_id, fields.subgroup_id)}")
-    lines += [f"{label}: {_shown(getattr(req, name))} → {_shown(getattr(fields, name))}"
+        lines.append(change_line("หมวด", _category_label(db, req.group_id, req.subgroup_id),
+                                 _category_label(db, fields.group_id, fields.subgroup_id)))
+    lines += [change_line(label, _shown(getattr(req, name)), _shown(getattr(fields, name)))
               for name, label in _RESUBMIT_FIELDS if name in edited]
     return lines
 
@@ -646,7 +657,7 @@ def resubmit_request(
                                    ("อีเมลผู้ขอจริง", "originator_email", email)):
             if getattr(req, attr) != value:
                 originator_changes.append(
-                    f"{label}: {_shown(getattr(req, attr))} → {_shown(value)}")
+                    change_line(label, _shown(getattr(req, attr)), _shown(value)))
                 setattr(req, attr, value)
     changes = []
     if edited:
@@ -663,7 +674,7 @@ def resubmit_request(
             raise
         changes = _change_lines(db, req, fields, edited)
         if fields.item_name != req.item_name:
-            changes.append(f"ชื่อสินค้า: {req.item_name} → {fields.item_name}")
+            changes.append(change_line(NAME_CHANGE_LABEL, req.item_name, fields.item_name))
         for name, value in asdict(fields).items():
             setattr(req, name, value)
     changes += originator_changes  # last, so the field lines keep one order

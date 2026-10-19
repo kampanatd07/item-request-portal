@@ -22,6 +22,7 @@ templates.env.globals["status_labels"] = STATUS_LABELS
 # Request-history rows that are not status changes (STORY-002).
 templates.env.globals["event_labels"] = {
     "notify_not_applicable": "ไม่ต้องแจ้งทางอีเมล",
+    "request_edited": "แก้ไขข้อมูลคำขอ",
 }
 # Which email is owed, on the resend list (STORY-002 ticket 06).
 templates.env.globals["mail_kinds"] = {
