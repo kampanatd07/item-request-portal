@@ -63,7 +63,7 @@ Blocked by: 02
   `submitted` as the owner's; dropping the status check on the badge. After
   the review fixes: going back to the time window (2 fail), not counting a
   `request_edited` as a name setter, UTC times in the history.
-- **TODO after STORY-009 merges:** add to the Notes of STORY-013
+- **Done 2026-10-19 (moved to STORY-013's Notes after the merge):** add to the Notes of STORY-013
   (`docs/stories/STORY-013-category-change-name-prefix.md`, on master since
   933689d; this branch was cut before it): the event that changes the name
   prefix on a category move must not count as a name setter, or it would

@@ -142,9 +142,9 @@ def test_a_failing_email_never_blocks_the_resubmit(client_as, app_db, mail_outbo
     actions = list(app_db.scalars(select(RequestEvent.action)
                                   .where(RequestEvent.request_id == req.id)))
     assert "notify_failed" not in actions and actions.count("notified") == 0
-    from datetime import datetime
+    from app.services.clock import utc_now
 
-    assert [p for p in pending_notifications(app_db, datetime.utcnow())
+    assert [p for p in pending_notifications(app_db, utc_now())
             if p.request_id == req.id] == []
 
 

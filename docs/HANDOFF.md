@@ -4,7 +4,7 @@
 > `docs/decisions.md` before doing anything. If chat history contradicts these
 > files, the files win.
 >
-> Last updated: 2026-10-14 · Owner: Peter (Procurement Strategy, Carabao Group)
+> Last updated: 2026-10-19 · Owner: Peter (Procurement Strategy, Carabao Group)
 
 ---
 
@@ -20,10 +20,16 @@ It replaces: Microsoft Forms → Peter checks manually → types into AX → ema
 ## 2. Status
 
 **Built and running on Peter's machine, with login and roles (STORY-001, done
-2026-09-30), validated code override (STORY-010, done 2026-10-01) and email
-notification (STORY-002, done 2026-10-14). Not yet open to the plants** — it
-still has to be deployed (STORY-006), which now waits for requester resubmit
-(STORY-009, must ship before the plants get access) and IT's Graph values (§7).
+2026-09-30), validated code override (STORY-010, done 2026-10-01), email
+notification (STORY-002, done 2026-10-14) and requester resubmit (STORY-009,
+done 2026-10-19). Not yet open to the plants** — it still has to be deployed
+(STORY-006). Left before deploy:
+1. STORY-013: a category change must update the name prefix (next story).
+2. IT's Graph values for email (§7); outside `APP_ENV=dev` the app refuses
+   to start without them.
+3. STORY-006 itself (Render/Railway + PostgreSQL).
+
+After the plants open: STORY-014 (the name preview shows the saved name).
 
 | Area | State |
 |---|---|
@@ -39,9 +45,10 @@ still has to be deployed (STORY-006), which now waits for requester resubmit
 | Admin config pages | done |
 | Login / roles | done — STORY-001: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry, lockout, My requests |
 | Email notification | done — STORY-002 tickets 01–06 (Graph sender tested with a fake transport only; first real send waits for IT, see §7) |
+| Requester resubmit | done — STORY-009: Requester or Originator edits and resubmits a Needs Info request (conditional claim, one 409 for the loser), queue badge + reply card + replaced-name warning, best-effort email to Procurement; the code system must now fit the request's Plant (fix also for new requests) |
 | Deployment | **not started — STORY-006** |
 
-Tests: 610 passing (`pytest`).
+Tests: 720 passing (`pytest`).
 
 The suite runs in ~13 s: `create_all` + `seed` run once per pytest session
 into an in-memory template, and each test's `db_session` gets a copy through

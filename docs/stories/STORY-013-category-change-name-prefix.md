@@ -52,3 +52,12 @@ _(filled by /to-spec + /to-tickets)_
 ## Notes
 - Peter (2026-10-16): replace only the prefix, keep the rest; log the rename;
   blocks STORY-006.
+- From STORY-009 ticket 05 (2026-10-19): the queue's replaced-name warning
+  (`queue_view._replaced_name`) asks which event last set the Item Name
+  before a resubmit; only `name_edited` and a `request_edited` with a
+  `ชื่อสินค้า:` line count. The event this story writes when a category move
+  changes the prefix **must not count as a name setter**: if it did, it would
+  hide that the rest of the name was typed by Procurement, and a later
+  resubmit that replaces that name would no longer warn. Keep it a separate
+  action (or keep its name line out of `request_edited`), and add a test that
+  a typed name, then a category move, then a replacing resubmit still warns.

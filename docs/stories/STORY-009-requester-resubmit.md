@@ -361,13 +361,13 @@ merge (TODO below); 6 not changed. Outcomes at the end of this file.
 - Tests: 9 new (written first, all 7 that check a fix failed before it).
   Old tests: none changed. Suite: 720 passed.
 
-### TODO after STORY-009 merges
-- **Open a new story on master: the name preview does not match the saved
-  name**, on both the new-request page and the resubmit page (closing
+### TODO after STORY-009 merges (done 2026-10-19)
+- **Done: STORY-014.** Open a new story on master: the name preview does not match the saved
+  name, on both the new-request page and the resubmit page (closing
   review item 3). After the first keystroke the preview drops the category
   prefix, the ` - ` separators and unit spacing; it should come from the
   server's name composer.
-- Add to STORY-013's Notes the name-setter rule from ticket 05 (see its
+- **Done.** Add to STORY-013's Notes the name-setter rule from ticket 05 (see its
   Notes).
 
 #### Review of the closing fix diff only (2026-10-19)
