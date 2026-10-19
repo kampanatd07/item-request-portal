@@ -140,8 +140,9 @@ Job = Callable[[Session], None]
 
 def _race(monkeypatch: pytest.MonkeyPatch, factory: sessionmaker,
           jobs: dict[str, Job]) -> dict[str, object]:
-    """Run each job in its own thread and session; both reach the claim
-    together, and whoever claims first holds SQLite's write lock a while."""
+    """Run each job in its own thread and session; the Barrier makes both
+    reach the claim together. The loser's UPDATE waits on SQLite's write lock
+    until the winner commits, or runs after it; either way it matches 0 rows."""
     gate = threading.Barrier(len(jobs))
     real_claim, real_dup = svc._claim_from_needs_info, svc._duplicate_line
 
@@ -150,7 +151,10 @@ def _race(monkeypatch: pytest.MonkeyPatch, factory: sessionmaker,
         return real_claim(db, request_id)
 
     def slow_duplicates(*args: object, **kwargs: object) -> str | None:
-        time.sleep(0.3)  # the winner holds the claim; the other UPDATE must wait
+        # Since STORY-009's closing review the Duplicate Check runs before the
+        # claim, so this sleep no longer holds the claim; the Barrier above is
+        # what makes the two collide.
+        time.sleep(0.3)
         return real_dup(*args, **kwargs)
 
     monkeypatch.setattr(svc, "_claim_from_needs_info", claim_together)
