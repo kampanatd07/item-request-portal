@@ -3,6 +3,7 @@
 {% block content %}
 <div class="card">
   <p>{{ message }}</p>
+  {% if link %}<p><a href="{{ link }}">ดูคำขอนี้ในคำขอของฉัน</a></p>{% endif %}
   <p><a href="/my-requests">กลับไปคำขอของฉัน</a></p>
 </div>
 {% endblock %}

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models import ItemRequest
 from app.services.requests import (
+    Resubmitted,
     change_status,
     edit_name,
     requeue_request,
@@ -36,7 +37,7 @@ def _needs_info(db: Session, req: ItemRequest) -> None:
     change_status(db, req.id, new_status="needs_info", note="ขอขนาด", account=_proc(db))
 
 
-def _resubmit(db: Session, req: ItemRequest, **over) -> ItemRequest:
+def _resubmit(db: Session, req: ItemRequest, **over) -> Resubmitted:
     db.expire_all()
     req = db.get(ItemRequest, req.id)
     fields = {"code_system_id": req.code_system_id, "group_id": req.group_id,

@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import SessionFactory, get_db, get_session_factory
 from app.models import Account, ItemRequest
 from app.routes.deps import current_account
 from app.services import catalog, snapshots
+from app.services.mail import MailSender, get_mail_sender
+from app.services.notify import notify_resubmitted
 from app.services.requests import (
     RequestConflict,
     RequestError,
@@ -85,7 +87,10 @@ def resubmit_form(
         req = resubmittable(db, request_id, account)
     except RequestError as e:
         page = "forbidden.html" if isinstance(e, RequestForbidden) else "message.html"
-        return templates.TemplateResponse(request, page, {"message": str(e)},
+        # 409 = the request is theirs but no longer waiting, e.g. an old Needs
+        # Info email: point at where it can still be seen.
+        link = f"/my-requests#request-{request_id}" if isinstance(e, RequestConflict) else None
+        return templates.TemplateResponse(request, page, {"message": str(e), "link": link},
                                           status_code=_error_status(e))
     def with_current(options: list, current: object) -> list:
         # A system/group/sub-category switched off since is still the
@@ -117,6 +122,7 @@ def resubmit_form(
 def resubmit(
     request: Request,
     request_id: int,
+    background: BackgroundTasks,
     code_system_id: int = Form(...),
     group_id: int = Form(...),
     subgroup_id: int | None = Form(None),
@@ -136,10 +142,12 @@ def resubmit(
     originator_email: str | None = Form(None),
     db: Session = Depends(get_db),
     account: Account = Depends(current_account),
+    sender: MailSender = Depends(get_mail_sender),
+    session_factory: SessionFactory = Depends(get_session_factory),
 ) -> HTMLResponse:
     # No factory_id: the Plant is never read from the form on a resubmit.
     try:
-        req = resubmit_request(
+        result = resubmit_request(
             db, request_id, account, reply=reply, code_system_id=code_system_id,
             group_id=group_id, subgroup_id=subgroup_id, item_name=item_name, brand=brand,
             model=model, size=size, variant=variant, spec_note=spec_note, uom=uom,
@@ -152,8 +160,12 @@ def resubmit(
             request, "partials/form_error.html", {"message": str(e)},
             status_code=_error_status(e),
         )
+    if result.notify_event_id is not None:
+        # After the response, best-effort (decisions.md 2026-10-16).
+        background.add_task(notify_resubmitted, session_factory, result.req.id,
+                            result.notify_event_id, sender)
     return templates.TemplateResponse(
-        request, "partials/resubmit_success.html", {"req": req}
+        request, "partials/resubmit_success.html", {"req": result.req}
     )
 
 

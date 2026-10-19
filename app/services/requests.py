@@ -425,6 +425,10 @@ def resubmittable(db: Session, request_id: int, account: Account) -> ItemRequest
     if req is None:
         raise RequestNotFound("ไม่พบคำขอนี้")
     if not _may_own(req, account):
+        if is_originator(req, account) and account.active:
+            # Followed the Needs Info email from another Plant (ticket 04 rule).
+            raise RequestForbidden("บัญชีของคุณอยู่คนละโรงงานกับคำขอนี้ จึงแก้ไขในระบบไม่ได้ "
+                                   "— ตอบกลับทางอีเมลที่ได้รับแทนได้")
         raise RequestForbidden("แก้ไขและส่งกลับได้เฉพาะคำขอของคุณเอง หรือคำขอที่มีคนขอแทนคุณ")
     if req.status != "needs_info":
         raise _not_waiting(req)
@@ -554,6 +558,22 @@ def _claim_from_needs_info(db: Session, request_id: int) -> ItemRequest:
     return db.get(ItemRequest, request_id)
 
 
+def notifies_procurement(account: Account) -> bool:
+    """A resubmit is emailed to Procurement only when someone outside it made
+    it: Procurement and Administrators are not told about their own action
+    (decisions.md 2026-10-16)."""
+    return not has_role(account, "procurement")
+
+
+@dataclass
+class Resubmitted:
+    req: ItemRequest
+    # The `submitted` event this resubmit wrote, when Procurement must be
+    # emailed about it; None otherwise. The id comes from the write itself,
+    # never from a later lookup that a status change could overtake.
+    notify_event_id: int | None
+
+
 def requeue_request(db: Session, request_id: int, account: Account,
                     note: str | None) -> ItemRequest:
     """Procurement's "ผู้ขอส่งข้อมูลแล้ว รับเข้าคิวใหม่": back to the queue
@@ -593,7 +613,7 @@ def resubmit_request(
     procurement_category: str | None = None,
     on_behalf_of: str | None = None,
     originator_email: str | None = None,
-) -> ItemRequest:
+) -> "Resubmitted":
     """The Requester or Originator answers Needs Info: edit the fields, send it back.
 
     Plant is always the stored one. The row is claimed first with a
@@ -686,10 +706,12 @@ def resubmit_request(
     duplicates = _duplicate_line(db, req.factory_id, item_name, brand, model)
     if duplicates:
         lines.append(duplicates)
-    db.add(RequestEvent(request_id=req.id, actor=account.email, action="submitted",
-                        detail="\n".join(lines)))
+    submitted = RequestEvent(request_id=req.id, actor=account.email, action="submitted",
+                             detail="\n".join(lines))
+    db.add(submitted)
     db.commit()
-    return req
+    return Resubmitted(req=req, notify_event_id=submitted.id
+                       if notifies_procurement(account) else None)
 
 
 def change_status(

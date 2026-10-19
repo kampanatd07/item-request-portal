@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="th">
+<body style="font-family:'Segoe UI',Tahoma,sans-serif; color:#222; max-width:600px;">
+  <p>คำขอ <strong>#{{ req.id }} {{ req.item_name }}</strong> (โรงงาน {{ req.factory.code }})
+     <strong>ส่งกลับแล้ว</strong> หลังจากจัดซื้อขอข้อมูลเพิ่ม</p>
+  <p>ส่งกลับโดย {{ actor_name }} <span style="color:#666;">({{ summary.actor }})</span></p>
+  <p style="background:#fff6d6; padding:10px 14px; border-radius:6px;">
+     <strong>ข้อความตอบ:</strong> {{ summary.reply }}</p>
+  {% if summary.changes %}
+  <p><strong>ที่แก้:</strong></p>
+  <ul>{% for line in summary.changes %}<li>{{ line }}</li>{% endfor %}</ul>
+  {% else %}
+  <p style="color:#666;">ไม่ได้แก้ข้อมูล</p>
+  {% endif %}
+  {% if link %}<p><a href="{{ link }}">เปิดคำขอในคิว</a></p>{% endif %}
+  <p style="color:#666; font-size:13px;">อีเมลนี้ส่งอัตโนมัติจาก Item Request Portal (ตอบกลับอีเมลนี้ถึงผู้ส่งกลับโดยตรง)</p>
+</body>
+</html>

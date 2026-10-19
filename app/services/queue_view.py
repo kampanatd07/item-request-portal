@@ -80,20 +80,9 @@ def _replaced_name(events: list[RequestEvent], edited_at: int,
     return old, new
 
 
-def latest_resubmit(req: ItemRequest) -> ResubmitSummary | None:
-    """The latest `submitted` event that followed a `needs_info`, with the
-    `request_edited` written just before it in the same transaction. Reads
-    `req.events` (ordered by id), which the detail page loads for the history
-    anyway."""
-    events = req.events
-    waiting, found = False, None
-    for i, e in enumerate(events):
-        if e.action == "needs_info":
-            waiting = True
-        elif e.action == "submitted" and waiting:
-            waiting, found = False, i
-    if found is None:
-        return None
+def _summary_at(req: ItemRequest, events: list[RequestEvent], found: int) -> ResubmitSummary:
+    """The way out of Needs Info at events[found] (a `submitted`), with the
+    `request_edited` written just before it in the same transaction."""
     submitted = events[found]
     edited_at = found - 1
     edited = edited_at >= 0 and events[edited_at].action == "request_edited" \
@@ -107,3 +96,27 @@ def latest_resubmit(req: ItemRequest) -> ResubmitSummary | None:
         changes=(events[edited_at].detail or "").splitlines() if edited else [],
         replaced_name=_replaced_name(events, edited_at, found) if edited else None,
     )
+
+
+def latest_resubmit(req: ItemRequest) -> ResubmitSummary | None:
+    """The latest `submitted` event that followed a `needs_info`. Reads
+    `req.events` (ordered by id), which the detail page loads for the history
+    anyway."""
+    events = req.events
+    waiting, found = False, None
+    for i, e in enumerate(events):
+        if e.action == "needs_info":
+            waiting = True
+        elif e.action == "submitted" and waiting:
+            waiting, found = False, i
+    return _summary_at(req, events, found) if found is not None else None
+
+
+def resubmit_summary(req: ItemRequest, event_id: int) -> ResubmitSummary | None:
+    """The resubmit whose `submitted` event is `event_id` (the Procurement
+    email names the exact event, so a later change cannot alter its content)."""
+    events = req.events
+    found = next((i for i, e in enumerate(events) if e.id == event_id), None)
+    if found is None or events[found].action != "submitted":
+        return None
+    return _summary_at(req, events, found)

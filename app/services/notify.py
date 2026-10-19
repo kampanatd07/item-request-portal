@@ -34,16 +34,22 @@ from sqlalchemy.orm import Session, aliased
 from app.config import settings
 from app.database import SessionFactory
 from app.services.auth import normalize_email
-from app.models import ItemRequest, RequestEvent
+from app.models import Account, ItemRequest, RequestEvent
 from app.services.mail import MailError, MailMessage, MailSender, prepare
+from app.services.queue_view import ResubmitSummary, resubmit_summary
 from app.templating import templates
 
 log = logging.getLogger("app.notify")
 
 
-def _link(req: ItemRequest) -> str | None:
+def _url(path: str) -> str | None:
+    """An absolute portal link, or None when PUBLIC_BASE_URL is not set."""
     base = settings.public_base_url.rstrip("/")
-    return f"{base}/my-requests#request-{req.id}" if base else None
+    return f"{base}{path}" if base else None
+
+
+def _link(req: ItemRequest) -> str | None:
+    return _url(f"/my-requests#request-{req.id}")
 
 
 def _message(to: list[str], subject: str, template: str, **ctx) -> MailMessage:
@@ -333,7 +339,9 @@ def build_status_email(req: ItemRequest, status: str, reason: str | None = None)
     else:
         subject = f"[Item Portal] คำขอ #{req.id} ไม่อนุมัติ — {req.item_name}"
         template = "rejected"
-    message = _message(to, subject[:250], template, req=req, link=_link(req),
+    # Needs Info: straight to the form that answers it (STORY-009).
+    link = _url(f"/my-requests/{req.id}/resubmit") if status == "needs_info" else _link(req)
+    message = _message(to, subject[:250], template, req=req, link=link,
                        greeting=_greeting(req), reason=(reason or "").strip() or "-")
     message.cc = cc
     return message
@@ -528,3 +536,50 @@ def resend(session_factory: SessionFactory, created_ids: list[int],
     for request_id, event_id in changes:
         counts[notify_status(session_factory, request_id, event_id, sender, actor)] += 1
     return counts
+
+
+
+# --- Procurement hears about a resubmit (STORY-009 ticket 06) -----------------------------------------
+
+def procurement_recipients(db: Session) -> list[str]:
+    """Every active Procurement and Administrator Account."""
+    return list(db.scalars(
+        select(Account.email)
+        .where(Account.active, Account.role.in_(("procurement", "administrator")))
+        .order_by(Account.email)
+    ))
+
+
+def build_resubmitted_email(req: ItemRequest, summary: ResubmitSummary, actor_name: str,
+                            to: list[str]) -> MailMessage:
+    """One email to all of Procurement; replies go to whoever resubmitted."""
+    subject = f"[Item Portal] คำขอ #{req.id} ส่งกลับแล้ว — {req.item_name}"
+    message = _message(to, subject[:250], "resubmitted", req=req, summary=summary,
+                       actor_name=actor_name, link=_url(f"/queue/{req.id}"))
+    message.reply_to = summary.actor
+    return message
+
+
+def notify_resubmitted(session_factory: SessionFactory, request_id: int, event_id: int,
+                       sender: MailSender) -> None:
+    """Email Procurement about the resubmit whose `submitted` event is `event_id`.
+
+    Best-effort (decisions.md 2026-10-16): any failure is logged with its
+    traceback and nothing else happens. No event, no resend list, no retry;
+    the request is in the queue whether or not this arrives.
+    """
+    try:
+        with session_factory() as db:
+            req = db.get(ItemRequest, request_id)
+            summary = resubmit_summary(req, event_id) if req is not None else None
+            to = procurement_recipients(db)
+            if summary is None or not to:
+                return
+            actor = db.scalar(select(Account).where(Account.email == summary.actor))
+            message = build_resubmitted_email(
+                req, summary, actor.display_name if actor else summary.actor, to)
+        prepare(sender)
+        sender.send(message)
+    except Exception:  # noqa: BLE001 - best-effort: logged, never raised
+        log.exception("resubmit email for request %s not sent (best-effort, no retry)",
+                      request_id)
