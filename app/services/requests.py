@@ -22,6 +22,7 @@ from app.services.naming import (
     clean_part,
     compose_name,
     prefix_as_written,
+    searchable_part,
     swap_prefix,
 )
 
@@ -907,7 +908,8 @@ def change_category(
     # STORY-013: the name's CATEGORY part follows the category, worked out
     # before anything changes so a refusal leaves the request as it was.
     old_prefix = prefix_as_written(name_prefix_of(req.group, req.subgroup))
-    renamed = swap_prefix(req.item_name, old_prefix, name_prefix_of(parent, sub))
+    new_prefix = name_prefix_of(parent, sub)
+    renamed = swap_prefix(req.item_name, old_prefix, new_prefix)
     # No old prefix to find: never guess where the category part ends; keep
     # the name and say so (ticket 03).
     kept = old_prefix if renamed is None and old_prefix else None
@@ -964,9 +966,11 @@ def change_category(
 
     from app.services.categorizer import learn_from_correction
 
+    # Learned without its Name Prefix: the shape a Requester types, and the
+    # same cut as the classified-master import (STORY-013 ticket 04).
     learn_from_correction(
-        db, name=req.item_name, group_code=parent.code, sub_code=sub.code,
-        actor=account.email,
+        db, name=searchable_part(req.item_name, new_prefix),
+        group_code=parent.code, sub_code=sub.code, actor=account.email,
     )
     return CategoryMove(req, kept)
 
