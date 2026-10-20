@@ -109,6 +109,13 @@ allows 30).
 - Review of the fix diff only: no correctness defects. Its notes: the
   `name_prefix_of` docstring was imprecise (fixed); `upper()` maps the
   dotless `ı` to `I` (harmless).
-- **Not done here, waiting for Peter:** Peter asked for the Settings page to
-  refuse a Name Prefix longer than 16. No page edits prefixes (see the
-  correction above); the root-cause guard would go in the seed instead.
+- **Seed guard (Peter, 2026-10-20, separate commit):** Peter asked for the
+  Settings page to refuse a Name Prefix longer than 16; no page edits
+  prefixes (see the correction above), so the guard is in the seed:
+  `python -m app.seed` refuses a `taxonomy.json` whose prefix is longer than
+  16 after cleaning, lists each row (group-sub, prefix, length) in Thai on
+  stderr, exits 1, and writes nothing. The check runs before the first
+  write; "writes nothing" also holds because the seed commits once at the
+  end (a mutation moving the check later still passes for that reason).
+  `tests/test_seed_prefix_guard.py`, 4 tests; the shipped taxonomy still
+  seeds (checked on a fresh temporary DB too).
