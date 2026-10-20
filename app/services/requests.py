@@ -844,6 +844,12 @@ def edit_name(
     new_name = " ".join(new_name.split())
     if not new_name:
         raise RequestError("กรุณากรอกชื่อ")
+    # The group standard caps an Item Name at 110, and a Name Override is
+    # exported to AX/D365 as typed (STORY-013 ticket 06). Other naming rules
+    # for overrides: STORY-007.
+    if len(new_name) > MAX_NAME_LEN:
+        raise RequestError(
+            f"ชื่อยาว {len(new_name)} ตัวอักษร (เกิน {MAX_NAME_LEN}) — ย่อชื่อให้สั้นลง")
     old = req.item_name
     if new_name == old:
         return req

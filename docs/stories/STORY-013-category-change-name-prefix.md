@@ -1,6 +1,6 @@
 # STORY-013: Category change updates the name prefix
 
-Status: planned · Depends on: — · Must ship before the plants get access (STORY-006)
+Status: review · Depends on: — · Must ship before the plants get access (STORY-006)
 Triage: ready-for-agent
 
 ## Why

@@ -56,6 +56,9 @@ _(filled by /to-spec + /to-tickets)_
 - Also from STORY-009 ticket 01: the Base Name, Item Name and other name
   parts are not NFC + fix_thai normalised on submit (only the originator
   name is; HANDOFF §6.2). Changing it changes Item Names, so decide it here.
+  The same holds for a Name Override (`edit_name`, STORY-013 ticket 06
+  review): it is stored as typed, so a pasted decomposed SARA AM counts
+  as two characters against the 110 cap and is exported decomposed.
 - From STORY-013 (Peter, 2026-10-20): a **Name Override** (an Item Name
   Procurement types in the queue, `edit_name`) is checked for nothing but
   empty and, from STORY-013 ticket 06, length ≤ 110. The other naming rules

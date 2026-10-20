@@ -9,7 +9,7 @@
 <p class="muted">ประกอบจาก: {{ req.brand or "-" }} / {{ req.model or "-" }} / {{ req.size or "-" }} / {{ req.variant or "-" }}</p>
 {% if name_editable %}
 <form hx-post="/queue/{{ req.id }}/name" hx-target="#name-panel" hx-swap="innerHTML" style="max-width:480px;">
-  <label class="muted">แก้ชื่อ (เฉพาะจัดซื้อ — บันทึกลง audit)</label>
+  <label class="muted">แก้ชื่อ (เฉพาะจัดซื้อ — ไม่เกิน 110 ตัวอักษร — บันทึกลง audit)</label>
   <input name="new_name" value="{{ req.item_name }}">
   <button type="submit" class="secondary">บันทึกชื่อใหม่</button>
 </form>
