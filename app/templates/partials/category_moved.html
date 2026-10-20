@@ -1,0 +1,6 @@
+{# STORY-013: a category move answers with the category panel, and the name
+   panel out of band, since the move may have swapped the name's prefix. #}
+{% include "partials/category_panel.html" %}
+<div id="name-panel" hx-swap-oob="innerHTML">
+{% include "partials/name_panel.html" %}
+</div>

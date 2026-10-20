@@ -79,6 +79,17 @@ def searchable_part(name: str | None, prefix: str | None) -> str:
     return name[len(head):] if head else name
 
 
+def swap_prefix(name: str | None, old: str | None, new: str | None) -> str | None:
+    """The name with its Name Prefix `old` replaced by `new` (as written), the
+    rest untouched; None when the name does not start with `old` (STORY-013:
+    never guess where the category part ends)."""
+    if not starts_with_prefix(name, old):
+        return None
+    rest = searchable_part(name, old)
+    written = prefix_as_written(new)
+    return f"{written}{SEPARATOR}{rest}" if written else rest
+
+
 def _join_unique(parts: list[str]) -> str:
     """Join with single spaces, dropping parts whose tokens all already appeared."""
     out: list[str] = []

@@ -16,6 +16,13 @@ from app.models import (
 )
 from app.services import snapshots
 from app.services.auth import has_role, normalize_email
+from app.services.naming import (
+    MAX_NAME_LEN,
+    NamingError,
+    clean_part,
+    compose_name,
+    swap_prefix,
+)
 
 # Allowed status transitions: guards against double-clicks and stale queue pages.
 TRANSITIONS: dict[str, set[str]] = {
@@ -330,7 +337,6 @@ def _validated_fields(
     # Compose the standard product name. The [CATEGORY] segment is the
     # sub-category's taxonomy Name Prefix, so the name and the code always
     # describe the same category. Runs after validation so the prefix is trusted.
-    from app.services.naming import NamingError, clean_part, compose_name
     from app.services.units import normalize_size
 
     size = normalize_size(size)  # once: the name and the stored size must agree
@@ -889,6 +895,16 @@ def change_category(
     if old == new:
         return req
 
+    # STORY-013: the name's CATEGORY part follows the category, worked out
+    # before anything changes so a refusal leaves the request as it was.
+    renamed = swap_prefix(req.item_name, name_prefix_of(req.group, req.subgroup),
+                          name_prefix_of(parent, sub))
+    if renamed is not None and len(renamed) > MAX_NAME_LEN:
+        raise RequestError(
+            f"ย้ายหมวดไม่ได้: ชื่อสินค้าจะยาว {len(renamed)} ตัวอักษร (เกิน {MAX_NAME_LEN}) "
+            "เมื่อเปลี่ยน prefix เป็นของหมวดใหม่ — แก้ชื่อให้สั้นลงก่อน แล้วค่อยย้ายหมวด"
+        )
+
     req.group_id = parent.id
     req.subgroup_id = sub.id
     db.add(
@@ -897,6 +913,14 @@ def change_category(
             detail=f"{old} -> {new}",
         )
     )
+    if renamed is not None and renamed != req.item_name:
+        # Its own action: not a name setter for the replaced-name warning
+        # (queue_view._replaced_name), so a Name Override's origin is kept.
+        db.add(RequestEvent(
+            request_id=req.id, actor=account.email, action="name_prefix_changed",
+            detail=f"{req.item_name}{CHANGE_ARROW}{renamed}",
+        ))
+        req.item_name = renamed
     if req.generated_code:
         from app.services.codegen import CodegenError, generate_code
 

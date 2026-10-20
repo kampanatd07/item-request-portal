@@ -75,6 +75,9 @@ class InvalidRow:
     row: int          # sheet row number, as Excel shows it
     item_number: str
     reason: str       # Thai, for the Administrator
+    # "code": not a valid Central Code; "category": a valid code in a
+    # Sub-Category the portal's taxonomy does not have (STORY-013).
+    kind: str = "code"
 
 
 @dataclass
@@ -186,7 +189,7 @@ def check_labeled_master(
                 if prefixes is not None and (group, sub) not in known:
                     check.invalid.append(InvalidRow(
                         row_no, number, f"หมวด {group}-{sub} ไม่มีใน taxonomy ของระบบ — "
-                        "อัปเดต taxonomy ของระบบก่อนอัปโหลด"))
+                        "อัปเดต taxonomy ของระบบก่อนอัปโหลด", kind="category"))
                     continue
                 searchable = searchable_part(name, known.get((group, sub)))
                 check.valid.append({
@@ -206,7 +209,15 @@ def _invalid_message(invalid: list[InvalidRow]) -> str:
     listed = "; ".join(f"แถว {r.row}: {r.item_number} ({r.reason})"
                        for r in invalid[:MAX_LISTED_INVALID])
     more = len(invalid) - MAX_LISTED_INVALID
-    return (f"ไม่นำเข้าทั้งไฟล์ — พบรหัสที่ไม่ใช่ Central Code ที่ถูกต้อง {len(invalid)} แถว: "
+    # Counted apart: a row in an unknown Sub-Category has a valid code.
+    found = []
+    codes = sum(1 for r in invalid if r.kind == "code")
+    categories = len(invalid) - codes
+    if codes:
+        found.append(f"พบรหัสที่ไม่ใช่ Central Code ที่ถูกต้อง {codes} แถว")
+    if categories:
+        found.append(f"พบหมวดที่ระบบไม่รู้จัก {categories} แถว")
+    return (f"ไม่นำเข้าทั้งไฟล์ — {' และ'.join(found)}: "
             f"{listed}" + (f" และอีก {more} แถว" if more > 0 else ""))
 
 

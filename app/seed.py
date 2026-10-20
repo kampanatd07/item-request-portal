@@ -41,16 +41,24 @@ class SeedError(Exception):
 
 
 def check_taxonomy(rows: list[dict]) -> None:
-    """The group standard caps CATEGORY at 16 characters. Name Prefixes come
-    only from taxonomy.json, so the cap is enforced here, on the prefix as a
-    name would carry it (cleaned), before anything is written (STORY-013)."""
-    too_long = [(r["group"], r["sub"], r["prefix"], len(clean_part(r.get("prefix"))))
-                for r in rows if len(clean_part(r.get("prefix"))) > MAX_CATEGORY_LEN]
-    if too_long:
-        lines = "\n".join(f"  {g}-{s}: '{prefix}' ({n} ตัวอักษร)" for g, s, prefix, n in too_long)
+    """Every central Sub-Category needs a Name Prefix of at most 16
+    characters: the group standard gives every Item Name a CATEGORY part and
+    caps it at 16. Name Prefixes come only from taxonomy.json, so this is
+    enforced here, on the prefix as a name would carry it (cleaned), before
+    anything is written (STORY-013)."""
+    problems = []
+    for r in rows:
+        n = len(clean_part(r.get("prefix")))
+        if n == 0:
+            problems.append(f"  {r['group']}-{r['sub']}: Name Prefix ว่าง")
+        elif n > MAX_CATEGORY_LEN:
+            problems.append(f"  {r['group']}-{r['sub']}: '{r['prefix']}' ({n} ตัวอักษร "
+                            f"เกิน {MAX_CATEGORY_LEN})")
+    if problems:
+        lines = "\n".join(problems)
         raise SeedError(
-            f"Name Prefix ยาวเกิน {MAX_CATEGORY_LEN} ตัวอักษร (มาตรฐาน CATEGORY ≤ "
-            f"{MAX_CATEGORY_LEN}) ใน app/data/taxonomy.json:\n{lines}\n"
+            f"Name Prefix ใน app/data/taxonomy.json ใช้ไม่ได้ (มาตรฐาน: ทุกชื่อต้องมี "
+            f"CATEGORY ยาวไม่เกิน {MAX_CATEGORY_LEN} ตัวอักษร):\n{lines}\n"
             "แก้ไฟล์แล้วรัน seed ใหม่ — ยังไม่ได้เขียนอะไรลงฐานข้อมูล"
         )
 

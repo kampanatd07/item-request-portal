@@ -88,3 +88,33 @@ def test_check_only_callers_without_prefixes_are_unchanged():
 
     check = check_labeled_master("m.xlsx", _xlsx([("90027000001", "NEW CAT - X", "900", "27")]))
     assert not check.invalid and check.valid[0]["searchable"] == "NEW CAT - X"
+
+
+def test_an_unknown_sub_category_is_not_called_an_invalid_code(db_session):
+    import pytest
+
+    from app.services.snapshots import SnapshotError
+
+    rows = [("90027000001", "NEW CAT - X", "900", "27"),
+            ("90028000001", "NEW CAT - Y", "900", "28")]
+    with pytest.raises(SnapshotError) as refused:
+        import_labeled_master(db_session, filename="master.xlsx", data=_xlsx(rows),
+                              uploaded_by="admin@test.local")
+    message = str(refused.value)
+    assert "พบหมวดที่ระบบไม่รู้จัก 2 แถว" in message
+    assert "Central Code ที่ถูกต้อง" not in message and "รหัสไม่ถูกต้อง" not in message
+
+
+def test_bad_codes_and_unknown_sub_categories_are_counted_apart(db_session):
+    import pytest
+
+    from app.services.snapshots import SnapshotError
+
+    rows = [("90027000001", "NEW CAT - X", "900", "27"),     # unknown Sub-Category
+            ("90001000001", "BEARING - X", "900", "02")]     # code does not match 900-02
+    with pytest.raises(SnapshotError) as refused:
+        import_labeled_master(db_session, filename="master.xlsx", data=_xlsx(rows),
+                              uploaded_by="admin@test.local")
+    message = str(refused.value)
+    assert "พบรหัสที่ไม่ใช่ Central Code ที่ถูกต้อง 1 แถว" in message
+    assert "พบหมวดที่ระบบไม่รู้จัก 1 แถว" in message

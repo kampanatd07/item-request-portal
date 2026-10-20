@@ -74,3 +74,16 @@ def test_the_command_line_prints_the_thai_message_and_fails(empty_db, monkeypatc
     assert seed_module.main() == 1
     out = capsys.readouterr()
     assert "SPARE PARTS AND ACCESSORIES" in out.err and "Seed complete." not in out.out
+
+
+@pytest.mark.parametrize("prefix", ["", "   ", None])
+def test_an_empty_central_prefix_is_refused(empty_db, monkeypatch, prefix):
+    # The standard: every Item Name has a CATEGORY part.
+    _taxonomy_with(monkeypatch, g702_03=prefix)
+    with empty_db() as db:
+        with pytest.raises(seed_module.SeedError) as refused:
+            seed_module.seed(db)
+    message = str(refused.value)
+    assert "702-03" in message and "ว่าง" in message
+    with empty_db() as db:
+        assert db.scalar(select(func.count()).select_from(Factory)) == 0

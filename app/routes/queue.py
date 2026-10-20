@@ -194,8 +194,10 @@ def recategorise(
         req = change_category(db, request_id, subgroup_id=subgroup_id, account=account)
     except RequestError as e:
         return _error(request, e)
+    # The name may have a new prefix: redraw its panel too (out of band).
     return templates.TemplateResponse(
-        request, "partials/category_panel.html", {"req": req, "taxonomy": _taxonomy(db)}
+        request, "partials/category_moved.html",
+        {"req": req, "taxonomy": _taxonomy(db), "prefix_warning": name_prefix_warning(req)},
     )
 
 
