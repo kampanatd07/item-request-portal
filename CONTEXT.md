@@ -85,6 +85,11 @@ _Avoid_: product name, description
 The English CATEGORY word(s) at the front of an Item Name, owned by the
 Sub-Category.
 
+**Name Override**:
+An Item Name Procurement typed in place of the composed one. It stays until a
+resubmit composes the name again, or a category move swaps its Name Prefix.
+_Avoid_: typed name, manual name
+
 **Variant**:
 Type or colour that distinguishes otherwise identical items (ชนิด/สี).
 
