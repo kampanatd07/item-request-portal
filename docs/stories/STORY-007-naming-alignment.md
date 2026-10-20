@@ -56,3 +56,11 @@ _(filled by /to-spec + /to-tickets)_
 - Also from STORY-009 ticket 01: the Base Name, Item Name and other name
   parts are not NFC + fix_thai normalised on submit (only the originator
   name is; HANDOFF §6.2). Changing it changes Item Names, so decide it here.
+- From STORY-013 (Peter, 2026-10-20): a **Name Override** (an Item Name
+  Procurement types in the queue, `edit_name`) is checked for nothing but
+  empty and, from STORY-013 ticket 06, length ≤ 110. The other naming rules
+  `compose_name` enforces (no `,`, `--`, ` : `, ` / `, `=`, `|`, no
+  `(ยกเลิก)`, number + unit spaced, ` - ` the only separator, segment lengths)
+  do not apply to it, so a Name Override can reach the AX/D365 export
+  breaking them. Decide here which of these rules a Name Override must obey,
+  and whether it is refused or cleaned.

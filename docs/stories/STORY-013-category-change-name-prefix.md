@@ -126,6 +126,15 @@ Tickets in `docs/stories/STORY-013/` (Peter, 2026-10-20), one branch
 AC5 (too long → refuse) sits in ticket 02, not 03, so the prefix is never
 swapped without the length check (Peter, 2026-10-20).
 
+Added 2026-10-20 (Peter): a seed guard (no Name Prefix over 16 in
+`taxonomy.json`), done with ticket 01; and
+
+6. 06 A Name Override longer than 110 characters is refused (no blockers;
+   before the plants open, since a longer name would be exported to AX).
+   Other Name Override naming rules: STORY-007's Notes.
+
+Order from here: 05 → 02 → 03 → 04 → 06.
+
 ## Notes
 - Peter (2026-10-16): replace only the prefix, keep the rest; log the rename;
   blocks STORY-006.

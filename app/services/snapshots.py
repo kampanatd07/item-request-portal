@@ -13,9 +13,17 @@ from dataclasses import dataclass, field
 
 from openpyxl import load_workbook
 from sqlalchemy import delete, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
-from app.models import Factory, ItemSnapshot, RunningRegister, SnapshotImport
+from app.models import (
+    CodeGroup,
+    CodeSystem,
+    Factory,
+    ItemSnapshot,
+    RunningRegister,
+    SnapshotImport,
+)
+from app.services.naming import searchable_part
 
 SOURCES = ("CBD", "D365", "CENTRAL")
 
@@ -122,15 +130,26 @@ def _code_problem(number: str, name: str, group: str, sub: str) -> str | None:
     return None
 
 
-def check_labeled_master(filename: str, data: bytes) -> LabeledCheck:
+def check_labeled_master(
+    filename: str, data: bytes,
+    prefixes: dict[tuple[str, str], str | None] | None = None,
+) -> LabeledCheck:
     """Read the classified master (New_Item_Master) without writing anything.
 
     Its Item Number is the group's Central Code, which code override trusts
     (STORY-010), so a coded row must be a valid code for its own Category /
     Sub-Category. Rows with no Item Number are pending group decisions and are
     skipped. Product Name carries the 'CATEGORY - ' prefix; the searchable text
-    is the part a user would actually type, so the prefix is stripped.
+    is the part a user would actually type, so the prefix is cut off by the
+    one Name Prefix rule (STORY-013): only the row's own Sub-Category prefix
+    (`prefixes`, keyed by (group, sub)), never "whatever is before the first
+    ' - '". With `prefixes`, a row whose Sub-Category is not among them is
+    invalid: its prefix could not be cut, and its code cannot be issued or
+    overridden in the portal either. Without `prefixes` (code checks only)
+    nothing is cut and no Sub-Category is refused.
     """
+    known = prefixes or {}
+
     if not filename.lower().endswith((".xlsx", ".xlsm")):
         raise SnapshotError("ไฟล์ master ที่จัดหมวดแล้วต้องเป็น .xlsx")
     wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
@@ -164,7 +183,12 @@ def check_labeled_master(filename: str, data: bytes) -> LabeledCheck:
                 if problem:
                     check.invalid.append(InvalidRow(row_no, number, problem))
                     continue
-                searchable = name.split(" - ", 1)[1] if " - " in name else name
+                if prefixes is not None and (group, sub) not in known:
+                    check.invalid.append(InvalidRow(
+                        row_no, number, f"หมวด {group}-{sub} ไม่มีใน taxonomy ของระบบ — "
+                        "อัปเดต taxonomy ของระบบก่อนอัปโหลด"))
+                    continue
+                searchable = searchable_part(name, known.get((group, sub)))
                 check.valid.append({
                     "item_number": number, "name": name, "searchable": searchable,
                     "group_code": group, "sub_code": sub,
@@ -209,6 +233,19 @@ def central_register_lag(db: Session) -> list[RegisterLag]:
         select(ItemSnapshot.item_number).where(ItemSnapshot.source == "CENTRAL")))
 
 
+def central_prefixes(db: Session) -> dict[tuple[str, str], str | None]:
+    """(group code, sub code) → Name Prefix of the central taxonomy: Item
+    Groups (top level) and their Sub-Categories only."""
+    parent = aliased(CodeGroup)
+    rows = db.execute(
+        select(parent.code, CodeGroup.code, CodeGroup.name_prefix)
+        .join(parent, CodeGroup.parent_id == parent.id)
+        .join(CodeSystem, CodeSystem.id == CodeGroup.code_system_id)
+        .where(CodeSystem.code == "CENTRAL", parent.parent_id.is_(None))
+    )
+    return {(g, s): prefix for g, s, prefix in rows}
+
+
 def import_labeled_master(
     db: Session, *, filename: str, data: bytes, uploaded_by: str
 ) -> SnapshotImport:
@@ -219,7 +256,7 @@ def import_labeled_master(
     the previous CENTRAL load stays. Replaces the previous CENTRAL load;
     LEARNED rows are untouched. Never touches the register.
     """
-    check = check_labeled_master(filename, data)
+    check = check_labeled_master(filename, data, central_prefixes(db))
     if check.invalid:
         raise SnapshotError(_invalid_message(check.invalid))
     if not check.valid:
