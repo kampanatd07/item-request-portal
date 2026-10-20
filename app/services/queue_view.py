@@ -11,7 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import ItemRequest, RequestEvent
-from app.services.requests import CHANGE_ARROW, NAME_CHANGE_LABEL, named_on
+from app.services.naming import prefix_as_written, starts_with_prefix
+from app.services.requests import CHANGE_ARROW, NAME_CHANGE_LABEL, name_prefix_of, named_on
 
 NAME_LINE_PREFIX = f"{NAME_CHANGE_LABEL}: "
 
@@ -27,6 +28,18 @@ class ResubmitSummary:
     changes: list[str] = field(default_factory=list)
     # (the name Procurement typed, the name that replaced it), if one was replaced.
     replaced_name: tuple[str, str] | None = None
+
+
+def name_prefix_warning(req: ItemRequest) -> str | None:
+    """The Name Prefix the Item Name should start with, when it does not
+    (STORY-013): a Name Override without it, or a prefix edited in the
+    taxonomy since. None when it fits, or the category has no prefix.
+    Display only: nothing is blocked."""
+    prefix = name_prefix_of(req.group, req.subgroup)
+    if not prefix_as_written(prefix) or starts_with_prefix(req.item_name, prefix):
+        return None
+    # As it appears in a name: typing exactly this clears the warning.
+    return prefix_as_written(prefix)
 
 
 def resubmitted_ids(db: Session, request_ids: list[int]) -> set[int]:

@@ -6,7 +6,7 @@ from app.database import SessionFactory, get_db, get_session_factory
 from app.models import Account, ItemRequest
 from app.routes.deps import current_account, require_role
 from app.services import override_preview
-from app.services.queue_view import latest_resubmit, resubmitted_ids
+from app.services.queue_view import latest_resubmit, name_prefix_warning, resubmitted_ids
 from app.services.mail import MailSender, get_mail_sender
 from app.services.notify import (
     ANNOUNCED,
@@ -90,6 +90,7 @@ def request_detail(request: Request, request_id: int, db: Session = Depends(get_
         {"req": req, "taxonomy": _taxonomy(db),
          "originator": originator_of(req) if req else None,
          "resubmit": latest_resubmit(req) if req else None,
+         "prefix_warning": name_prefix_warning(req) if req else None,
          "unsent": unsent[0] if unsent else None, "req_id": request_id},
     )
 
@@ -176,7 +177,8 @@ def rename_item(
     except RequestError as e:
         return _error(request, e)
     return templates.TemplateResponse(
-        request, "partials/name_panel.html", {"req": req}
+        request, "partials/name_panel.html",
+        {"req": req, "prefix_warning": name_prefix_warning(req)},
     )
 
 

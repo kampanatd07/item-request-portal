@@ -1,7 +1,13 @@
 <h3>ชื่อสินค้า (ระบบประกอบให้)</h3>
 <p style="font-size:17px;"><strong>{{ req.item_name }}</strong></p>
+{# STORY-013: re-checked on every draw, so fixing the name clears it at once. #}
+{% set name_editable = req.status not in ["exported", "created", "notified"] %}
+{% if prefix_warning %}
+{# After export the name is fixed in AX/D365, not here: no "แก้ชื่อ". #}
+<p class="error">ชื่อไม่ได้ขึ้นต้นด้วย prefix ของหมวดปัจจุบัน ({{ prefix_warning }}) — {% if name_editable %}ตรวจและแก้ชื่อ{% else %}ตรวจชื่อ{% endif %}</p>
+{% endif %}
 <p class="muted">ประกอบจาก: {{ req.brand or "-" }} / {{ req.model or "-" }} / {{ req.size or "-" }} / {{ req.variant or "-" }}</p>
-{% if req.status not in ["exported", "created", "notified"] %}
+{% if name_editable %}
 <form hx-post="/queue/{{ req.id }}/name" hx-target="#name-panel" hx-swap="innerHTML" style="max-width:480px;">
   <label class="muted">แก้ชื่อ (เฉพาะจัดซื้อ — บันทึกลง audit)</label>
   <input name="new_name" value="{{ req.item_name }}">

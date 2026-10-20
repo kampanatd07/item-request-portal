@@ -265,6 +265,14 @@ class RequestFields:
     procurement_category: str | None
 
 
+def name_prefix_of(group: CodeGroup | None, sub: CodeGroup | None) -> str | None:
+    """The Name Prefix an Item Name in this category gets: the Sub-Category's
+    when there is one (even if it has no prefix), the Group's only when there
+    is no Sub-Category. One choice for composing and for checking a name."""
+    source = sub or group
+    return source.name_prefix if source else None
+
+
 def _require_base_name(item_name: str | None) -> None:
     if not (item_name or "").strip():
         raise RequestError("กรุณากรอกชื่อเรียกสินค้า")
@@ -325,13 +333,12 @@ def _validated_fields(
     from app.services.naming import NamingError, clean_part, compose_name
     from app.services.units import normalize_size
 
-    prefix_source = sub or group
     size = normalize_size(size)  # once: the name and the stored size must agree
     try:
         composed_name = compose_name(
             item_name, brand=brand, model=model,
             size=size, detail=variant,
-            category_prefix=prefix_source.name_prefix if prefix_source else None,
+            category_prefix=name_prefix_of(group, sub),
         )
     except NamingError as e:
         raise RequestError(str(e)) from e
