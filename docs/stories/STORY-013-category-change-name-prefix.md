@@ -1,7 +1,7 @@
 # STORY-013: Category change updates the name prefix
 
-Status: todo · Depends on: — · Must ship before the plants get access (STORY-006)
-Triage: ready-for-human
+Status: planned · Depends on: — · Must ship before the plants get access (STORY-006)
+Triage: ready-for-agent
 
 ## Why
 The CATEGORY part of an Item Name (`[CATEGORY] - [name] - [detail]`) is the
@@ -111,7 +111,20 @@ rules in CLAUDE.md, decision 2026-07-30 (names are composed, not typed).
 Glossary: Name Prefix, Name Override (CONTEXT.md).
 
 ## Plan
-_(filled by /to-spec + /to-tickets)_
+Tickets in `docs/stories/STORY-013/` (Peter, 2026-10-20), one branch
+`story/013-category-change-name-prefix`, one ticket at a time, in this order:
+
+1. 01 One Name Prefix rule; the queue warns when a name does not fit its
+   category (no blockers)
+2. 05 The classified-master import uses the same rule: dry run on the real
+   file first, stop if any row differs (blocked by 01)
+3. 02 A category move swaps the Name Prefix, refusing a name over 110
+   characters (blocked by 01)
+4. 03 A name without the old prefix is kept, with a warning (blocked by 02)
+5. 04 Category suggestion learns from the renamed name (blocked by 01, 02)
+
+AC5 (too long → refuse) sits in ticket 02, not 03, so the prefix is never
+swapped without the length check (Peter, 2026-10-20).
 
 ## Notes
 - Peter (2026-10-16): replace only the prefix, keep the rest; log the rename;
