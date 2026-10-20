@@ -191,13 +191,15 @@ def recategorise(
     account: Account = Depends(current_account),
 ):
     try:
-        req = change_category(db, request_id, subgroup_id=subgroup_id, account=account)
+        moved = change_category(db, request_id, subgroup_id=subgroup_id, account=account)
     except RequestError as e:
         return _error(request, e)
+    req = moved.req
     # The name may have a new prefix: redraw its panel too (out of band).
     return templates.TemplateResponse(
         request, "partials/category_moved.html",
-        {"req": req, "taxonomy": _taxonomy(db), "prefix_warning": name_prefix_warning(req)},
+        {"req": req, "taxonomy": _taxonomy(db), "prefix_warning": name_prefix_warning(req),
+         "kept_name_prefix": moved.kept_name_prefix},
     )
 
 

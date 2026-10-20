@@ -67,7 +67,7 @@
       <td class="muted">{{ e.at | thai_time("%d/%m/%Y %H:%M") }}</td>
       <td>{{ event_labels.get(e.action) or status_labels.get(e.action, e.action) }}</td>
       <td>{{ e.actor }}</td>
-      <td>{{ e.detail or "" }}</td>
+      <td style="white-space:pre-line;">{{ e.detail or "" }}</td>
     </tr>
     {% endfor %}
   </table>

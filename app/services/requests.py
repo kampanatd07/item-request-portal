@@ -21,6 +21,7 @@ from app.services.naming import (
     NamingError,
     clean_part,
     compose_name,
+    prefix_as_written,
     swap_prefix,
 )
 
@@ -856,9 +857,17 @@ def edit_name(
     return req
 
 
+@dataclass
+class CategoryMove:
+    req: ItemRequest
+    # The old Name Prefix the Item Name did not start with, so the name was
+    # left as it was (STORY-013 ticket 03); None when renamed or not needed.
+    kept_name_prefix: str | None = None
+
+
 def change_category(
     db: Session, request_id: int, *, subgroup_id: int, account: Account
-) -> ItemRequest:
+) -> CategoryMove:
     """Re-categorise a request; the correction is fed back so similar future
     requests start out right.
 
@@ -893,24 +902,32 @@ def change_category(
     old = f"{req.group.code}-{req.subgroup.code}" if req.subgroup else req.group.code
     new = f"{parent.code}-{sub.code}"
     if old == new:
-        return req
+        return CategoryMove(req)
 
     # STORY-013: the name's CATEGORY part follows the category, worked out
     # before anything changes so a refusal leaves the request as it was.
-    renamed = swap_prefix(req.item_name, name_prefix_of(req.group, req.subgroup),
-                          name_prefix_of(parent, sub))
+    old_prefix = prefix_as_written(name_prefix_of(req.group, req.subgroup))
+    renamed = swap_prefix(req.item_name, old_prefix, name_prefix_of(parent, sub))
+    # No old prefix to find: never guess where the category part ends; keep
+    # the name and say so (ticket 03).
+    kept = old_prefix if renamed is None and old_prefix else None
     if renamed is not None and len(renamed) > MAX_NAME_LEN:
         raise RequestError(
             f"ย้ายหมวดไม่ได้: ชื่อสินค้าจะยาว {len(renamed)} ตัวอักษร (เกิน {MAX_NAME_LEN}) "
             "เมื่อเปลี่ยน prefix เป็นของหมวดใหม่ — แก้ชื่อให้สั้นลงก่อน แล้วค่อยย้ายหมวด"
         )
 
-    req.group_id = parent.id
-    req.subgroup_id = sub.id
+    # The relationships, not just the ids: everything read from req after
+    # this (the code prefix, the panels drawn by the move) sees the new
+    # category without a reload.
+    req.group = parent
+    req.subgroup = sub
     db.add(
         RequestEvent(
             request_id=req.id, actor=account.email, action="category_changed",
-            detail=f"{old} -> {new}",
+            detail=f"{old} -> {new}" + (
+                f"\nชื่อไม่ได้เปลี่ยน — ไม่ได้ขึ้นต้นด้วย prefix ของหมวดเดิม ({kept})"
+                if kept else ""),
         )
     )
     if renamed is not None and renamed != req.item_name:
@@ -925,7 +942,6 @@ def change_category(
         from app.services.codegen import CodegenError, generate_code
 
         db.flush()
-        db.refresh(req)  # load the new group/subgroup for the code prefix
         old_code = req.generated_code
         try:
             new_code = generate_code(db, req)
@@ -952,7 +968,7 @@ def change_category(
         db, name=req.item_name, group_code=parent.code, sub_code=sub.code,
         actor=account.email,
     )
-    return req
+    return CategoryMove(req, kept)
 
 
 # More numbers than this thrown away by one override need explicit confirmation
