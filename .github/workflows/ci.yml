@@ -28,8 +28,8 @@ jobs:
       # CI is not a deploy: no Graph values here, and dev skips that check.
       APP_ENV: dev
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7  # node24 runtime
+      - uses: actions/setup-python@v7  # node24 runtime
         with:
           python-version: "3.12"  # as in the Dockerfile
           cache: pip

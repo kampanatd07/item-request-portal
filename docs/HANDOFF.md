@@ -34,6 +34,12 @@ done 2026-10-19) and the Name Prefix on category moves (STORY-013, done
 
 After the plants open: STORY-014 (the name preview shows the saved name).
 
+Open small item (not fixed, noted 2026-10-21): `app/config.py` `Settings`
+uses a class-based `Config`, which Pydantic 2 warns is deprecated
+(`PydanticDeprecatedSince20`, removed in V3). Move to
+`model_config = SettingsConfigDict(env_file=".env")` before any Pydantic 3
+upgrade; check `.env` is still read.
+
 | Area | State |
 |---|---|
 | Request form (structured fields, live name preview) | done |
@@ -51,7 +57,8 @@ After the plants open: STORY-014 (the name preview shows the saved name).
 | Requester resubmit | done — STORY-009: Requester or Originator edits and resubmits a Needs Info request (conditional claim, one 409 for the loser), queue badge + reply card + replaced-name warning, best-effort email to Procurement; the code system must now fit the request's Plant (fix also for new requests) |
 | Deployment | **not started — STORY-006** |
 
-Tests: 810 passing (`pytest`).
+Tests: 810 passing locally, 4 PostgreSQL tests skipped without
+`TEST_POSTGRES_URL`; CI runs all 814 on PostgreSQL 16 (STORY-006 ticket 01).
 
 The suite runs in ~13 s: `create_all` + `seed` run once per pytest session
 into an in-memory template, and each test's `db_session` gets a copy through
