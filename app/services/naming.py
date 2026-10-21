@@ -19,6 +19,7 @@ review, and the override is audit-logged.
 """
 
 import re
+from functools import lru_cache
 
 MAX_NAME_LEN = 110
 MAX_CATEGORY_LEN = 16
@@ -43,6 +44,54 @@ def clean_part(part: str | None) -> str:
     part = " ".join(part.split())
     # rule 2: never begin with punctuation
     return part.lstrip("-–—:/,. ").strip()
+
+
+SEPARATOR = " - "
+
+
+@lru_cache(maxsize=1024)
+def prefix_as_written(prefix: str | None) -> str:
+    """The Name Prefix exactly as it appears in a name: cleaned, upper case,
+    cut to 16 and stripped again, so a cut on a space leaves no trailing space
+    (that gave 'SPARE PARTS AND  - ...', which no typed name can match).
+    Cached: there are ~130 prefixes, and an import or a page asks about the
+    same one again and again; the function is pure."""
+    return clean_part(prefix).upper()[:MAX_CATEGORY_LEN].rstrip()
+
+
+def _head(name: str | None, prefix: str | None) -> str | None:
+    """'PREFIX - ' when the name starts with it (any case), else None."""
+    written = prefix_as_written(prefix)
+    if not written:
+        return None
+    head = written + SEPARATOR
+    return head if (name or "")[:len(head)].upper() == head else None
+
+
+def starts_with_prefix(name: str | None, prefix: str | None) -> bool:
+    """The one Name Prefix rule (STORY-013): the name begins with the prefix
+    followed by ' - ', compared without case. The prefix is English; upper()
+    leaves Thai text untouched (no NFKC, HANDOFF §6.2)."""
+    return _head(name, prefix) is not None
+
+
+def searchable_part(name: str | None, prefix: str | None) -> str:
+    """The name without its Name Prefix, by the same rule; the whole name when
+    it does not start with that prefix (never a guess at where it ends)."""
+    head = _head(name, prefix)
+    name = name or ""
+    return name[len(head):] if head else name
+
+
+def swap_prefix(name: str | None, old: str | None, new: str | None) -> str | None:
+    """The name with its Name Prefix `old` replaced by `new` (as written), the
+    rest untouched; None when the name does not start with `old` (STORY-013:
+    never guess where the category part ends)."""
+    if not starts_with_prefix(name, old):
+        return None
+    rest = searchable_part(name, old)
+    written = prefix_as_written(new)
+    return f"{written}{SEPARATOR}{rest}" if written else rest
 
 
 def _join_unique(parts: list[str]) -> str:
@@ -78,7 +127,7 @@ def compose_name(
     When it is absent the name degrades gracefully to the two remaining
     segments rather than emitting a dangling separator.
     """
-    category = clean_part(category_prefix).upper()[:MAX_CATEGORY_LEN]
+    category = prefix_as_written(category_prefix)
     name_seg = _join_unique([clean_part(base), clean_part(brand), clean_part(model)])
     detail_seg = _join_unique([clean_part(size), clean_part(detail)])
 
@@ -95,7 +144,7 @@ def compose_name(
             "ย้ายส่วนเกินไปช่องสเปคเพิ่มเติม"
         )
 
-    name = " - ".join(seg for seg in [category, name_seg, detail_seg] if seg)
+    name = SEPARATOR.join(seg for seg in [category, name_seg, detail_seg] if seg)
     if len(name) > MAX_NAME_LEN:
         raise NamingError(
             f"ชื่อที่ประกอบได้ยาว {len(name)} ตัวอักษร (เกิน {MAX_NAME_LEN})"

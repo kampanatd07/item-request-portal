@@ -23,6 +23,7 @@ templates.env.globals["status_labels"] = STATUS_LABELS
 templates.env.globals["event_labels"] = {
     "notify_not_applicable": "ไม่ต้องแจ้งทางอีเมล",
     "request_edited": "แก้ไขข้อมูลคำขอ",
+    "name_prefix_changed": "เปลี่ยน prefix ตามหมวด",
 }
 # Which email is owed, on the resend list (STORY-002 ticket 06).
 templates.env.globals["mail_kinds"] = {

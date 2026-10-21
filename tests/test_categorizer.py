@@ -175,7 +175,7 @@ def test_procurement_recategorise_feeds_the_learner(db_session):
     change_category(db_session, req.id, subgroup_id=right_sub.id, account=account_for(db_session))
 
     assert req.group_id == right_group.id and req.subgroup_id == right_sub.id
-    assert [e.action for e in req.events][-1] == "category_changed"
+    assert "category_changed" in [e.action for e in req.events]
 
     out = suggest_category(db_session, "ชิ้นส่วนพิเศษ QX-1")
     assert (out[0].group.code, out[0].sub.code) == ("900", "01")

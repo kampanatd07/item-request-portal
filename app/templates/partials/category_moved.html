@@ -1,0 +1,13 @@
+{# STORY-013: a category move answers with the category panel, and the name
+   panel out of band, since the move may have swapped the name's prefix. #}
+{% include "partials/category_panel.html" %}
+{% if kept_name_prefix %}
+<p class="error">ชื่อไม่ได้ขึ้นต้นด้วย prefix ของหมวดเดิม ({{ kept_name_prefix }}) — ตรวจและแก้ชื่อเอง</p>
+{% endif %}
+<div id="name-panel" hx-swap-oob="innerHTML">
+{% include "partials/name_panel.html" %}
+</div>
+{# The heading and summary table show the name and category too. #}
+<div id="request-summary" hx-swap-oob="innerHTML">
+{% include "partials/request_summary.html" %}
+</div>

@@ -16,6 +16,16 @@ from app.models import (
 )
 from app.services import snapshots
 from app.services.auth import has_role, normalize_email
+from app.services.naming import (
+    MAX_NAME_LEN,
+    NamingError,
+    clean_part,
+    compose_name,
+    prefix_as_written,
+    searchable_part,
+    starts_with_prefix,
+    swap_prefix,
+)
 
 # Allowed status transitions: guards against double-clicks and stale queue pages.
 TRANSITIONS: dict[str, set[str]] = {
@@ -265,6 +275,14 @@ class RequestFields:
     procurement_category: str | None
 
 
+def name_prefix_of(group: CodeGroup | None, sub: CodeGroup | None) -> str | None:
+    """The Name Prefix an Item Name in this category gets: the Sub-Category's
+    when there is one (even if it has no prefix), the Group's only when there
+    is no Sub-Category. One choice for composing and for checking a name."""
+    source = sub or group
+    return source.name_prefix if source else None
+
+
 def _require_base_name(item_name: str | None) -> None:
     if not (item_name or "").strip():
         raise RequestError("กรุณากรอกชื่อเรียกสินค้า")
@@ -322,16 +340,14 @@ def _validated_fields(
     # Compose the standard product name. The [CATEGORY] segment is the
     # sub-category's taxonomy Name Prefix, so the name and the code always
     # describe the same category. Runs after validation so the prefix is trusted.
-    from app.services.naming import NamingError, clean_part, compose_name
     from app.services.units import normalize_size
 
-    prefix_source = sub or group
     size = normalize_size(size)  # once: the name and the stored size must agree
     try:
         composed_name = compose_name(
             item_name, brand=brand, model=model,
             size=size, detail=variant,
-            category_prefix=prefix_source.name_prefix if prefix_source else None,
+            category_prefix=name_prefix_of(group, sub),
         )
     except NamingError as e:
         raise RequestError(str(e)) from e
@@ -829,6 +845,12 @@ def edit_name(
     new_name = " ".join(new_name.split())
     if not new_name:
         raise RequestError("กรุณากรอกชื่อ")
+    # The group standard caps an Item Name at 110, and a Name Override is
+    # exported to AX/D365 as typed (STORY-013 ticket 06). Other naming rules
+    # for overrides: STORY-007.
+    if len(new_name) > MAX_NAME_LEN:
+        raise RequestError(
+            f"ชื่อยาว {len(new_name)} ตัวอักษร (เกิน {MAX_NAME_LEN}) — ย่อชื่อให้สั้นลง")
     old = req.item_name
     if new_name == old:
         return req
@@ -843,9 +865,17 @@ def edit_name(
     return req
 
 
+@dataclass
+class CategoryMove:
+    req: ItemRequest
+    # The old Name Prefix the Item Name did not start with, so the name was
+    # left as it was (STORY-013 ticket 03); None when renamed or not needed.
+    kept_name_prefix: str | None = None
+
+
 def change_category(
     db: Session, request_id: int, *, subgroup_id: int, account: Account
-) -> ItemRequest:
+) -> CategoryMove:
     """Re-categorise a request; the correction is fed back so similar future
     requests start out right.
 
@@ -880,21 +910,54 @@ def change_category(
     old = f"{req.group.code}-{req.subgroup.code}" if req.subgroup else req.group.code
     new = f"{parent.code}-{sub.code}"
     if old == new:
-        return req
+        return CategoryMove(req)
 
-    req.group_id = parent.id
-    req.subgroup_id = sub.id
+    # STORY-013: the name's CATEGORY part follows the category, worked out
+    # before anything changes so a refusal leaves the request as it was.
+    old_prefix = prefix_as_written(name_prefix_of(req.group, req.subgroup))
+    new_prefix = name_prefix_of(parent, sub)
+    renamed = swap_prefix(req.item_name, old_prefix, new_prefix)
+    # No old prefix to find: never guess where the category part ends; keep
+    # the name and say so (ticket 03), unless it already starts with the new
+    # category's prefix, i.e. it fits (Peter, 2026-10-21).
+    kept = None
+    if renamed is None and starts_with_prefix(req.item_name, new_prefix):
+        # Already the new category's prefix, maybe in another case: it fits,
+        # so no warning; write the prefix as the standard does (AC3).
+        renamed = swap_prefix(req.item_name, new_prefix, new_prefix)
+    elif renamed is None and old_prefix:
+        kept = old_prefix
+    if renamed is not None and len(renamed) > MAX_NAME_LEN:
+        raise RequestError(
+            f"ย้ายหมวดไม่ได้: ชื่อสินค้าจะยาว {len(renamed)} ตัวอักษร (เกิน {MAX_NAME_LEN}) "
+            "เมื่อเปลี่ยน prefix เป็นของหมวดใหม่ — แก้ชื่อให้สั้นลงก่อน แล้วค่อยย้ายหมวด"
+        )
+
+    # The relationships, not just the ids: everything read from req after
+    # this (the code prefix, the panels drawn by the move) sees the new
+    # category without a reload.
+    req.group = parent
+    req.subgroup = sub
     db.add(
         RequestEvent(
             request_id=req.id, actor=account.email, action="category_changed",
-            detail=f"{old} -> {new}",
+            detail=f"{old} -> {new}" + (
+                f"\nชื่อไม่ได้เปลี่ยน — ไม่ได้ขึ้นต้นด้วย prefix ของหมวดเดิม ({kept})"
+                if kept else ""),
         )
     )
+    if renamed is not None and renamed != req.item_name:
+        # Its own action: not a name setter for the replaced-name warning
+        # (queue_view._replaced_name), so a Name Override's origin is kept.
+        db.add(RequestEvent(
+            request_id=req.id, actor=account.email, action="name_prefix_changed",
+            detail=f"{req.item_name}{CHANGE_ARROW}{renamed}",
+        ))
+        req.item_name = renamed
     if req.generated_code:
         from app.services.codegen import CodegenError, generate_code
 
         db.flush()
-        db.refresh(req)  # load the new group/subgroup for the code prefix
         old_code = req.generated_code
         try:
             new_code = generate_code(db, req)
@@ -917,11 +980,24 @@ def change_category(
 
     from app.services.categorizer import learn_from_correction
 
-    learn_from_correction(
-        db, name=req.item_name, group_code=parent.code, sub_code=sub.code,
-        actor=account.email,
-    )
-    return req
+    # Learned without its Name Prefix: the shape a Requester types, and the
+    # same cut as the classified-master import (STORY-013 ticket 04). A kept
+    # name that names another known category contradicts the move, so it is
+    # not learned at all (Peter, 2026-10-21).
+    if not _names_another_category(db, req.item_name, new_prefix):
+        learn_from_correction(
+            db, name=searchable_part(req.item_name, new_prefix),
+            group_code=parent.code, sub_code=sub.code, actor=account.email,
+        )
+    return CategoryMove(req, kept)
+
+
+def _names_another_category(db: Session, name: str, prefix: str | None) -> bool:
+    """The name starts with a known central Name Prefix other than `prefix`."""
+    if starts_with_prefix(name, prefix):
+        return False
+    return any(starts_with_prefix(name, other)
+               for other in snapshots.central_prefixes(db).values() if other)
 
 
 # More numbers than this thrown away by one override need explicit confirmation

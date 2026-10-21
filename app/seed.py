@@ -6,6 +6,7 @@ Run: python -m app.seed
 """
 
 import json
+import sys
 from pathlib import Path
 
 from sqlalchemy import select
@@ -18,6 +19,8 @@ DATA_DIR = Path(__file__).parent / "data"
 
 def _load_json(name: str):
     return json.loads((DATA_DIR / name).read_text(encoding="utf-8"))
+
+
 from app.models import (
     CodeGroup,
     CodeSystem,
@@ -30,6 +33,40 @@ from app.models import (
     SearchTerm,
     Uom,
 )
+from app.services.naming import MAX_CATEGORY_LEN, clean_part
+
+
+class SeedError(Exception):
+    """Reference data that must not be loaded; a Thai message for the console."""
+
+
+def check_taxonomy(rows: list[dict]) -> None:
+    """Every central Sub-Category needs a Name Prefix of at most 16
+    characters: the group standard gives every Item Name a CATEGORY part and
+    caps it at 16. Name Prefixes come only from taxonomy.json, so this is
+    enforced here, on the prefix as a name would carry it (cleaned), before
+    anything is written (STORY-013)."""
+    problems = []
+    for r in rows:
+        cleaned = clean_part(r.get("prefix"))
+        n = len(cleaned)
+        if n == 0:
+            problems.append(f"  {r['group']}-{r['sub']}: Name Prefix ว่าง")
+        elif cleaned != (r.get("prefix") or "").strip():
+            # Names would carry the cleaned form, not what the file says.
+            problems.append(f"  {r['group']}-{r['sub']}: '{r['prefix']}' มีอักขระที่ใช้ในชื่อ"
+                            f"ไม่ได้ (ระบบจะเขียนเป็น '{cleaned}')")
+        elif n > MAX_CATEGORY_LEN:
+            problems.append(f"  {r['group']}-{r['sub']}: '{r['prefix']}' ({n} ตัวอักษร "
+                            f"เกิน {MAX_CATEGORY_LEN})")
+    if problems:
+        lines = "\n".join(problems)
+        raise SeedError(
+            f"Name Prefix ใน app/data/taxonomy.json ใช้ไม่ได้ (มาตรฐาน: ทุกชื่อต้องมี "
+            f"CATEGORY ยาวไม่เกิน {MAX_CATEGORY_LEN} ตัวอักษร):\n{lines}\n"
+            "แก้ไฟล์แล้วรัน seed ใหม่ — ยังไม่ได้เขียนอะไรลงฐานข้อมูล"
+        )
+
 
 FACTORIES = [
     ("CBD", "Carabao Distillery", "CBD"),
@@ -228,6 +265,8 @@ SEARCH_TERMS = [
 
 
 def seed(db: Session) -> None:
+    taxonomy = _load_json("taxonomy.json")
+    check_taxonomy(taxonomy)  # before the first write
     factories: dict[str, Factory] = {}
     for code, name, item_source in FACTORIES:
         f = db.scalar(select(Factory).where(Factory.code == code))
@@ -298,7 +337,7 @@ def seed(db: Session) -> None:
     # Source of truth is app/data/taxonomy.json, extracted from the approved
     # 'Taxonomy' sheet of Carabao_Group_Item_Master_Central.
     central = systems["CENTRAL"]
-    for row in _load_json("taxonomy.json"):
+    for row in taxonomy:
         grp = ensure_group(central, row["group"], row["group_name"])
         sub = ensure_group(
             central, row["sub"], row["sub_name"], parent=grp,
@@ -373,7 +412,16 @@ def seed(db: Session) -> None:
     db.commit()
 
 
-if __name__ == "__main__":
-    with SessionLocal() as session:
-        seed(session)
+def main() -> int:
+    try:
+        with SessionLocal() as session:
+            seed(session)
+    except SeedError as e:
+        print(e, file=sys.stderr)
+        return 1
     print("Seed complete.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
