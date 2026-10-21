@@ -67,3 +67,11 @@ _(filled by /to-spec + /to-tickets)_
   do not apply to it, so a Name Override can reach the AX/D365 export
   breaking them. Decide here which of these rules a Name Override must obey,
   and whether it is refused or cleaned.
+- From STORY-013's closing review (Peter, 2026-10-21): a Name Override can
+  carry its CATEGORY in mixed case (`Seal - O-ring 20 mm`) and is exported
+  that way; the standard writes CATEGORY in upper case. A category move now
+  upper-cases a fitting prefix (STORY-013), but an override typed in mixed
+  case and never moved is not touched. Also: a `,` without spaces
+  (`PIPE, FITTING`) is not removed by `clean_part` (only ` , ` is), so the
+  "no `,`" rule holds neither for names nor for Name Prefixes in
+  `taxonomy.json` (the seed guard refuses only what cleaning would change).

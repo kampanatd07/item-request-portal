@@ -199,7 +199,7 @@ def recategorise(
     return templates.TemplateResponse(
         request, "partials/category_moved.html",
         {"req": req, "taxonomy": _taxonomy(db), "prefix_warning": name_prefix_warning(req),
-         "kept_name_prefix": moved.kept_name_prefix},
+         "kept_name_prefix": moved.kept_name_prefix, "originator": originator_of(req)},
     )
 
 

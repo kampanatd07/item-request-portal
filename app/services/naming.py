@@ -19,6 +19,7 @@ review, and the override is audit-logged.
 """
 
 import re
+from functools import lru_cache
 
 MAX_NAME_LEN = 110
 MAX_CATEGORY_LEN = 16
@@ -48,10 +49,13 @@ def clean_part(part: str | None) -> str:
 SEPARATOR = " - "
 
 
+@lru_cache(maxsize=1024)
 def prefix_as_written(prefix: str | None) -> str:
     """The Name Prefix exactly as it appears in a name: cleaned, upper case,
     cut to 16 and stripped again, so a cut on a space leaves no trailing space
-    (that gave 'SPARE PARTS AND  - ...', which no typed name can match)."""
+    (that gave 'SPARE PARTS AND  - ...', which no typed name can match).
+    Cached: there are ~130 prefixes, and an import or a page asks about the
+    same one again and again; the function is pure."""
     return clean_part(prefix).upper()[:MAX_CATEGORY_LEN].rstrip()
 
 

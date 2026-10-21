@@ -191,8 +191,8 @@ migration in this story.
 
 ### Branch review: `/code-review master..story/013-category-change-name-prefix`
 Checked against the 12 acceptance criteria, the Scope and the Notes (Q1–Q11
-with the 2026-10-21 changes): **all 12 met, no (ก).** 9 findings, all (ข);
-nothing changed yet.
+with the 2026-10-21 changes): **all 12 met, no (ก).** 9 findings, all (ข).
+Peter: fix 1, 3, 4, 6, 7, 8; 2 as below; not 5, 9.
 
 1. **After a move, the page heading, the summary table and the duplicate
    card still show the old name / category / code until a reload**; only
@@ -222,3 +222,28 @@ nothing changed yet.
    **Recommend: fix** (with 7).
 9. **"prefixes given" is held as both `None` vs `{}`** (ticket 05 note 3).
    **Recommend: no change.**
+
+#### Outcome (2026-10-21)
+- **1:** the request summary (heading + table) is now
+  `partials/request_summary.html`; a category move redraws it out of band
+  with the name and category panels, so the page never shows two names.
+- **2 (Peter):** a kept name that starts with the new category's prefix in
+  another case gets it in upper case, logged as `name_prefix_changed` (AC3).
+  A mixed-case Name Override that is never moved: STORY-007's Notes.
+- **3:** HANDOFF §2 updated (STORY-013 waiting for merge, 810 tests) plus a
+  trap (§6.9): never find the CATEGORY by "everything before the first
+  ` - `".
+- **4:** the seed also refuses a prefix that cleaning would change (`,`
+  between spaces, ` / `, a leading `-`, doubled spaces), saying what a name
+  would carry instead. A `,` without spaces is not changed by cleaning, so
+  it passes; noted in STORY-007 with the "no `,`" rule.
+- **6–8:** `prefix_as_written` is cached (pure, ~130 prefixes): an import
+  of 200 rows of one Sub-Category cleans its prefix once (was 200); a name
+  check or a move cleans each prefix at most once (was 3). `kept` is a plain
+  if/elif.
+- Tests: `tests/test_story013_closing.py`, 10 (all failed first; one test
+  case was wrong about `,`, see 4). Old tests: none changed. Suite: 810.
+- Review of the fix diff only: no (ก). Its note: a stored name already over
+  110 that starts with the new prefix in upper case is now refused on a move
+  even though it would not change. Same as ticket 02's finding 3 (not
+  changed, Peter); only possible for overrides saved before ticket 06.

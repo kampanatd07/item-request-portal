@@ -48,9 +48,14 @@ def check_taxonomy(rows: list[dict]) -> None:
     anything is written (STORY-013)."""
     problems = []
     for r in rows:
-        n = len(clean_part(r.get("prefix")))
+        cleaned = clean_part(r.get("prefix"))
+        n = len(cleaned)
         if n == 0:
             problems.append(f"  {r['group']}-{r['sub']}: Name Prefix ว่าง")
+        elif cleaned != (r.get("prefix") or "").strip():
+            # Names would carry the cleaned form, not what the file says.
+            problems.append(f"  {r['group']}-{r['sub']}: '{r['prefix']}' มีอักขระที่ใช้ในชื่อ"
+                            f"ไม่ได้ (ระบบจะเขียนเป็น '{cleaned}')")
         elif n > MAX_CATEGORY_LEN:
             problems.append(f"  {r['group']}-{r['sub']}: '{r['prefix']}' ({n} ตัวอักษร "
                             f"เกิน {MAX_CATEGORY_LEN})")

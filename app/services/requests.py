@@ -920,8 +920,13 @@ def change_category(
     # No old prefix to find: never guess where the category part ends; keep
     # the name and say so (ticket 03), unless it already starts with the new
     # category's prefix, i.e. it fits (Peter, 2026-10-21).
-    kept = old_prefix if (renamed is None and old_prefix
-                          and not starts_with_prefix(req.item_name, new_prefix)) else None
+    kept = None
+    if renamed is None and starts_with_prefix(req.item_name, new_prefix):
+        # Already the new category's prefix, maybe in another case: it fits,
+        # so no warning; write the prefix as the standard does (AC3).
+        renamed = swap_prefix(req.item_name, new_prefix, new_prefix)
+    elif renamed is None and old_prefix:
+        kept = old_prefix
     if renamed is not None and len(renamed) > MAX_NAME_LEN:
         raise RequestError(
             f"ย้ายหมวดไม่ได้: ชื่อสินค้าจะยาว {len(renamed)} ตัวอักษร (เกิน {MAX_NAME_LEN}) "
