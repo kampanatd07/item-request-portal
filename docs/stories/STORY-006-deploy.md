@@ -1,12 +1,15 @@
 # STORY-006: Deploy for the 4 plants
 
-Status: todo · Depends on: STORY-001, STORY-002, STORY-009 (requesters must be able to answer Needs Info before the plants get access), STORY-010 (code override must be validated before deploy), STORY-013 (a category change must not leave the old prefix in names exported to AX)
+Status: planned (part A) · part B todo · Depends on: STORY-001, STORY-002, STORY-009 (requesters must be able to answer Needs Info before the plants get access), STORY-010 (code override must be validated before deploy), STORY-013 (a category change must not leave the old prefix in names exported to AX)
+Triage: ready-for-agent
 
 ## Why
 The app only runs on Peter's laptop. Plants need a URL.
 
 ## Scope
 - GitHub repo (private) with CI: `pytest` on every push; red blocks merge
+  (GitHub Free has no branch protection on private repos: until the plan
+  changes, the rule is "Peter does not merge on red CI", HANDOFF §8)
 - CI also runs `alembic upgrade head` against a fresh Postgres service container
   (catches trap HANDOFF §6.8, which SQLite tests miss)
 - Deploy the existing `Dockerfile` to Render or Railway with managed Postgres
@@ -19,6 +22,17 @@ The app only runs on Peter's laptop. Plants need a URL.
 - Daily DB backup (platform snapshot) + documented restore steps in README
 - Postgres row lock on register allocation is already implemented
   (`with_for_update` in codegen.py) — verify with a concurrency test on Postgres
+
+## Split (2026-10-21, Peter)
+- **Part A — now, no Graph values needed:** CI (`pytest` + `alembic upgrade
+  head` on fresh Postgres), the Postgres concurrency tests (AC 2, 4), login
+  rate limit per IP (AC 5), one worker (AC 7). Start with CI + Postgres.
+- **Part B — waits for IT:** deploy, backup/restore (AC 1, 3), real email
+  (AC 8). AC 6 (external hosting policy) is asked of IT together with the
+  Graph values; the answer decides the platform (HANDOFF §7).
+- GitHub repo is private (confirmed 2026-09-28), on GitHub Free.
+- AC 5: no platform check first (Peter, 2026-10-21) — the platform is not
+  settled until the hosting answer, so the per-IP limit is built in the app.
 
 ## Out of scope
 - Company VM / on-prem hosting (revisit per decisions.md)
@@ -74,7 +88,168 @@ The app only runs on Peter's laptop. Plants need a URL.
 `.github/workflows/ci.yml`, `Dockerfile`, `README.md`, `docker-compose.yml`, tests
 
 ## Plan
-_(filled by /to-spec + /to-tickets)_
+
+Spec for **part A** only (2026-10-21). Part B (deploy, backup/restore, real
+email, AC 1, 3, 6, 8) gets its own spec once IT answers.
+
+### Problem Statement
+
+Every safety net today runs on SQLite on Peter's laptop. SQLite ignores
+`FOR UPDATE`, so none of the row locks that keep Central Codes unique,
+exports consistent, the last Administrator in place and emails single have
+ever run for real; and tests build the schema with `create_all`, so a broken
+migration passes the whole suite (HANDOFF §6.8). Nothing runs the tests
+automatically, so a red suite can be merged unnoticed. Once the portal is on
+the internet, the per-Account lockout cannot see password spraying (one
+password tried across many emails), and several worker processes would
+together exceed the Exchange sending limit.
+
+### Solution
+
+- Every push runs the full test suite on GitHub Actions, next to a fresh
+  PostgreSQL: the migrations are applied and seeded there, the migrated
+  schema is compared with the models, and the concurrency tests run on real
+  row locks. Peter sees red or green before he merges.
+- Login refuses a client IP that has made 50 failed logins within 15 minutes,
+  for 15 minutes, counted in the database. The client IP is taken from the
+  proxy's `X-Forwarded-For` only when the connection comes from a trusted
+  proxy.
+- The app runs as exactly one worker process, written in the start command
+  and in the README.
+
+### User Stories
+
+1. As Peter, I want the test suite to run on every push, so that I never merge a branch whose tests fail.
+2. As Peter, I want a red/green result on each branch before I approve its merge, so that the "no merge on red" rule is easy to follow on GitHub Free.
+3. As Peter, I want CI to apply every migration to an empty PostgreSQL database, so that a migration that only works on SQLite is caught before deploy.
+4. As Peter, I want CI to seed that migrated database, so that the start command of the container (migrate, seed, serve) is proven end to end.
+5. As Peter, I want CI to fail when the migrated schema differs from the models, so that a model change without a migration (or a wrong migration) cannot pass just because tests use `create_all`.
+6. As a developer on Windows without PostgreSQL, I want `pytest` to keep passing locally with the PostgreSQL tests skipped, so that local work stays as fast as today.
+7. As a developer, I want to run the PostgreSQL tests locally when I do have a PostgreSQL (e.g. the compose `db` service), by setting one environment variable.
+8. As a developer, I want each PostgreSQL test to start from its own freshly migrated and seeded database, so that tests cannot leak data into each other.
+9. As an Administrator, I want two Approvals in the same Sub-Category at the same moment to get distinct consecutive Central Codes, so that no number is issued twice (AC 2).
+10. As an Administrator, I want an Approval or a re-categorise racing an export of the same request to wait for the other and re-check the status, so that no exported request ends up with a code different from its export file (AC 4).
+11. As an Administrator, I want a Code Override that moves the register and an Approval in the same Sub-Category at the same moment never to issue one number twice (AC 4).
+12. As an Administrator, I want two Administrators deactivating or demoting each other at the same moment to leave at least one active Administrator (AC 4).
+13. As a Requester, I want two resends of the same notification at the same moment to send me one email, not two (AC 4).
+14. As Procurement, I want a notifier that cannot get a request row within its lock timeout to give up and leave the request on the resend list, so that a background task never hangs (AC 4).
+15. As an Account holder, I want parallel wrong logins for my email on PostgreSQL never to get past 10, so that the lockout holds under a parallel attack (AC 5).
+16. As Peter, I want login to refuse a client IP after 50 failed logins within 15 minutes, so that password spraying across many emails is stopped (AC 5).
+17. As a Requester at a plant where everyone shares one public IP, I want only failed logins to count toward the IP limit, so that normal daily logins never block my plant.
+18. As a Requester, I want my own successful login not to reset the IP count, so that an attacker cannot clear the count by logging into their own Account.
+19. As a Requester behind a blocked IP, I want a clear Thai message saying to wait 15 minutes, so that I know it is temporary and not my password.
+20. As Peter, I want a blocked IP refused before any password hashing, so that a spraying run costs the server almost nothing.
+21. As Peter, I want the IP limit to hold across restarts and across processes, so that a restart or deploy does not give an attacker a fresh count.
+22. As Peter, I want parallel wrong logins from one IP on PostgreSQL never to get past 50, so that the IP limit holds under a parallel attack.
+23. As Peter, I want the client IP read from `X-Forwarded-For` only when the request comes from a trusted proxy, so that an attacker cannot dodge the limit by sending a fake header.
+24. As Peter, I want the trusted proxy list to be a setting (env var), so that part B can set it for the chosen platform without a code change.
+25. As Peter, I want an IP block written to the log with the IP and no password, so that I can see a spraying attempt in the platform logs.
+26. As Peter, I want old IP counter rows to be removed, so that the table does not grow without bound.
+27. As Peter, I want the app to run as one worker process, written in the start command and the README, so that the mail limiter stays within Exchange's ~30 sends a minute per mailbox (AC 7).
+28. As a developer, I want a test that fails if the start command stops saying one worker, so that a later edit cannot silently break AC 7.
+
+### Implementation Decisions
+
+- **CI**: one GitHub Actions workflow, on every push and pull request, Python
+  3.12 (as in the Dockerfile), a `postgres:16` service container (as in
+  compose). Steps: install `requirements-dev.txt`; `alembic upgrade head` +
+  `python -m app.seed` on an empty database; then the full `pytest` with the
+  PostgreSQL test URL set. CI sets `APP_ENV=dev`: CI is not a deploy, and
+  outside dev Settings demands the four Graph values (they stay out of CI).
+- **PostgreSQL test fixture**, beside the SQLite template in the test
+  conftest, same idea: once per session, an empty database is migrated with
+  Alembic (not `create_all`) and seeded, and kept as a template; each test
+  gets its own database copied with `CREATE DATABASE … TEMPLATE …` and
+  dropped afterwards. It hands out an engine, so a test opens one session per
+  simulated user. Tests using it carry a `postgres` marker and are skipped
+  when `TEST_POSTGRES_URL` is unset.
+- **Schema drift check**: on the migrated template, Alembic's
+  metadata comparison against the models must return no differences. If it
+  finds drift today, the fix is a new migration in this story, not a weaker
+  check.
+- **Concurrency tests** call the existing service functions (Approval via
+  `change_status`,
+  `change_category`, `override_code`, `export_pending`, `change_access` /
+  `deactivate_account`, the notifier's claim, `authenticate`), not HTTP. Pattern:
+  session A takes the same lock and holds its transaction open; session B
+  runs the service in a thread; the test checks B is still waiting, commits
+  A's change, then checks B's outcome (it re-checked status after the lock).
+  Same order of locks as in the code (request row, then register row). The
+  `lock_timeout` test lowers the notifier's timeout constant to about 1 s.
+  No production code changes unless a test finds a real race.
+- **Login IP limit** (AC 5, built in the app — no platform check, Peter
+  2026-10-21):
+  - New table of failed logins per client IP (IP text up to 45 chars for
+    IPv6, failure count, window start, blocked-until). Alembic migration,
+    verified on a fresh DB and by the drift check.
+  - 50 failures within a 15-minute window block the IP for 15 minutes; a
+    window older than 15 minutes starts again from zero. Only failures count
+    (all kinds: unknown email, wrong password, locked, deactivated); a
+    success does not reset the count. Constants beside `MAX_FAILED_LOGINS` /
+    `LOCKOUT`.
+  - The check runs in the auth service before `authenticate` does any
+    hashing; the route passes the client IP and the clock. The IP row is
+    locked `FOR UPDATE` (created if missing) so parallel failures are
+    counted one after another. Rows whose window and block both ended over a
+    day ago are deleted when a failure is recorded.
+  - Blocked → HTTP 429, the login page with "มีการเข้าสู่ระบบผิดจากเครื่องนี้
+    หลายครั้งเกินไป กรุณารอ 15 นาทีแล้วลองใหม่". This message differs from the
+    generic login error on purpose: it is about the IP, so it reveals nothing
+    about which emails exist.
+  - Logged once at block time with the IP, never a password or email list.
+  - Per-email lockout (STORY-001 ticket 06) stays as it is; both apply.
+- **Client IP behind a proxy**: uvicorn's proxy-headers middleware is added
+  in the app itself, with its trusted proxy list from a new setting
+  `FORWARDED_ALLOW_IPS` (default `127.0.0.1`), and the start command passes
+  `--no-proxy-headers` so the header is processed once. Doing it in the app
+  rather than only with `--proxy-headers --forwarded-allow-ips` on the
+  command line keeps the same rule (Peter's pairing of the two) but puts it
+  under test: TestClient does not go through uvicorn's command-line options.
+  `.env.example` documents the setting.
+- **One worker**: the container start command runs uvicorn with
+  `--workers 1` explicitly; README states it and why (AC 7).
+
+### Testing Decisions
+
+- Good tests check what a user or the database sees — codes issued, rows
+  saved, HTTP status and page text, emails in the fake outbox — never which
+  internal function was called.
+- PostgreSQL tests: one module per concern (migrations + drift, codes,
+  export races, Administrators, notifier, login), all `postgres`-marked.
+  Each waits with a bounded timeout (well under the 60 s pytest timeout) so
+  a missing lock fails instead of hanging.
+- IP limit on SQLite through `POST /login` with the fake clock: 49 failures
+  pass, the 50th blocks, the block lifts after 15 minutes, a success does
+  not reset, a blocked IP is refused even with the right password and
+  without hashing, another IP is not affected, the window restarts after 15
+  minutes, stale rows are pruned, the block is logged without a password.
+- Proxy: `X-Forwarded-For` from a trusted peer sets the counted IP; the same
+  header from an untrusted peer is ignored and the peer address is counted.
+- Start command test: reads the Dockerfile and asserts one worker and
+  `--no-proxy-headers`.
+- Prior art: `tests/test_lockout.py` (fake clock, `/login`, row-lock
+  check), `tests/conftest.py` (template + copy, `central_ids()` for every
+  new request), `tests/test_template_db.py` (fixture guards),
+  `tests/test_hardening.py` (Settings outside dev).
+
+### Out of Scope
+
+- Part B: choosing and deploying to Render/Railway, managed Postgres,
+  backups and restore, real email (AC 1, 3, 6, 8); setting
+  `FORWARDED_ALLOW_IPS` for the real platform.
+- Branch protection (needs a paid GitHub plan).
+- The query-cost and mail-limiter notes below (not deploy conditions).
+- Rate limiting anything other than `POST /login`.
+
+### Further Notes
+
+- Until part B sets `FORWARDED_ALLOW_IPS`, every request behind a platform
+  proxy would look like one IP, and 50 failures anywhere would block every
+  plant. Part B must set it and check, on the deployed app, that two
+  machines are counted as two IPs.
+- The drift check may find existing drift; budget a migration for it.
+- Local runs of the PostgreSQL tests: start the compose `db` service and set
+  `TEST_POSTGRES_URL`; README gets the one-line command.
 
 ## Notes
 

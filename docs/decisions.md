@@ -1,5 +1,21 @@
 # Decision Log
 
+## [2026-10-21] Login limit per client IP built in the app, counted in the DB
+**Decision:** `POST /login` refuses a client IP for 15 minutes after 50
+failed logins within 15 minutes (failures only; a success does not reset).
+Counts live in a DB table with a row lock, not in process memory. The client
+IP comes from `X-Forwarded-For` only from proxies listed in
+`FORWARDED_ALLOW_IPS`, handled by uvicorn's proxy-headers middleware added in
+the app (start command uses `--no-proxy-headers`), so the rule is tested.
+**Why:** the hosting platform is not settled until IT answers the external
+hosting question, so a platform feature cannot be relied on. A whole plant
+may share one public IP, hence failures only and a high ceiling.
+**Alternatives considered:** check Render/Railway's IP limiting first
+(STORY-006 AC 5 as written) — dropped by Peter; in-memory counter — lost on
+restart and not shared across processes.
+**Revisit when:** the chosen platform or a CDN in front offers IP rate
+limiting, or a plant hits the ceiling in normal use.
+
 ## [2026-10-19] "My requests" shows Originator rows in any Plant; resubmit checks the Plant
 **Decision:** "My requests" lists every request where the Account is the
 Requester or the Originator, matched on email only, with no Plant or active

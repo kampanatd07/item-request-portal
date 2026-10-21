@@ -27,7 +27,10 @@ done 2026-10-19) and the Name Prefix on category moves (STORY-013, done
 (STORY-006). **All code prerequisites of the deploy are done**; left:
 1. IT's Graph values for email (§7); outside `APP_ENV=dev` the app refuses
    to start without them, so STORY-006 waits for them.
-2. STORY-006 itself (Render/Railway + PostgreSQL).
+2. STORY-006 itself (Render/Railway + PostgreSQL). Split on 2026-10-21:
+   part A (CI, Postgres tests, login rate limit per IP, one worker) needs
+   no Graph values and starts now, CI + Postgres first; part B (deploy,
+   backup/restore, real email) waits for IT.
 
 After the plants open: STORY-014 (the name preview shows the saved name).
 
@@ -157,6 +160,11 @@ After first run, upload in **Snapshot** page:
   one real test email (any request through needs_info) and check it arrives,
   with the Reply-To and the copy in the sender's Sent Items. Allowed originator email domains are data on the
   Settings page (seeded: apm.co.th, acmf.co.th, apg.co.th, carabao.co.th)
+- **External hosting policy (STORY-006 AC 6):** Peter asks IT together with
+  the Graph values whether company data policy allows item data on an
+  external host. If not, the deploy platform changes (company VM, see
+  decisions.md 2026-07-24), so get the answer before choosing Render/Railway
+  in part B. Answer: _(fill in)_
 - **Client secret expiry:** an Azure client secret has an end date (often
   6–24 months). Note it here when IT creates it and renew it before that
   date — after it expires every email fails with "Graph credentials do not
@@ -175,3 +183,6 @@ After first run, upload in **Snapshot** page:
 - Report problems plainly with numbers
 - Plan first, get confirmation, then build; explain significant decisions in 2–3 sentences
 - He approves every merge
+- **No merge on red CI.** GitHub Free has no branch protection on private
+  repos, so a red CI run does not block the merge button: Peter checks the
+  CI result before approving (decided 2026-10-21, until the plan changes)
