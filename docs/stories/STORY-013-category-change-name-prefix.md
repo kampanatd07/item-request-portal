@@ -29,7 +29,8 @@ while planning STORY-009 ticket 02 (2026-10-16).
   edited in the taxonomy since): the move goes ahead, the name is left as it
   is, the category panel shows a red warning "ชื่อไม่ได้ขึ้นต้นด้วย prefix ของ
   หมวดเดิม (<prefix เดิม>) — ตรวจและแก้ชื่อเอง", and `category_changed` notes
-  that the name did not change (Q7).
+  that the name did not change (Q7); neither when the kept name already
+  starts with the new prefix (Q7 as changed 2026-10-21).
 - **Standing check on the queue detail:** every time the request detail page
   is shown, if the Item Name does not start with the current Sub-Category's
   Name Prefix, it shows a warning until the name is fixed. Display only;
@@ -48,7 +49,9 @@ while planning STORY-009 ticket 02 (2026-10-16).
   new name without a reload (Q4).
 - **Learning:** `learn_from_correction` learns the name after the rename,
   with its Name Prefix cut off by the same `searchable_part(name, prefix)`
-  that the classified-master import uses (Q5, Q10, Q11).
+  that the classified-master import uses (Q5, Q10, Q11); a kept name with
+  another known category's prefix is not learned (Q11 as changed
+  2026-10-21).
 - Applies everywhere a category change happens: before a code (Procurement)
   and after a code while still `approved` (Administrator, with re-issue).
 
@@ -160,6 +163,10 @@ Order from here: 05 → 02 → 03 → 04 → 06.
 - Q7 No old prefix → move, keep the name, red warning, note in
   `category_changed`; plus a standing warning on the queue detail whenever the
   name does not start with the current prefix; Approval not blocked.
+  **Changed (Peter, 2026-10-21):** when the kept name already starts with the
+  **new** category's prefix, there is no red warning and no note: the name
+  fits (review of tickets 03/04 found the two warnings contradicting each
+  other).
 - Q8 Prefix compared without case; written in upper case.
 - Q9 Event order `category_changed` → `name_prefix_changed` →
   `code_reissued`. Allowed old-test change: `tests/test_categorizer.py:178`
@@ -170,3 +177,8 @@ Order from here: 05 → 02 → 03 → 04 → 06.
 - Q11 One `searchable_part(name, prefix)` for the import and the learning;
   cut only when the name starts with that prefix (Q8 comparison), else keep
   the whole name. Dry run on the real file first (AC12).
+  **Changed for learning (Peter, 2026-10-21):** a kept name that starts with
+  the Name Prefix of **another** category the system knows is not learned at
+  all: its name and its category contradict each other (`FILTER - …` moved
+  to SEAL would teach "filter → SEAL"). A name with no known prefix is still
+  learned whole; a name with the new prefix is learned without it.

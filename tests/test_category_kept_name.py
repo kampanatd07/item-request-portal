@@ -113,3 +113,20 @@ def test_the_history_keeps_the_notes_line_break(client_as, app_db):
     history = page[page.index("<h3>ประวัติ</h3>"):]
     cell = history[history.rindex("<td", 0, history.index(NOTE)):history.index(NOTE)]
     assert "white-space:pre-line" in cell
+
+
+# --- Rule changed (Peter, 2026-10-21; was Q7): a kept name that already fits the new category -------
+
+def test_a_kept_name_with_the_new_prefix_is_not_warned_about(client_as, app_db):
+    req = _request(app_db)
+    edit_name(app_db, req.id, new_name="SEAL - O-ring 20 mm",
+              account=account_for(app_db, "procurement"))
+    before = len(_events(app_db, req))
+    r = client_as("procurement").post(f"/queue/{req.id}/category",
+                                      data={"subgroup_id": _seal(app_db).id})
+    assert r.status_code == 200, r.text
+    assert "prefix ของหมวดเดิม" not in r.text and "ชื่อไม่ได้ขึ้นต้นด้วย prefix" not in r.text
+    new = _events(app_db, req)[before:]
+    assert [(e.action, e.detail) for e in new] == [("category_changed", "900-01 -> 900-02")]
+    app_db.expire_all()
+    assert app_db.get(ItemRequest, req.id).item_name == "SEAL - O-ring 20 mm"

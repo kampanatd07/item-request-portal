@@ -23,6 +23,7 @@ from app.services.naming import (
     compose_name,
     prefix_as_written,
     searchable_part,
+    starts_with_prefix,
     swap_prefix,
 )
 
@@ -917,8 +918,10 @@ def change_category(
     new_prefix = name_prefix_of(parent, sub)
     renamed = swap_prefix(req.item_name, old_prefix, new_prefix)
     # No old prefix to find: never guess where the category part ends; keep
-    # the name and say so (ticket 03).
-    kept = old_prefix if renamed is None and old_prefix else None
+    # the name and say so (ticket 03), unless it already starts with the new
+    # category's prefix, i.e. it fits (Peter, 2026-10-21).
+    kept = old_prefix if (renamed is None and old_prefix
+                          and not starts_with_prefix(req.item_name, new_prefix)) else None
     if renamed is not None and len(renamed) > MAX_NAME_LEN:
         raise RequestError(
             f"ย้ายหมวดไม่ได้: ชื่อสินค้าจะยาว {len(renamed)} ตัวอักษร (เกิน {MAX_NAME_LEN}) "
@@ -973,12 +976,23 @@ def change_category(
     from app.services.categorizer import learn_from_correction
 
     # Learned without its Name Prefix: the shape a Requester types, and the
-    # same cut as the classified-master import (STORY-013 ticket 04).
-    learn_from_correction(
-        db, name=searchable_part(req.item_name, new_prefix),
-        group_code=parent.code, sub_code=sub.code, actor=account.email,
-    )
+    # same cut as the classified-master import (STORY-013 ticket 04). A kept
+    # name that names another known category contradicts the move, so it is
+    # not learned at all (Peter, 2026-10-21).
+    if not _names_another_category(db, req.item_name, new_prefix):
+        learn_from_correction(
+            db, name=searchable_part(req.item_name, new_prefix),
+            group_code=parent.code, sub_code=sub.code, actor=account.email,
+        )
     return CategoryMove(req, kept)
+
+
+def _names_another_category(db: Session, name: str, prefix: str | None) -> bool:
+    """The name starts with a known central Name Prefix other than `prefix`."""
+    if starts_with_prefix(name, prefix):
+        return False
+    return any(starts_with_prefix(name, other)
+               for other in snapshots.central_prefixes(db).values() if other)
 
 
 # More numbers than this thrown away by one override need explicit confirmation

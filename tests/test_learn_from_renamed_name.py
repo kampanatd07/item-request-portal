@@ -46,8 +46,19 @@ def test_a_kept_name_without_a_prefix_is_learned_whole(db_session):
     assert normalize("ซีลยางพิเศษ ZQ-77 - ขนาด 20 mm") in _learned(db_session)
 
 
-def test_a_kept_name_with_another_categorys_prefix_is_learned_whole(db_session):
-    # Agreed rule (grilling Q11): only the new category's prefix is cut; a name
-    # that does not start with it is learned as it is.
+def test_a_kept_name_with_another_known_prefix_is_not_learned(db_session):
+    # Rule changed (Peter, 2026-10-21; was Q11): the name says FILTER while the
+    # category says SEAL, so the pair contradicts itself and is not learned.
+    _move_to_seal(db_session, override="FILTER - ซีลยางพิเศษ ZQ-77")
+    assert not any("ซีลยางพิเศษ" in n for n in _learned(db_session))
+
+
+def test_a_kept_name_whose_first_word_is_not_a_prefix_is_learned_whole(db_session):
+    # VALVE is not a Name Prefix the system knows: the name has no prefix.
     _move_to_seal(db_session, override="VALVE - ซีลยางพิเศษ ZQ-77")
     assert normalize("VALVE - ซีลยางพิเศษ ZQ-77") in _learned(db_session)
+
+
+def test_a_kept_name_with_the_new_prefix_is_learned_without_it(db_session):
+    _move_to_seal(db_session, override="Seal - ซีลยางพิเศษ ZQ-77")  # any case
+    assert normalize(BASE) in _learned(db_session)

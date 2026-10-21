@@ -85,3 +85,9 @@ asking.
 - Review of the fix diff only: no correctness defects. `generate_code` reads
   the relationship objects, so it sees the new category without a refresh.
 - Not changed: 2 (agreed rule, raised in the story report), 4, 6, 7.
+
+### Rule change (Peter, 2026-10-21)
+A kept name that already starts with the new category's prefix gets no red
+warning and no "ชื่อไม่ได้เปลี่ยน" note (it fits; the two warnings used to
+contradict each other). Test:
+`test_a_kept_name_with_the_new_prefix_is_not_warned_about` (failed first).

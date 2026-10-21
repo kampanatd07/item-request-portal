@@ -63,3 +63,11 @@ the story report instead of changed (changing them changes a rule).
   Mutation: learning the whole name → 2 fail.
 - The fix diff is 20 lines (one local variable, two tests); reviewed by
   reading it, not by a separate agent.
+
+### Rule change (Peter, 2026-10-21)
+A kept name that starts with another known category's Name Prefix is not
+learned (it contradicts the move). The test pinned in this ticket used
+`VALVE`, which is not a known prefix, so it never covered that case: it now
+uses `FILTER` and expects nothing learned (failed first); the `VALVE` case
+stays as "no known prefix → learned whole". Also: a kept name with the new
+prefix is learned without it. Suite: 800.
