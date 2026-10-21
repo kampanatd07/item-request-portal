@@ -1,6 +1,6 @@
 # Every push: migrations + seed on an empty PostgreSQL, then the whole suite
-# with the PostgreSQL tests switched on (STORY-006). GitHub Free cannot block
-# a merge on red, so Peter checks this result before merging (HANDOFF §8).
+# with the PostgreSQL tests switched on (STORY-006). Peter checks this result
+# before merging (HANDOFF §8).
 name: CI
 
 on:

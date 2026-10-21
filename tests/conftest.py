@@ -1,4 +1,6 @@
+import itertools
 import os
+from collections.abc import Callable, Iterator
 
 # Before any app import: Settings reads these once. Cheap Argon2 keeps the suite
 # fast (production cost is unchanged), and APP_ENV=dev whatever the local .env says.
@@ -9,7 +11,8 @@ os.environ["ARGON2_PARALLELISM"] = "1"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy import Engine, create_engine  # noqa: E402
+from sqlalchemy.engine import URL  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
@@ -116,22 +119,44 @@ def db_session(seeded_template):
 # skipped, so a laptop without PostgreSQL runs the suite as before.
 
 TEST_POSTGRES_URL = os.environ.get("TEST_POSTGRES_URL", "")
+# Every database these fixtures make starts with one of these; only such
+# databases are ever dropped as leftovers.
+PG_TEMPLATE_PREFIX = "irp_template_"
+PG_COPY_PREFIX = "irp_test_"
+_pg_copy_number = itertools.count()
 
 
-def _pg_url(database: str):
+def _pg_url(database: str) -> URL:
     from sqlalchemy.engine import make_url
 
     return make_url(TEST_POSTGRES_URL).set(database=database)
 
 
-def _pg_admin():
+def _pg_admin() -> Engine:
     """Autocommit engine for CREATE/DROP DATABASE, which cannot run in a transaction."""
     from sqlalchemy.pool import NullPool
 
     return create_engine(TEST_POSTGRES_URL, isolation_level="AUTOCOMMIT", poolclass=NullPool)
 
 
-def migrate(engine) -> None:
+def drop_leftover_pg_databases(admin: Engine) -> list[str]:
+    """Drop test databases an earlier run left behind (a run killed by
+    pytest-timeout's os._exit or Ctrl-C never reaches teardown). Only names
+    starting with PG_TEMPLATE_PREFIX / PG_COPY_PREFIX; nothing else is touched,
+    nor this run's own databases (their names carry this process's pid)."""
+    from sqlalchemy import text
+
+    ours = (f"{PG_TEMPLATE_PREFIX}{os.getpid()}", f"{PG_COPY_PREFIX}{os.getpid()}_")
+    with admin.connect() as c:
+        names = [n for (n,) in c.execute(text("SELECT datname FROM pg_database"))
+                 if n.startswith((PG_TEMPLATE_PREFIX, PG_COPY_PREFIX))
+                 and not (n == ours[0] or n.startswith(ours[1]))]
+        for name in names:
+            c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+    return names
+
+
+def migrate(engine: Engine) -> None:
     """alembic upgrade head on `engine`, through migrations/env.py as the
     command line does, but on this connection instead of settings.database_url.
     No alembic.ini: its logging config would reset the test run's loggers."""
@@ -148,7 +173,7 @@ def migrate(engine) -> None:
 
 
 @pytest.fixture(scope="session")
-def pg_template():
+def pg_template() -> Iterator[str]:
     """Name of a PostgreSQL database migrated (not create_all) and seeded once
     per run. Tests never use it directly; they get copies (pg_copy)."""
     if not TEST_POSTGRES_URL:
@@ -156,10 +181,12 @@ def pg_template():
     from sqlalchemy import text
     from sqlalchemy.pool import NullPool
 
-    name = f"irp_template_{os.getpid()}"
+    name = f"{PG_TEMPLATE_PREFIX}{os.getpid()}"
     admin = _pg_admin()
+    drop_leftover_pg_databases(admin)
     with admin.connect() as c:
-        c.execute(text(f'DROP DATABASE IF EXISTS "{name}"'))
+        # A leftover from an older run that had this same pid.
+        c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
         c.execute(text(f'CREATE DATABASE "{name}"'))
     engine = create_engine(_pg_url(name), poolclass=NullPool)
     migrate(engine)
@@ -175,21 +202,18 @@ def pg_template():
 
 
 @pytest.fixture()
-def pg_copy(pg_template):
+def pg_copy(pg_template: str) -> Iterator[Callable[[], Engine]]:
     """pg_copy() -> an engine on a new database copied from the template.
 
     Each call is a fresh copy; all are dropped when the test ends.
     """
-    import itertools
-
     from sqlalchemy import text
 
     admin = _pg_admin()
-    made: list[tuple[str, object]] = []
-    counter = itertools.count()
+    made: list[tuple[str, Engine]] = []
 
-    def _copy():
-        name = f"irp_test_{os.getpid()}_{id(made)}_{next(counter)}"
+    def _copy() -> Engine:
+        name = f"{PG_COPY_PREFIX}{os.getpid()}_{next(_pg_copy_number)}"
         with admin.connect() as c:
             c.execute(text(f'CREATE DATABASE "{name}" TEMPLATE "{pg_template}"'))
         engine = create_engine(_pg_url(name))
@@ -205,7 +229,7 @@ def pg_copy(pg_template):
 
 
 @pytest.fixture()
-def pg_engine(pg_copy):
+def pg_engine(pg_copy: Callable[[], Engine]) -> Engine:
     """An engine on this test's own migrated + seeded PostgreSQL database.
     Open one session per simulated user (see tests/pg_race.py)."""
     return pg_copy()

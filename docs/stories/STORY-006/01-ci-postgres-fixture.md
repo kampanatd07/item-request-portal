@@ -85,3 +85,18 @@ not, data lost, or an acceptance criterion not met; **(ข)** a note.
    `alembic.ini` ones in `test_auth.py` and `test_notify_not_applicable.py`.
    **Recommend: leave** — those two test the command-line path on purpose
    (URL from settings); a shared helper can come if env.py changes again.
+
+**Peter's decisions (2026-10-21):** fix 2, 3, 4, 5, 7, 8; leave 6 and 9.
+Fixed in one commit:
+- 2: while waiting for A, the helper checks A's future; A's own exception
+  is raised. Test: an error in A shows A's error (runs on SQLite too).
+- 3: on every path A is released and both threads are waited for (bounded)
+  before their sessions are closed.
+- 4: "finished without waiting on a lock" now includes what B returned or
+  raised. Test (PostgreSQL).
+- 5: at session start, databases left by earlier runs are dropped: only names
+  starting `irp_template_` / `irp_test_`, never this run's own (its pid).
+  Test (PostgreSQL): a leftover is dropped, another database is kept, this
+  run's copy survives.
+- 7: type hints on `_run_on`, the PostgreSQL fixtures/helpers and
+  `test_pg_codes.py` helpers. 8: copy names use a module-level counter.

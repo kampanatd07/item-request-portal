@@ -1,6 +1,9 @@
 """PostgreSQL: Central Codes stay unique when Approvals overlap (STORY-006 AC 2)."""
 
+from collections.abc import Callable
+
 import pytest
+from sqlalchemy.orm import Session
 
 from app.services.requests import change_status, submit_request
 from tests.conftest import account_for, central_ids
@@ -9,7 +12,7 @@ from tests.pg_race import Race, session_on
 pytestmark = pytest.mark.postgres
 
 
-def _submit(db, group_code: str = "900", sub_code: str = "01") -> int:
+def _submit(db: Session, group_code: str = "900", sub_code: str = "01") -> int:
     factory, system, group, sub = central_ids(db, "APM", group_code, sub_code)
     return submit_request(
         db, account=account_for(db), factory_id=factory.id, code_system_id=system.id,
@@ -17,8 +20,8 @@ def _submit(db, group_code: str = "900", sub_code: str = "01") -> int:
     ).id
 
 
-def _approve(request_id: int):
-    def run(db):
+def _approve(request_id: int) -> Callable[[Session], str]:
+    def run(db: Session) -> str:
         return change_status(db, request_id, new_status="approved",
                              account=account_for(db, "administrator")).generated_code
     return run

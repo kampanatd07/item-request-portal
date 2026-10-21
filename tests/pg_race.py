@@ -11,6 +11,7 @@ import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import wait as wait_futures
 from typing import Any
 
 from sqlalchemy import Engine, event, text
@@ -49,22 +50,31 @@ class HeldCommit:
         if not self._release.wait(WAIT_SECONDS):
             raise AssertionError("HeldCommit was never released")
 
-    def wait_reached(self) -> None:
-        if not self.reached.wait(WAIT_SECONDS):
-            raise AssertionError("session A never reached its commit")
+    def wait_reached(self, future_a: Future) -> None:
+        """Wait until A holds at its commit. If A ends first, A's own error is
+        raised (not a timeout that hides it)."""
+        deadline = time.monotonic() + WAIT_SECONDS
+        while not self.reached.wait(0.02):
+            if future_a.done():
+                future_a.result()  # re-raises A's exception, if any
+                raise AssertionError("session A finished without committing")
+            if time.monotonic() > deadline:
+                raise AssertionError("session A never reached its commit")
 
     def release(self) -> None:
         self._release.set()
 
 
-def wait_until_lock_wait(engine: Engine, pid: int, gave_up: Callable[[], bool]) -> None:
+def wait_until_lock_wait(engine: Engine, pid: int, future_b: Future) -> None:
     """Poll pg_stat_activity until backend `pid` waits on a lock; bounded.
-    Fails at once if `gave_up()` turns true (B finished without waiting)."""
+    Fails at once if B finishes first, with what B returned or raised, so a
+    setup error in B does not read as a missing lock."""
     deadline = time.monotonic() + WAIT_SECONDS
     with engine.connect() as c:
         while time.monotonic() < deadline:
-            if gave_up():
-                raise AssertionError(f"backend {pid} finished without waiting on a lock")
+            if future_b.done():
+                raise AssertionError(f"backend {pid} finished without waiting on a lock; "
+                                     f"B gave {_outcome(future_b)!r}")
             state = c.execute(
                 text("SELECT wait_event_type FROM pg_stat_activity WHERE pid = :pid"),
                 {"pid": pid},
@@ -94,21 +104,25 @@ class Race:
         A commits and B finishes. Returns (A's result, B's result); an
         exception from B is returned, not raised, so a test can check it."""
         session_a, session_b = session_on(self.engine), session_on(self.engine)
+        held = HeldCommit(session_a)
+        futures: list[Future] = []
         try:
-            held = HeldCommit(session_a)
-            future_a = self._pool.submit(a, session_a)
-            held.wait_reached()
+            futures.append(self._pool.submit(a, session_a))
+            held.wait_reached(futures[0])
             pid_b = backend_pid(session_b)
-            future_b = self._pool.submit(b, session_b)
-            try:
-                wait_until_lock_wait(self.engine, pid_b, future_b.done)
-            finally:
-                held.release()
-            result_a = future_a.result(WAIT_SECONDS)
-            return result_a, _outcome(future_b)
+            futures.append(self._pool.submit(b, session_b))
+            wait_until_lock_wait(self.engine, pid_b, futures[1])
+            held.release()
+            return futures[0].result(WAIT_SECONDS), _outcome(futures[1])
         finally:
-            session_a.close()
-            session_b.close()
+            # On every path, let A commit and both threads end before their
+            # sessions are closed here: a Session must not be used from two
+            # threads, and the database is dropped right after the test.
+            held.release()
+            wait_futures(futures, timeout=WAIT_SECONDS)
+            if all(f.done() for f in futures):
+                session_a.close()
+                session_b.close()
 
 
 def _outcome(future: Future) -> Any:
