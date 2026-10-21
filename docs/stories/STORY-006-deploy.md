@@ -92,6 +92,11 @@ The app only runs on Peter's laptop. Plants need a URL.
 Spec for **part A** only (2026-10-21). Part B (deploy, backup/restore, real
 email, AC 1, 3, 6, 8) gets its own spec once IT answers.
 
+Tickets (part A): `docs/stories/STORY-006/01`-`07`. One branch
+(`story/006-deploy-part-a`), one ticket at a time, in the order
+01 -> 02 -> 03 -> 06 -> 07 -> 04 -> 05 (Peter, 2026-10-21). Migrations: only 01
+(if drift is found) and 07; any other ticket that needs one stops and asks.
+
 ### Problem Statement
 
 Every safety net today runs on SQLite on Peter's laptop. SQLite ignores
