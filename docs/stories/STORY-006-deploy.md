@@ -147,6 +147,8 @@ together exceed the Exchange sending limit.
 26. As Peter, I want old IP counter rows to be removed, so that the table does not grow without bound.
 27. As Peter, I want the app to run as one worker process, written in the start command and the README, so that the mail limiter stays within Exchange's ~30 sends a minute per mailbox (AC 7).
 28. As a developer, I want a test that fails if the start command stops saying one worker, so that a later edit cannot silently break AC 7.
+29. As Peter, I want the app to refuse to start outside dev when `FORWARDED_ALLOW_IPS` is not set, so that forgetting it fails the deploy instead of blocking every plant at once after 50 failed logins anywhere.
+30. As Peter, I want that start-up error to say what to set (the proxy's IP, or the explicit no-proxy value), so that the fix is clear from the platform log.
 
 ### Implementation Decisions
 
@@ -200,12 +202,22 @@ together exceed the Exchange sending limit.
   - Per-email lockout (STORY-001 ticket 06) stays as it is; both apply.
 - **Client IP behind a proxy**: uvicorn's proxy-headers middleware is added
   in the app itself, with its trusted proxy list from a new setting
-  `FORWARDED_ALLOW_IPS` (default `127.0.0.1`), and the start command passes
+  `FORWARDED_ALLOW_IPS`, and the start command passes
   `--no-proxy-headers` so the header is processed once. Doing it in the app
   rather than only with `--proxy-headers --forwarded-allow-ips` on the
   command line keeps the same rule (Peter's pairing of the two) but puts it
   under test: TestClient does not go through uvicorn's command-line options.
   `.env.example` documents the setting.
+- **`FORWARDED_ALLOW_IPS` is required outside dev** (Peter, 2026-10-21),
+  the same way as `SECRET_KEY` and the Graph values: a Settings validator
+  refuses to start when `APP_ENV` is not `dev` and the value is empty. The
+  value is either the trusted proxy list (IPs/CIDRs, comma separated, or
+  `*` where only the platform proxy can reach the app) or the explicit
+  `none`, meaning no proxy: trust no `X-Forwarded-For` and count the peer
+  address. The error message names the setting and both choices. In dev an
+  empty value means `127.0.0.1` (uvicorn's default). Migrations and
+  `create_admin` load Settings too, so the platform's pre-deploy step needs
+  it set as well (as for the Graph values).
 - **One worker**: the container start command runs uvicorn with
   `--workers 1` explicitly; README states it and why (AC 7).
 
@@ -225,6 +237,11 @@ together exceed the Exchange sending limit.
   minutes, stale rows are pruned, the block is logged without a password.
 - Proxy: `X-Forwarded-For` from a trusted peer sets the counted IP; the same
   header from an untrusted peer is ignored and the peer address is counted.
+- Start-up check (beside the `SECRET_KEY` / Graph tests): outside dev,
+  empty `FORWARDED_ALLOW_IPS` → Settings refuses with a message naming the
+  setting and both choices; `none` and a proxy list are accepted; in dev
+  empty is accepted. `none` really ignores `X-Forwarded-For`. Existing tests
+  that build Settings outside dev get the value set.
 - Start command test: reads the Dockerfile and asserts one worker and
   `--no-proxy-headers`.
 - Prior art: `tests/test_lockout.py` (fake clock, `/login`, row-lock
@@ -243,10 +260,10 @@ together exceed the Exchange sending limit.
 
 ### Further Notes
 
-- Until part B sets `FORWARDED_ALLOW_IPS`, every request behind a platform
-  proxy would look like one IP, and 50 failures anywhere would block every
-  plant. Part B must set it and check, on the deployed app, that two
-  machines are counted as two IPs.
+- A forgotten `FORWARDED_ALLOW_IPS` is now a deploy error, not a silent
+  plant-wide block. A *wrong* value still is not caught (e.g. `none` behind a
+  proxy makes every request look like the proxy's IP): part B must check, on
+  the deployed app, that two machines are counted as two IPs.
 - The drift check may find existing drift; budget a migration for it.
 - Local runs of the PostgreSQL tests: start the compose `db` service and set
   `TEST_POSTGRES_URL`; README gets the one-line command.

@@ -7,6 +7,9 @@ Counts live in a DB table with a row lock, not in process memory. The client
 IP comes from `X-Forwarded-For` only from proxies listed in
 `FORWARDED_ALLOW_IPS`, handled by uvicorn's proxy-headers middleware added in
 the app (start command uses `--no-proxy-headers`), so the rule is tested.
+Outside dev the app refuses to start without `FORWARDED_ALLOW_IPS` (a proxy
+list or the explicit `none`), so forgetting it fails the deploy instead of
+letting 50 failures anywhere block every plant.
 **Why:** the hosting platform is not settled until IT answers the external
 hosting question, so a platform feature cannot be relied on. A whole plant
 may share one public IP, hence failures only and a high ceiling.
