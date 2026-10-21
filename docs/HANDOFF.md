@@ -21,14 +21,13 @@ It replaces: Microsoft Forms → Peter checks manually → types into AX → ema
 
 **Built and running on Peter's machine, with login and roles (STORY-001, done
 2026-09-30), validated code override (STORY-010, done 2026-10-01), email
-notification (STORY-002, done 2026-10-14) and requester resubmit (STORY-009,
-done 2026-10-19). Not yet open to the plants** — it still has to be deployed
-(STORY-006). Left before deploy:
-1. STORY-013: a category change must update the name prefix — done on
-   `story/013-category-change-name-prefix`, waiting for Peter's merge.
-2. IT's Graph values for email (§7); outside `APP_ENV=dev` the app refuses
-   to start without them.
-3. STORY-006 itself (Render/Railway + PostgreSQL).
+notification (STORY-002, done 2026-10-14), requester resubmit (STORY-009,
+done 2026-10-19) and the Name Prefix on category moves (STORY-013, done
+2026-10-21). Not yet open to the plants** — it still has to be deployed
+(STORY-006). **All code prerequisites of the deploy are done**; left:
+1. IT's Graph values for email (§7); outside `APP_ENV=dev` the app refuses
+   to start without them, so STORY-006 waits for them.
+2. STORY-006 itself (Render/Railway + PostgreSQL).
 
 After the plants open: STORY-014 (the name preview shows the saved name).
 
@@ -41,7 +40,7 @@ After the plants open: STORY-014 (the name preview shows the saved name).
 | Size / UoM cleaning | done (UoM still the old 5 units — see STORY-003) |
 | Central 11-digit code from running register | done — minting refuses when the next number is retired, on a request or in the group master (register behind → STORY-005) |
 | Code override / Retired Codes | done — STORY-010: two-step override checked against the group master, register moves up, thrown-away numbers kept in `retired_codes` (never reused) |
-| Naming standard `[CATEGORY] - [name] - [detail]` | done — STORY-013 (branch, waiting for merge): one Name Prefix rule (`naming.starts_with_prefix` / `searchable_part`), a category move swaps the prefix, the queue warns when a name does not fit its category, Name Override ≤ 110, seed refuses a bad prefix |
+| Naming standard `[CATEGORY] - [name] - [detail]` | done — STORY-013: one Name Prefix rule (`naming.starts_with_prefix` / `searchable_part`), a category move swaps the prefix, the queue warns when a name does not fit its category, Name Override ≤ 110, seed refuses a bad prefix |
 | Export to 4 plant import templates | done — **never tested against real AX** |
 | Admin config pages | done |
 | Login / roles | done — STORY-001: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry, lockout, My requests |
@@ -49,7 +48,7 @@ After the plants open: STORY-014 (the name preview shows the saved name).
 | Requester resubmit | done — STORY-009: Requester or Originator edits and resubmits a Needs Info request (conditional claim, one 409 for the loser), queue badge + reply card + replaced-name warning, best-effort email to Procurement; the code system must now fit the request's Plant (fix also for new requests) |
 | Deployment | **not started — STORY-006** |
 
-Tests: 810 passing (`pytest`) on the STORY-013 branch; 720 on master.
+Tests: 810 passing (`pytest`).
 
 The suite runs in ~13 s: `create_all` + `seed` run once per pytest session
 into an in-memory template, and each test's `db_session` gets a copy through

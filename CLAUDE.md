@@ -14,10 +14,11 @@ Any change touching codes, names, categories, UoM, Thai text or exports: apply
 the `carabao-item-master` skill (source in `docs/claude-setup/skills/`).
 
 Status: login and roles (STORY-001), validated code override (STORY-010),
-email notification (STORY-002) and requester resubmit (STORY-009) done. Not
-yet open to plants — deploy (STORY-006) must ship first; its prerequisites
-are listed in docs/stories/STORY-006-deploy.md (left: STORY-013, IT's Graph
-values). Current test count and next steps: docs/HANDOFF.md §2.
+email notification (STORY-002), requester resubmit (STORY-009) and Name
+Prefix on category moves (STORY-013) done: all code before deploy is done.
+Not yet open to plants — deploy (STORY-006) must ship first and waits for
+IT's Graph values (docs/stories/STORY-006-deploy.md). Current test count and
+next steps: docs/HANDOFF.md §2.
 
 ## Stack
 FastAPI + SQLAlchemy + Alembic | SQLite (dev) / PostgreSQL (prod) | HTMX + Jinja2 | Docker → Render/Railway
