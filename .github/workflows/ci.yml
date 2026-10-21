@@ -1,0 +1,47 @@
+# Every push: migrations + seed on an empty PostgreSQL, then the whole suite
+# with the PostgreSQL tests switched on (STORY-006). GitHub Free cannot block
+# a merge on red, so Peter checks this result before merging (HANDOFF §8).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: itemportal
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app -d itemportal"
+          --health-interval 3s
+          --health-retries 10
+    env:
+      # CI is not a deploy: no Graph values here, and dev skips that check.
+      APP_ENV: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"  # as in the Dockerfile
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      # The container's start command, minus serving: the command-line path
+      # of migrations/env.py (tests use the connection path).
+      - name: Migrate + seed an empty PostgreSQL
+        env:
+          DATABASE_URL: postgresql+psycopg://app:app@localhost:5432/itemportal
+        run: alembic upgrade head && python -m app.seed
+      - name: Tests (SQLite + PostgreSQL)
+        env:
+          TEST_POSTGRES_URL: postgresql+psycopg://app:app@localhost:5432/itemportal
+        run: pytest -ra

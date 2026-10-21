@@ -109,6 +109,108 @@ def db_session(seeded_template):
     engine.dispose()
 
 
+# --- PostgreSQL (STORY-006) --------------------------------------------------
+# Row locks (FOR UPDATE) and lock_timeout only work on PostgreSQL; SQLite ignores
+# them. These fixtures run when TEST_POSTGRES_URL points at a server where the
+# user may create databases (CI does this); otherwise every test using them is
+# skipped, so a laptop without PostgreSQL runs the suite as before.
+
+TEST_POSTGRES_URL = os.environ.get("TEST_POSTGRES_URL", "")
+
+
+def _pg_url(database: str):
+    from sqlalchemy.engine import make_url
+
+    return make_url(TEST_POSTGRES_URL).set(database=database)
+
+
+def _pg_admin():
+    """Autocommit engine for CREATE/DROP DATABASE, which cannot run in a transaction."""
+    from sqlalchemy.pool import NullPool
+
+    return create_engine(TEST_POSTGRES_URL, isolation_level="AUTOCOMMIT", poolclass=NullPool)
+
+
+def migrate(engine) -> None:
+    """alembic upgrade head on `engine`, through migrations/env.py as the
+    command line does, but on this connection instead of settings.database_url.
+    No alembic.ini: its logging config would reset the test run's loggers."""
+    from pathlib import Path
+
+    from alembic import command
+    from alembic.config import Config
+
+    cfg = Config()
+    cfg.set_main_option("script_location", str(Path(__file__).parent.parent / "migrations"))
+    with engine.begin() as connection:
+        cfg.attributes["connection"] = connection
+        command.upgrade(cfg, "head")
+
+
+@pytest.fixture(scope="session")
+def pg_template():
+    """Name of a PostgreSQL database migrated (not create_all) and seeded once
+    per run. Tests never use it directly; they get copies (pg_copy)."""
+    if not TEST_POSTGRES_URL:
+        pytest.skip("TEST_POSTGRES_URL not set: PostgreSQL tests skipped")
+    from sqlalchemy import text
+    from sqlalchemy.pool import NullPool
+
+    name = f"irp_template_{os.getpid()}"
+    admin = _pg_admin()
+    with admin.connect() as c:
+        c.execute(text(f'DROP DATABASE IF EXISTS "{name}"'))
+        c.execute(text(f'CREATE DATABASE "{name}"'))
+    engine = create_engine(_pg_url(name), poolclass=NullPool)
+    migrate(engine)
+    with sessionmaker(bind=engine)() as session:
+        seed(session)
+        session.commit()
+    # CREATE DATABASE ... TEMPLATE refuses while anyone is connected to it.
+    engine.dispose()
+    yield name
+    with admin.connect() as c:
+        c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+    admin.dispose()
+
+
+@pytest.fixture()
+def pg_copy(pg_template):
+    """pg_copy() -> an engine on a new database copied from the template.
+
+    Each call is a fresh copy; all are dropped when the test ends.
+    """
+    import itertools
+
+    from sqlalchemy import text
+
+    admin = _pg_admin()
+    made: list[tuple[str, object]] = []
+    counter = itertools.count()
+
+    def _copy():
+        name = f"irp_test_{os.getpid()}_{id(made)}_{next(counter)}"
+        with admin.connect() as c:
+            c.execute(text(f'CREATE DATABASE "{name}" TEMPLATE "{pg_template}"'))
+        engine = create_engine(_pg_url(name))
+        made.append((name, engine))
+        return engine
+
+    yield _copy
+    for name, engine in made:
+        engine.dispose()
+        with admin.connect() as c:
+            c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+    admin.dispose()
+
+
+@pytest.fixture()
+def pg_engine(pg_copy):
+    """An engine on this test's own migrated + seeded PostgreSQL database.
+    Open one session per simulated user (see tests/pg_race.py)."""
+    return pg_copy()
+
+
 def central_ids(db, factory_code: str = "APM", group_code: str = "900",
                 sub_code: str = "01"):
     """Ids for a request against the central standard: (factory, system, group, sub).
