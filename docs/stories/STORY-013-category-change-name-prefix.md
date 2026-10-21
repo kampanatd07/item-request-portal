@@ -182,3 +182,43 @@ Order from here: 05 → 02 → 03 → 04 → 06.
   all: its name and its category contradict each other (`FILTER - …` moved
   to SEAL would teach "filter → SEAL"). A name with no known prefix is still
   learned whole; a name with the new prefix is learned without it.
+
+## Closing check (2026-10-21)
+
+Branch `story/013-category-change-name-prefix` at 6b6b442: tickets 01–06,
+the seed guard and the 2026-10-21 rule changes. Suite: 800 passed. No
+migration in this story.
+
+### Branch review: `/code-review master..story/013-category-change-name-prefix`
+Checked against the 12 acceptance criteria, the Scope and the Notes (Q1–Q11
+with the 2026-10-21 changes): **all 12 met, no (ก).** 9 findings, all (ข);
+nothing changed yet.
+
+1. **After a move, the page heading, the summary table and the duplicate
+   card still show the old name / category / code until a reload**; only
+   the name and category panels are redrawn. Display only, but since this
+   branch a move can change the name, so the heading can now disagree with
+   the name panel. **Recommend: fix** (redraw the summary card out of band
+   too).
+2. **A kept name that fits the new category in another case
+   (`Seal - O-ring 20 mm`) is kept in that case**: no warning (it fits) and
+   the CATEGORY is exported in mixed case. A Name Override typed that way
+   in any category has the same issue (STORY-007's override rules).
+   **Recommend: Peter decides**: write the prefix in upper case here too (a
+   `name_prefix_changed`), or leave it to STORY-007.
+3. **HANDOFF §2 still lists STORY-013 as next** and the test count as 720.
+   **Recommend: fix** before the merge.
+4. **The seed guard checks the cleaned length, not that cleaning leaves the
+   prefix unchanged** (a prefix with `,` or ` / ` would pass, and names would
+   carry a different string than taxonomy.json). **Recommend: fix**
+   (refuse a prefix that cleaning changes).
+5. **`_names_another_category` reloads the 130 prefixes on each such move.**
+   **Recommend: no change** (rare, small).
+6. **The master import normalises the same prefix 13,391 times.**
+   **Recommend: fix** (once per Sub-Category).
+7. **`old_prefix` normalised twice; `kept` is a dense expression.**
+   **Recommend: fix** (readability only).
+8. **`name_prefix_warning` normalises the prefix three times.**
+   **Recommend: fix** (with 7).
+9. **"prefixes given" is held as both `None` vs `{}`** (ticket 05 note 3).
+   **Recommend: no change.**
