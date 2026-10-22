@@ -267,6 +267,8 @@ def central_ids(db, factory_code: str = "APM", group_code: str = "900",
 
 
 TEST_PASSWORD = "test-password-123"
+# Client IP for service-level authenticate() calls (TEST-NET-3, never a real host).
+TEST_IP = "203.0.113.1"
 
 
 def load_master(db, codes, name: str = "TEST - Item in group master"):

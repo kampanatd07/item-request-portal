@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.main import app
 from app.models import Account
 from app.services import auth
-from tests.conftest import TEST_PASSWORD, login
+from tests.conftest import TEST_IP, TEST_PASSWORD, login
 
 NEW_PASSWORD = "brand-new-password-42"
 EIGHT_HOURS = 8 * 3600
@@ -112,7 +112,7 @@ def test_any_account_can_change_its_own_password(client_as, app_db):
     assert c.get("/account/password").status_code == 200
     assert _change(c).status_code == 303
     account = app_db.scalar(select(Account).where(Account.email == "requester0@test.local"))
-    assert auth.authenticate(app_db, account.email, NEW_PASSWORD).id == account.id
+    assert auth.authenticate(app_db, account.email, NEW_PASSWORD, client_ip=TEST_IP).id == account.id
 
 
 # --- Sessions after a change (AC10, password part) ------------------------------------------

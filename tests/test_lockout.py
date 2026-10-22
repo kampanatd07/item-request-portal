@@ -9,7 +9,7 @@ from sqlalchemy import select
 from app.models import Account
 from app.services import auth
 from app.services.auth import LOCKOUT, LOGIN_FAILED, AuthError
-from tests.conftest import TEST_PASSWORD, account_for, login
+from tests.conftest import TEST_IP, TEST_PASSWORD, account_for, login
 
 EMAIL = "victim@test.local"
 WRONG = "wrong-password-000"
@@ -129,7 +129,7 @@ def test_login_locks_the_account_row(victim, app_db):
     event.listen(Session, "do_orm_execute", _capture)
     try:
         with pytest.raises(AuthError):
-            auth.authenticate(app_db, EMAIL, WRONG)
+            auth.authenticate(app_db, EMAIL, WRONG, client_ip=TEST_IP)
     finally:
         event.remove(Session, "do_orm_execute", _capture)
     assert seen

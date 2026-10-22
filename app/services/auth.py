@@ -5,19 +5,22 @@ indistinguishable (same message, same work) so the form cannot be used to
 find out which emails have an Account.
 """
 
+import ipaddress
 import logging
 import re
 import secrets
 from datetime import datetime, timedelta
 from functools import lru_cache
+from typing import NoReturn
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
-from sqlalchemy import select
+from sqlalchemy import delete, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import ROLES, Account, Factory
+from app.models import ROLES, Account, Factory, LoginIpFailure
 from app.services.clock import utc_now
 
 MIN_PASSWORD_LENGTH = 12
@@ -28,6 +31,16 @@ TEMPORARY_PASSWORD_BYTES = 12  # token_urlsafe -> 16 characters
 MAX_FAILED_LOGINS = 10
 LOCKOUT = timedelta(minutes=15)
 ACCOUNT_LOCKED = "บัญชีถูกล็อกชั่วคราว 15 นาที เพราะใส่รหัสผ่านผิดหลายครั้ง"
+# 50 failed logins from one client IP within 15 minutes block that IP for 15
+# minutes (STORY-006 AC 5), against password spraying: one password tried
+# across many emails, which the per-email lockout cannot see. High because a
+# whole plant may reach the portal from one public IP; only failures count.
+MAX_FAILED_LOGINS_PER_IP = 50
+IP_WINDOW = timedelta(minutes=15)
+IP_BLOCK = timedelta(minutes=15)
+# Rows untouched this long are deleted (after a failed login, see _prune_idle_ip_rows).
+IP_ROW_IDLE = timedelta(days=1)
+IP_BLOCKED = "มีการเข้าสู่ระบบผิดจากเครื่องนี้หลายครั้งเกินไป กรุณารอ 15 นาทีแล้วลองใหม่"
 
 # Account administration is logged here (who, action, target) until STORY-011
 # moves it into the DB. Never pass a password, hash or temporary password.
@@ -40,6 +53,10 @@ _EMAIL_RE = re.compile(r"[^@\s\x00-\x1f\x7f]+@[^@\s\x00-\x1f\x7f]+\.[^@\s\x00-\x
 
 class AuthError(Exception):
     """Auth error with a user-facing Thai message."""
+
+
+class IpBlocked(AuthError):
+    """This client IP made too many failed logins; refused before any hashing."""
 
 
 @lru_cache
@@ -161,29 +178,36 @@ def _register_failure(account: Account, now: datetime) -> bool:
     return True
 
 
-def authenticate(db: Session, email: str, password: str, now: datetime | None = None) -> Account:
+def authenticate(db: Session, email: str, password: str, now: datetime | None = None, *,
+                 client_ip: str) -> Account:
     """Return the active Account for these credentials, or raise one generic AuthError.
 
     Every outcome that is not a success — unknown email, wrong password,
     deactivated, locked — gives the same message after the same hashing work,
     so the form reveals neither which emails exist nor that one is locked.
+    Each such failure also counts against `client_ip`; a blocked IP gets
+    IpBlocked at once, without hashing. Lock order: the IP row, then the
+    Account row, held through the hashing so parallel guesses count one after
+    another (STORY-006 ticket 07).
     """
     now = now or utc_now()
+    ip_row = _lock_ip_row(db, _ip_key(client_ip), now)
+    if _ip_is_blocked(ip_row, now):
+        db.commit()
+        raise IpBlocked(IP_BLOCKED)
     found = db.scalar(select(Account.id).where(Account.email == normalize_email(email)))
     if found is None:
         # Burn the same hashing time as a real check (AC6).
         verify_password(_dummy_hash(settings.argon2_time_cost, settings.argon2_memory_cost,
                                     settings.argon2_parallelism), password)
-        raise AuthError(LOGIN_FAILED)
+        _login_failed(db, ip_row, now)
     account = _lock_row(db, found)
     password_ok = verify_password(account.password_hash, password)  # always, for timing
     if _is_locked(account, now):
-        db.commit()
-        raise AuthError(LOGIN_FAILED)
+        _login_failed(db, ip_row, now)
     if not password_ok or not account.active:
         _register_failure(account, now)
-        db.commit()
-        raise AuthError(LOGIN_FAILED)
+        _login_failed(db, ip_row, now)
     account.failed_login_count = 0
     db.commit()
 
@@ -192,6 +216,83 @@ def authenticate(db: Session, email: str, password: str, now: datetime | None = 
         account.password_hash = hash_password(password)
         db.commit()
     return account
+
+
+def _ip_key(client_ip: str | None) -> str:
+    """The IP as stored: normalised, or "unknown" for anything that is not an
+    IP (no client address, a test client), so odd values share one bucket and
+    never exceed the column."""
+    try:
+        return str(ipaddress.ip_address((client_ip or "").strip()))[:45]
+    except ValueError:
+        return "unknown"
+
+
+def _lock_ip_row(db: Session, ip: str, now: datetime) -> LoginIpFailure:
+    """The IP's row, locked until commit (Postgres); created if missing. Two
+    first logins from a new IP at once: one inserts, the other's insert fails
+    in its savepoint, and it then waits for and reads that row."""
+    stmt = (select(LoginIpFailure).where(LoginIpFailure.ip == ip)
+            .with_for_update().execution_options(populate_existing=True))
+    row = db.scalar(stmt)
+    if row is None:
+        try:
+            with db.begin_nested():
+                db.add(LoginIpFailure(ip=ip, failed_count=0, window_started_at=now))
+        except IntegrityError:
+            pass  # another login created it first
+        row = db.scalar(stmt)
+    return row
+
+
+def _ip_is_blocked(row: LoginIpFailure, now: datetime) -> bool:
+    """True while a block runs. A block or window that has run out starts the
+    count again from zero."""
+    if row.blocked_until is not None:
+        if row.blocked_until > now:
+            return True
+        row.blocked_until = None
+        row.failed_count = 0
+    if row.failed_count and now - row.window_started_at >= IP_WINDOW:
+        row.failed_count = 0
+    return False
+
+
+def _login_failed(db: Session, ip_row: LoginIpFailure, now: datetime) -> NoReturn:
+    """Count the failure against the IP, commit (with the Account's own count,
+    if any), tidy old IP rows, and raise the one generic error."""
+    if ip_row.failed_count == 0:
+        ip_row.window_started_at = now
+    ip_row.failed_count += 1
+    if ip_row.failed_count >= MAX_FAILED_LOGINS_PER_IP:
+        ip_row.blocked_until = now + IP_BLOCK
+        audit_log.info("login_ip_blocked ip=%s until=%s UTC", _one_line(ip_row.ip),
+                       f"{ip_row.blocked_until:%Y-%m-%d %H:%M}")
+    db.commit()
+    _prune_idle_ip_rows(db, now)
+    raise AuthError(LOGIN_FAILED)
+
+
+def _prune_idle_ip_rows(db: Session, now: datetime) -> None:
+    """Delete IP rows idle for IP_ROW_IDLE, in a short transaction of its own,
+    after the login has committed. Rows another login holds are skipped
+    (SKIP LOCKED, Postgres), so this never waits on or deadlocks with a login;
+    and a failure here is logged, never passed on to the login."""
+    cutoff = now - IP_ROW_IDLE
+    try:
+        stale = list(db.scalars(
+            select(LoginIpFailure.ip)
+            .where(LoginIpFailure.window_started_at < cutoff,
+                   or_(LoginIpFailure.blocked_until.is_(None),
+                       LoginIpFailure.blocked_until < cutoff))
+            .with_for_update(skip_locked=True)
+        ))
+        if stale:
+            db.execute(delete(LoginIpFailure).where(LoginIpFailure.ip.in_(stale)))
+        db.commit()
+    except Exception:  # noqa: BLE001 — tidying must never fail a login
+        db.rollback()
+        logging.getLogger("app.auth").warning("login_ip_prune_failed", exc_info=True)
 
 
 def change_own_password(

@@ -12,7 +12,7 @@ from app.models import Account, Factory, ItemRequest
 from app.services import auth
 from app.services.auth import AuthError, authenticate
 from app.services.requests import submit_request
-from tests.conftest import TEST_PASSWORD, account_for, central_ids, login
+from tests.conftest import TEST_IP, TEST_PASSWORD, account_for, central_ids, login
 
 
 def _plant(db, code: str = "APM") -> int:
@@ -88,7 +88,7 @@ def test_administrator_creates_account_for_each_role(client, app_db, role, plant
     assert (account.factory.code if account.factory else None) == plant
     temporary = _temp_password(r.text)
     assert len(temporary) >= auth.MIN_PASSWORD_LENGTH
-    assert authenticate(app_db, account.email, temporary).id == account.id
+    assert authenticate(app_db, account.email, temporary, client_ip=TEST_IP).id == account.id
 
 
 def test_requester_without_plant_is_refused(client, app_db):
@@ -121,7 +121,7 @@ def test_deactivated_account_cannot_log_in_and_its_session_dies(client, client_a
     assert client.post(f"/admin/accounts/{target.id}/deactivate").status_code == 200
     assert procurement.get("/queue", follow_redirects=False).status_code == 303
     with pytest.raises(AuthError):
-        authenticate(app_db, target.email, TEST_PASSWORD)
+        authenticate(app_db, target.email, TEST_PASSWORD, client_ip=TEST_IP)
 
 
 def test_reactivate_clears_lockout_and_allows_login(app_db, admin):
@@ -132,7 +132,7 @@ def test_reactivate_clears_lockout_and_allows_login(app_db, admin):
 
     auth.reactivate_account(app_db, admin, target.id)
     assert target.active and target.failed_login_count == 0 and target.locked_until is None
-    assert authenticate(app_db, target.email, TEST_PASSWORD).id == target.id
+    assert authenticate(app_db, target.email, TEST_PASSWORD, client_ip=TEST_IP).id == target.id
 
 
 def test_administrator_cannot_deactivate_self(app_db, admin):
@@ -168,8 +168,8 @@ def test_reset_password_old_fails_temporary_works_sessions_die(client, client_as
 
     assert requester.get("/", follow_redirects=False).status_code == 303
     with pytest.raises(AuthError):
-        authenticate(app_db, target.email, TEST_PASSWORD)
-    assert authenticate(app_db, target.email, temporary).id == target.id
+        authenticate(app_db, target.email, TEST_PASSWORD, client_ip=TEST_IP)
+    assert authenticate(app_db, target.email, temporary, client_ip=TEST_IP).id == target.id
     app_db.refresh(target)
     assert target.must_change_password
 

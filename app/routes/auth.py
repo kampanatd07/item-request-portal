@@ -13,7 +13,7 @@ from app.routes.deps import (
     safe_next,
     session_account,
 )
-from app.services.auth import AuthError, authenticate, change_own_password
+from app.services.auth import AuthError, IpBlocked, authenticate, change_own_password
 from app.services.clock import Clock, get_clock
 from app.services.sessions import COOKIE_NAME, account_for_session, issue_session, remaining
 from app.templating import templates
@@ -75,13 +75,18 @@ def login(
     db: Session = Depends(get_db),
     clock: Clock = Depends(get_clock),
 ):
+    # The client address as the proxy-headers layer left it (app/main.py):
+    # the real client behind a trusted proxy, never a forged header.
+    client_ip = request.client.host if request.client else None
     try:
-        account = authenticate(db, email, password, now=clock())
+        account = authenticate(db, email, password, now=clock(), client_ip=client_ip)
     except AuthError as e:
         return templates.TemplateResponse(
             request, "login.html",
             {"next": safe_next(next), "email": email, "error": str(e), "relogin": False},
-            status_code=401,
+            # 429 for a blocked IP: a plain form POST, so the browser shows this
+            # page as it is (no htmx:beforeSwap involved).
+            status_code=429 if isinstance(e, IpBlocked) else 401,
         )
     response = RedirectResponse(_landing(account, next), status_code=303)
     now = clock()

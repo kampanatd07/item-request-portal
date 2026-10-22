@@ -20,7 +20,7 @@ from app.services import auth
 from app.services.auth import AuthError, authenticate, create_account, verify_password
 from app.services.clock import utc_now
 from app.services.sessions import COOKIE_NAME, issue_session
-from tests.conftest import TEST_PASSWORD, login
+from tests.conftest import TEST_IP, TEST_PASSWORD, login
 
 PUBLIC_PATHS = {"/login", "/logout", "/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"}
 
@@ -122,7 +122,7 @@ def test_hash_is_upgraded_when_cost_is_raised(db_session, monkeypatch):
     account = _admin(db_session)
     old_hash = account.password_hash
     monkeypatch.setattr(settings, "argon2_time_cost", settings.argon2_time_cost + 1)
-    authenticate(db_session, "admin@test.local", TEST_PASSWORD)
+    authenticate(db_session, "admin@test.local", TEST_PASSWORD, client_ip=TEST_IP)
     assert account.password_hash != old_hash
     assert verify_password(account.password_hash, TEST_PASSWORD)
 
@@ -146,7 +146,7 @@ def test_unknown_email_still_verifies_a_hash(db_session, monkeypatch):
     monkeypatch.setattr(auth, "verify_password",
                         lambda h, p: calls.append(h) or real_verify(h, p))
     with pytest.raises(AuthError):
-        authenticate(db_session, "nobody@test.local", TEST_PASSWORD)
+        authenticate(db_session, "nobody@test.local", TEST_PASSWORD, client_ip=TEST_IP)
     assert len(calls) == 1 and calls[0].startswith("$argon2id$")
 
 

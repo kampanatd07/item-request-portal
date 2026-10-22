@@ -343,6 +343,20 @@ class Account(Base):
     factory: Mapped[Factory | None] = relationship()
 
 
+class LoginIpFailure(Base):
+    """Failed logins counted per client IP (STORY-006 ticket 07), against
+    password spraying: one password tried across many emails, which the
+    per-email lockout cannot see. One row per IP; the login locks it."""
+
+    __tablename__ = "login_ip_failures"
+
+    ip: Mapped[str] = mapped_column(String(45), primary_key=True)  # IPv6 fits
+    failed_count: Mapped[int] = mapped_column(default=0)
+    # Start of the current 15-minute counting window.
+    window_started_at: Mapped[datetime] = mapped_column(DateTime)
+    blocked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 # Why a Central Code was thrown away (STORY-010).
 RETIRE_REASONS = ["reissued", "overridden", "rejected", "skipped"]
 
