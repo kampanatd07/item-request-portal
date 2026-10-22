@@ -265,6 +265,15 @@ together exceed the Exchange sending limit.
 
 ### Further Notes
 
+- **Part B decision (Peter, 2026-10-22): a platform that does not publish
+  its proxy IPs.** `*` is forbidden (uvicorn trusts the *leftmost*
+  `X-Forwarded-For` entry with `*`, which the client writes, so the IP limit
+  could be dodged), and `none` would make every request look like the
+  proxy's single IP. If the chosen platform does not publish its proxy
+  addresses, no correct `FORWARDED_ALLOW_IPS` exists. Option to decide then:
+  a "trust one hop" mode that takes the rightmost `X-Forwarded-For` entry,
+  the one the platform's own proxy appends. Not built now.
+
 - A forgotten `FORWARDED_ALLOW_IPS` is now a deploy error, not a silent
   plant-wide block. A *wrong* value still is not caught (e.g. `none` behind a
   proxy makes every request look like the proxy's IP): part B must check, on

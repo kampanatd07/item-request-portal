@@ -22,5 +22,10 @@ hanging its background task.
       failure is recorded as the existing code records it
 - [ ] The `SET LOCAL` really applies on PostgreSQL (the wait ends at the
       lowered timeout, not at the test timeout)
+- [ ] A rejection (`approved → rejected`) while an export holds that row
+      (added by Peter, 2026-10-22, from the ticket 03 review): the loser
+      waits on the lock, and the outcome is consistent: if the request is in
+      the file it is `exported`, not `rejected`; if it is `rejected` it is
+      not in the file
 - [ ] Waits bounded; no production code change unless a test shows a real
       problem; if one does, stop and tell Peter before fixing. No migration
