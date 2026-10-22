@@ -221,10 +221,15 @@ def authenticate(db: Session, email: str, password: str, now: datetime | None = 
 def _ip_key(client_ip: str | None) -> str:
     """The IP as stored: normalised, or "unknown" for anything that is not an
     IP (no client address, a test client), so odd values share one bucket and
-    never exceed the column."""
+    never exceed the column. Every "unknown" is logged as a warning: on a
+    server it means a setup fault (e.g. FORWARDED_ALLOW_IPS), and everyone in
+    that bucket is counted, and blocked, together."""
     try:
         return str(ipaddress.ip_address((client_ip or "").strip()))[:45]
     except ValueError:
+        logging.getLogger("app.auth").warning(
+            "login_client_ip_unknown raw=%s: counted in the shared 'unknown' bucket; "
+            "check FORWARDED_ALLOW_IPS", _one_line(repr(client_ip)[:100]))
         return "unknown"
 
 

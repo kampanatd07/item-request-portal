@@ -176,6 +176,26 @@ def test_the_stored_ip_is_normalised_and_odd_values_share_one_bucket(raw, key):
     assert auth._ip_key(raw) == key
 
 
+@pytest.mark.parametrize("raw", ["testclient", None, "1.2.3.4, 5.6.7.8", "x\ny"])
+def test_every_unknown_client_ip_is_a_warning_without_the_password(account, client_from,
+                                                                   raw, caplog):
+    with caplog.at_level(logging.WARNING, logger="app.auth"):
+        assert auth._ip_key(raw) == "unknown"
+        r = _post(client_from("testclient"))  # through the login, too
+    assert r.status_code == 401
+    warnings = [rec for rec in caplog.records
+                if rec.levelno == logging.WARNING and "login_client_ip_unknown" in rec.getMessage()]
+    assert len(warnings) == 2  # one per lookup: the call above and the login
+    assert all("\n" not in rec.getMessage() for rec in warnings)  # no forged log lines
+    assert WRONG not in caplog.text
+
+
+def test_a_real_ip_logs_no_warning(account, client_from, caplog):
+    with caplog.at_level(logging.WARNING, logger="app.auth"):
+        _post(client_from(IP))
+    assert "login_client_ip_unknown" not in caplog.text
+
+
 # --- through the real proxy layer (ticket 06 review, note 7) ---------------------------
 
 def test_behind_a_trusted_proxy_each_client_is_counted_on_its_own_and_cannot_forge(
