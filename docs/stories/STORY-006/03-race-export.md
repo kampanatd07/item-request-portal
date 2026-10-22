@@ -1,6 +1,6 @@
 # 03: Postgres race: Approval or re-categorise against an export of the same request
 
-Status: in-progress (waiting for CI)
+Status: done (2026-10-22)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 01
@@ -12,17 +12,21 @@ Approval landing while the export runs) never interleave: the loser waits,
 re-checks status after it gets the lock, and no exported request ends up
 with a code different from the one in its export file.
 
-- [ ] Export holds the rows, re-categorise waits: after the export commits,
+- [x] Export holds the rows, re-categorise waits: after the export commits,
       the re-categorise sees the request is exported and is refused as the
       existing rules say; the request's code equals the code in the file
-- [ ] Re-categorise holds the row, export waits: the export includes the
+- [x] Re-categorise holds the row, export waits: the export includes the
       request with its new code (or leaves it out if its status changed),
       and the file matches the database
-- [ ] An Approval committing while an export waits on the rows: the result
+- [x] An Approval committing while an export waits on the rows: the result
       follows the re-check after the lock (in the batch with its code, or
       not in it), never in the file with a different code
-- [ ] Waiting is checked; waits bounded
-- [ ] No production code change unless a test shows a real race; if one
+      **Changed (Peter, 2026-10-22):** an export never waits on an Approval
+      (it locks only rows already committed as approved), so the test proves
+      the export does not wait, R2 is not in that batch, and the next export
+      carries R2 with the same code
+- [x] Waiting is checked; waits bounded
+- [x] No production code change unless a test shows a real race; if one
       does, stop and tell Peter before fixing. No migration
 
 ## Notes (2026-10-22)
@@ -50,4 +54,48 @@ batch's workbook built as the download builds it.
    export waiting here, stop and report.
 Review notes from ticket 02 applied to this file: type hints, codes built
 with `central_code`, checks limited to this test's requests and codes. No
+production code change, no migration.
+
+## Code review (2026-10-22)
+
+Ran `/code-review` on `ba5fc9c..abf3e33`. 8 findings, sorted as before
+(**(ก)** wrong data, someone acting who should not, data lost, or an
+acceptance criterion not met; **(ข)** a note). **No (ก).**
+
+### (ข) Notes — not changed (Peter: fix only (ก))
+1. **Timers in `run_without_wait` (and `run`) both use 15 s.** If B really
+   blocks, A's hold also runs out at about 15 s and raises inside
+   `before_commit`; A's transaction stays open and B stays blocked until the
+   test's database is dropped `WITH (FORCE)` in teardown. The reviewer called
+   it a hang to the 60 s timeout. Reading the code, it ends in about 30 s with
+   the right message ("B did not finish…"), so the ticket 01 AC "bounded
+   waits, no 60 s hang" still holds; not run to confirm. Not (ก) for that
+   reason. **Recommend: fix** before 04/05 lean on it more: A's hold longer
+   than B's wait, and roll A back on the failure path.
+2. `run_without_wait` decides "not blocked" by B finishing in time, not by
+   `pg_stat_activity`; a slow runner (> 15 s) fails it, and a B that raises
+   at once passes it (the test's `isinstance` check catches that). Recommend:
+   poll for `wait_event_type = 'Lock'` and fail at once if seen.
+3. `_codes_in_file` rebuilds the workbook from the database after the race,
+   so "the code is in the file" cannot differ from the database check; the
+   real guard is that the stored code did not change (asserted). The ticket
+   note "the file has the new code" overstates it. Recommend: snapshot the
+   bytes right after A commits, if the file check should carry weight.
+4. `_codes_in_file` copies the download route's query and plant choice
+   instead of sharing a service function. Recommend: one
+   `batch_workbook_bytes(db, batch_id)` used by route and test (production
+   code, so its own change).
+5. AC 3 text described a wait that cannot happen; now marked with Peter's
+   decision above. Not covered: a **rejection** (`approved → rejected`) of a
+   row the running export holds; it would wait on the row and be refused
+   after the export. Recommend: add to ticket 04/05 or a later race file.
+6. `run_without_wait` copies most of `run`. Recommend: one shared core.
+7. `run_without_wait`'s failure path (B blocked) has no test of its own
+   (CLAUDE.md: happy + failure path). Recommend: fix with 1–2.
+8. Test 1 does not check that the refused move left Sub-Category, name and
+   events untouched. Recommend: add those checks.
+
+## Closed (2026-10-22)
+
+CI on `abf3e33` (Peter): green, **823 passed, 0 skipped**. No race found, no
 production code change, no migration.
