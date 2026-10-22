@@ -8,6 +8,9 @@ os.environ["APP_ENV"] = "dev"
 os.environ["ARGON2_TIME_COST"] = "1"
 os.environ["ARGON2_MEMORY_COST"] = "8"
 os.environ["ARGON2_PARALLELISM"] = "1"
+# Tests that build Settings outside dev need it (required there, ticket 06);
+# the tests of that rule pass their own value.
+os.environ["FORWARDED_ALLOW_IPS"] = "none"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

@@ -26,6 +26,19 @@ user must be allowed to create databases: each test gets its own copy.)
 ## Deploying
 Push to `main` → GitHub Actions runs tests → deploy to Render/Railway (see docs/architecture.md)
 
+- **One worker process.** The container runs `uvicorn --workers 1`. The mail
+  limiter spaces sends per process (`MAIL_RATE_PER_MINUTE`, default 25) and
+  Exchange allows about 30 a minute per mailbox, so several workers together
+  would exceed it. Keep `MAIL_RATE_PER_MINUTE` × workers (all instances) ≤ 25.
+- **`FORWARDED_ALLOW_IPS`** (required outside `APP_ENV=dev`; the app refuses to
+  start without it, and so do migrations and `create_admin`): the IPs or CIDR
+  ranges of the proxy in front of the app, comma separated, e.g.
+  `10.0.0.0/8`; or `none` when clients connect directly. The login limit per
+  IP counts the address this gives. `*` is refused: uvicorn would then believe
+  the leftmost `X-Forwarded-For` entry, which the client writes itself.
+  The container passes `--no-proxy-headers`; the app reads the header itself.
+  After deploy, check that two machines are counted as two IPs.
+
 ## When things break
 - Logs: Render/Railway dashboard
 - Backups: platform daily DB snapshot; weekly pg_dump

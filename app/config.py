@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 
 from pydantic import Field, SecretStr, model_validator
@@ -42,6 +43,12 @@ class Settings(BaseSettings):
     # Checked at start-up: a bad value must stop the app, not fail every click.
     mail_rate_per_minute: int = Field(default=25, ge=1)
 
+    # The proxy in front of the app (STORY-006 ticket 06): its IPs or CIDR
+    # ranges, comma separated, or "none" when clients connect directly. Only a
+    # request arriving from one of these may say who the client is
+    # (X-Forwarded-For). Required outside dev; empty in dev means 127.0.0.1.
+    forwarded_allow_ips: str = ""
+
     class Config:
         env_file = ".env"
 
@@ -72,6 +79,46 @@ class Settings(BaseSettings):
             logging.getLogger("app.mail").warning(
                 "mail: Graph settings incomplete (missing %s) — emails are only logged",
                 ", ".join(missing))
+        return self
+
+    def trusted_proxies(self) -> list[str] | None:
+        """The proxies whose X-Forwarded-For is believed, or None for "none"
+        (no proxy: the connecting address is the client). Raises ValueError
+        on a value that must not start the app."""
+        raw = self.forwarded_allow_ips.strip()
+        if not raw:
+            if self.app_env == "dev":
+                return ["127.0.0.1"]
+            # Unset behind a platform proxy, every request would look like the
+            # proxy's one IP, and the login limit per IP would block every plant.
+            raise ValueError(
+                "FORWARDED_ALLOW_IPS must be set when APP_ENV is not 'dev': the IPs or "
+                "CIDR ranges of the proxy in front of the app (comma separated), or "
+                "'none' if clients connect directly (see .env.example)")
+        entries = [e.strip() for e in raw.split(",")]
+        if "*" in raw:
+            # uvicorn's "*" takes the leftmost X-Forwarded-For entry, which the
+            # client writes itself: anyone could pose as any IP.
+            raise ValueError(
+                "FORWARDED_ALLOW_IPS must not contain '*': with '*' the client IP is "
+                "read from the leftmost X-Forwarded-For entry, which the client writes "
+                "itself, so anyone could pose as any IP. List the proxy's IPs or CIDR "
+                "ranges, or 'none'")
+        if [e.lower() for e in entries] == ["none"]:
+            return None
+        for entry in entries:
+            try:
+                ipaddress.ip_network(entry)
+            except ValueError:
+                raise ValueError(
+                    f"FORWARDED_ALLOW_IPS: {entry!r} is not an IP address or CIDR range "
+                    "('none' must stand alone)") from None
+        return entries
+
+    @model_validator(mode="after")
+    def _check_forwarded_allow_ips(self) -> "Settings":
+        # A bad value must stop the app at start, not misjudge every login.
+        self.trusted_proxies()
         return self
 
     @property

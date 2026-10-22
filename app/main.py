@@ -2,6 +2,7 @@ import logging
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import RedirectResponse, Response
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.config import settings
 
@@ -76,3 +77,11 @@ app.include_router(queue_router, dependencies=[Depends(require_role("procurement
 app.include_router(exports_router, dependencies=[Depends(require_role("procurement"))])
 app.include_router(admin_router, dependencies=[Depends(require_role("administrator"))])
 app.include_router(accounts_router, dependencies=[Depends(require_role("administrator"))])
+
+# Who the client is, behind a proxy (STORY-006 ticket 06). Added last, so it is
+# the outermost layer and everything inside sees the real client address. The
+# start command passes --no-proxy-headers: this is the one place the header is
+# read, and it is under test. "none" adds nothing: the peer is the client.
+_trusted_proxies = settings.trusted_proxies()
+if _trusted_proxies is not None:
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=_trusted_proxies)

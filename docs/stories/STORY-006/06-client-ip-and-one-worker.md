@@ -1,6 +1,6 @@
 # 06: Client IP from trusted proxies only; FORWARDED_ALLOW_IPS required outside dev; one worker
 
-Status: todo
+Status: in-progress (waiting for CI)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: None (can start immediately)
@@ -35,3 +35,32 @@ peer address). In dev, empty means `127.0.0.1`.
       env sets `FORWARDED_ALLOW_IPS` (e.g. `none`). **CI is green after this
       ticket**
 - [ ] No migration
+
+## Notes (2026-10-22)
+
+**Changed from the spec (Peter, 2026-10-22):**
+- `*` is **refused everywhere** (dev too), with the reason in the message:
+  in every uvicorn version `*` takes the *leftmost* `X-Forwarded-For` entry,
+  which the client writes, so the IP limit of ticket 07 could be dodged.
+- uvicorn 0.30 → **0.54** in its own commit (`261d2a9`): 0.30 had no CIDR.
+  Release notes 0.31–0.54 read; nothing affects us (one worker, no
+  websockets, Python 3.12/3.13; a startup failure now exits with code 3).
+- Part B decision recorded in the STORY-006 spec: a platform that does not
+  publish its proxy IPs has no correct value; "trust one hop" is the option.
+
+**Built:**
+- `Settings.forwarded_allow_ips` + `trusted_proxies()`: outside dev empty is
+  refused; `*` refused; every entry must be an IP or CIDR (`ipaddress`,
+  strict, so `10.0.0.1/8` is a typo error); `none` must stand alone and
+  means no middleware; dev empty → `127.0.0.1`.
+- `app/main.py` adds uvicorn's `ProxyHeadersMiddleware` last (outermost)
+  with that list. Dockerfile: `--workers 1 --no-proxy-headers`.
+- Tests set `FORWARDED_ALLOW_IPS=none` in conftest (like `APP_ENV`), so the
+  existing production-Settings tests keep working; the rule's own tests pass
+  their value. CI needs nothing: it runs with `APP_ENV=dev`.
+- `tests/test_proxy_headers.py`, 23 tests: trusted / untrusted peer, `none`,
+  CIDR, a forged leftmost entry loses; the real app (fresh process) has the
+  middleware outermost with the configured list, and none for `none`; the
+  start-up rule (empty, `*` in dev and production, bad entries, accepted
+  values, dev default); the Dockerfile command.
+- README (Deploying) and `.env.example` document both.
