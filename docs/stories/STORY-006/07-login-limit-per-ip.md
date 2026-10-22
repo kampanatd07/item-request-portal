@@ -76,8 +76,8 @@ failure never fails the login.
   (2, PostgreSQL: 80 parallel failures from a new IP → exactly 50 counted, 30
   blocked; parallel failures across 4 emails × 3 IPs → no deadlock).
 
-**Browser check (Peter).** Once: `alembic upgrade head` on the dev DB. Start
-the app with `start.bat`, then in PowerShell:
+**Browser check (Peter).** Start the app with `start.bat` (it installs the
+requirements and runs the migration), then in PowerShell:
 
 ```powershell
 1..50 | ForEach-Object { try { Invoke-WebRequest -Uri http://127.0.0.1:8000/login -Method Post -UseBasicParsing -Body @{ email = "spray$_@test.local"; password = "wrong-password" } | Out-Null } catch {} }
