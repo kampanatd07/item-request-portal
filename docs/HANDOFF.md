@@ -58,8 +58,8 @@ upgrade; check `.env` is still read.
 | Deployment | **not started — STORY-006** |
 
 Tests: 858 passing locally, 16 PostgreSQL tests skipped without
-`TEST_POSTGRES_URL`; CI runs all 874 on PostgreSQL 16 (STORY-006 tickets
-01–03, 06, 07).
+`TEST_POSTGRES_URL`; CI runs all of them on PostgreSQL 16 (last confirmed:
+869 on `80a8e27`; 874 expected on `3ef9d7e`, STORY-006 tickets 01–03, 06, 07).
 
 The suite runs in ~13 s: `create_all` + `seed` run once per pytest session
 into an in-memory template, and each test's `db_session` gets a copy through

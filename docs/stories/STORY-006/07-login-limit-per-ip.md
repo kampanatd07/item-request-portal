@@ -1,6 +1,6 @@
 # 07: Login refuses a client IP after 50 failures in 15 minutes
 
-Status: done (2026-10-22)
+Status: in-progress (waiting for Peter: CI of `3ef9d7e`)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 01, 06
@@ -46,7 +46,7 @@ must be added there.
       was dropped, Peter 2026-10-22: no dev server on the company LAN; the
       real-middleware test covers it and Part B checks it on the real
       system)
-- [x] CI green
+- [ ] CI green (`80a8e27` green, 869 passed; `3ef9d7e` not yet confirmed)
 
 ## Notes (2026-10-22)
 
@@ -143,9 +143,11 @@ the ACs as written. **1–3 deserve a decision before go-live.**
    block ends within 30 minutes of its window start). Cosmetic.
 10. The 429 carries no `Retry-After` header. Recommend: seconds left.
 
-## Closed (2026-10-22)
+## Results so far (2026-10-22)
 
 CI on `80a8e27` (Peter): green, **869 passed, 0 skipped**. Browser check
-(Peter): 50 failed logins by PowerShell → the login page shows the Thai 429
-message. The `unknown` warning (`3ef9d7e`) adds 5 tests: CI there should
-show **874 passed** (to be confirmed).
+(Peter, 2026-10-22): 50 failed logins by PowerShell → the login page shows
+the Thai 429 message. The `unknown` warning (`3ef9d7e`) adds 5 tests: CI
+there should show **874 passed**, not yet confirmed by Peter, so the ticket
+stays open. (It was closed early on 2026-10-22 and reopened: tickets close
+only after Peter reports the results.)
