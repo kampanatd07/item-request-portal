@@ -31,13 +31,23 @@ Push to `main` → GitHub Actions runs tests → deploy to Render/Railway (see d
   Exchange allows about 30 a minute per mailbox, so several workers together
   would exceed it. Keep `MAIL_RATE_PER_MINUTE` × workers (all instances) ≤ 25.
 - **`FORWARDED_ALLOW_IPS`** (required outside `APP_ENV=dev`; the app refuses to
-  start without it, and so do migrations and `create_admin`): the IPs or CIDR
-  ranges of the proxy in front of the app, comma separated, e.g.
-  `10.0.0.0/8`; or `none` when clients connect directly. The login limit per
-  IP counts the address this gives. `*` is refused: uvicorn would then believe
-  the leftmost `X-Forwarded-For` entry, which the client writes itself.
-  The container passes `--no-proxy-headers`; the app reads the header itself.
-  After deploy, check that two machines are counted as two IPs.
+  start without it, and so do migrations and `create_admin`): the addresses of
+  the proxies in front of the app, comma separated (IPs or CIDR ranges); or
+  `none` when clients connect directly. The login limit per IP counts the
+  address this gives, so get it right:
+  - List **every hop that appends to `X-Forwarded-For`** (e.g. a CDN in front
+    of the platform's load balancer, *and* the load balancer). A hop left out
+    becomes "the client": all plants would share its few IPs, and 50 failed
+    logins anywhere would block everyone.
+  - List **only proxy addresses**. A range that real clients can also come
+    from (a broad private range such as all of `10.0.0.0/8` when users reach
+    the app from such addresses) lets those clients write their own IP into
+    the header and dodge the limit: when every entry is trusted, uvicorn
+    falls back to the leftmost, client-written one.
+  - `*` is refused for the same reason.
+  The container passes `--no-proxy-headers`; the app reads the header itself
+  (a platform "start command" override must keep that flag). After deploy,
+  check that two machines are counted as two IPs.
 
 ## When things break
 - Logs: Render/Railway dashboard

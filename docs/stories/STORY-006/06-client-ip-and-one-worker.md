@@ -1,6 +1,6 @@
 # 06: Client IP from trusted proxies only; FORWARDED_ALLOW_IPS required outside dev; one worker
 
-Status: in-progress (waiting for CI)
+Status: done (2026-10-22)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: None (can start immediately)
@@ -17,24 +17,24 @@ setting and both choices, the proxy list (IPs/CIDRs, comma separated, or
 `*`) or the explicit `none` (no proxy: trust no `X-Forwarded-For`, use the
 peer address). In dev, empty means `127.0.0.1`.
 
-- [ ] `X-Forwarded-For` from a trusted peer gives the forwarded client IP
-- [ ] The same header from an untrusted peer is ignored; the peer address is
+- [x] `X-Forwarded-For` from a trusted peer gives the forwarded client IP
+- [x] The same header from an untrusted peer is ignored; the peer address is
       the client IP
-- [ ] `none`: the header is ignored from every peer
-- [ ] Outside dev, empty → Settings refuses; the message names
+- [x] `none`: the header is ignored from every peer
+- [x] Outside dev, empty → Settings refuses; the message names
       `FORWARDED_ALLOW_IPS` and both choices. A list, `*` and `none` are
       accepted. In dev, empty is accepted (tests beside the `SECRET_KEY` /
       Graph start-up tests; existing tests that build Settings outside dev
       get the value)
-- [ ] Start command test: the Dockerfile runs uvicorn with `--workers 1` and
+- [x] Start command test: the Dockerfile runs uvicorn with `--workers 1` and
       `--no-proxy-headers`
-- [ ] README: one worker and why (AC 7), and what to set
+- [x] README: one worker and why (AC 7), and what to set
       `FORWARDED_ALLOW_IPS` to; `.env.example` documents it, noting that
       migrations and `create_admin` need it too outside dev
-- [ ] CI: if the workflow from 01 runs anything outside `APP_ENV=dev`, its
+- [x] CI: if the workflow from 01 runs anything outside `APP_ENV=dev`, its
       env sets `FORWARDED_ALLOW_IPS` (e.g. `none`). **CI is green after this
       ticket**
-- [ ] No migration
+- [x] No migration
 
 ## Notes (2026-10-22)
 
@@ -64,3 +64,53 @@ peer address). In dev, empty means `127.0.0.1`.
   start-up rule (empty, `*` in dev and production, bad entries, accepted
   values, dev default); the Dockerfile command.
 - README (Deploying) and `.env.example` document both.
+
+## Code review (2026-10-22)
+
+Checked first (Peter): the start-up rule is in `Settings`' own
+`model_validator` (`_check_forwarded_allow_ips`), not only in `main.py`.
+Proof: `test_outside_dev_an_empty_value_refuses_to_start` builds `Settings`
+directly; and with `APP_ENV=production` and no value, `alembic upgrade head`
+and `python -m app.create_admin` both stop with that `ValidationError` (run
+by hand 2026-10-22).
+
+Ran `/code-review` on `261d2a9..0040610` (and the uvicorn bump). 7 findings,
+sorted as before (**(ก)** wrong data, someone acting who should not, data
+lost, or an acceptance criterion not met; **(ข)** a note).
+
+### (ก) Must fix — fixed
+1+2. **The README / `.env.example` guidance could undo the ticket.** They
+   suggested `10.0.0.0/8` and spoke of "the proxy" only. (1) A trusted range
+   that real clients also come from lets them write their own IP: when every
+   `X-Forwarded-For` entry is trusted, uvicorn 0.54 falls back to the
+   leftmost, client-written one. (2) A hop that appends to the header but is
+   not listed (a CDN in front of the load balancer) becomes "the client", so
+   all plants share its IPs and 50 failures block everyone. AC "README: …
+   what to set `FORWARDED_ALLOW_IPS` to" not met. **Fixed:** both files now
+   say list every appending hop, only proxy addresses, never a range clients
+   come from, and that a platform start-command override must keep
+   `--no-proxy-headers`. No example range.
+
+### (ข) Notes — not changed
+3. If a start command leaves out `--no-proxy-headers` (HANDOFF §4 dev
+   command, a platform override), uvicorn adds its own proxy layer reading
+   the same env var (not `.env`). Same list → same result in production;
+   differs only when the value is in `.env`. Documented in README (above).
+4. Dev default trusts `127.0.0.1` only, not `::1` (uvicorn ≥ 0.53 trusts
+   both). Only matters for a local proxy over IPv6.
+5. `trusted_proxies()` is parsed twice (validator, then `main.py`).
+   Recommend: keep the parsed list from validation.
+6. The fresh-process test depends on pytest running from the repo root and
+   hides the child's stderr on failure. Recommend: `cwd=` repo root and
+   stderr in the message.
+7. Tests run with `FORWARDED_ALLOW_IPS=none`, so the shared app never has
+   the proxy layer; ticket 07's login tests would not cross it. **Carry into
+   07:** at least one login-limit test through the real middleware.
+8. (Reviewer's 1, code side) A guard for "every entry trusted → leftmost
+   wins" (fall back to the peer instead) would make a too-wide range safe.
+   Recommend: consider with Part B's "trust one hop" decision.
+
+## Closed (2026-10-22)
+
+CI on `0040610` (Peter): green, **848 passed, 0 skipped**. The (ก) fix is
+documentation only (README, `.env.example`); no code or test change.
