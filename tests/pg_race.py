@@ -124,6 +124,30 @@ class Race:
                 session_a.close()
                 session_b.close()
 
+    def run_without_wait(self, a: Callable[[Session], Any],
+                         b: Callable[[Session], Any]) -> tuple[Any, Any]:
+        """For two actions that must NOT block each other: A takes its locks and
+        holds at its commit; B must finish while A still holds. Then A commits.
+        Returns (A's result, B's result); B's exception is returned, not raised."""
+        session_a, session_b = session_on(self.engine), session_on(self.engine)
+        held = HeldCommit(session_a)
+        futures: list[Future] = []
+        try:
+            futures.append(self._pool.submit(a, session_a))
+            held.wait_reached(futures[0])
+            futures.append(self._pool.submit(b, session_b))
+            wait_futures([futures[1]], timeout=WAIT_SECONDS)
+            if not futures[1].done():
+                raise AssertionError("B did not finish while A held its locks: B was blocked")
+            held.release()
+            return futures[0].result(WAIT_SECONDS), _outcome(futures[1])
+        finally:
+            held.release()
+            wait_futures(futures, timeout=WAIT_SECONDS)
+            if all(f.done() for f in futures):
+                session_a.close()
+                session_b.close()
+
 
 def _outcome(future: Future) -> Any:
     try:
