@@ -14,12 +14,14 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import wait as wait_futures
 from typing import Any
 
-from sqlalchemy import Engine, event, text
+from sqlalchemy import Connection, Engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
 
 # Every wait is bounded well under pytest's 60 s timeout: a missing lock fails
 # the test with a message instead of hanging it.
 WAIT_SECONDS = 15
+# How long A may stay held at its commit; longer than WAIT_SECONDS (see HeldCommit).
+HOLD_SECONDS = 2 * WAIT_SECONDS
 
 
 def session_on(engine: Engine) -> Session:
@@ -36,19 +38,25 @@ class HeldCommit:
     """Holds `session`'s next commit until release(): its locks stay taken.
 
     Pending changes are flushed first, so what A did is written (uncommitted)
-    and its row locks are all in place while it waits.
+    and its row locks are all in place while it waits. abort() makes the
+    held commit fail instead, so A rolls back and its locks go at once.
     """
 
     def __init__(self, session: Session) -> None:
         self.reached = threading.Event()
         self._release = threading.Event()
+        self._aborted = False
         event.listen(session, "before_commit", self._hold, once=True)
 
     def _hold(self, session: Session) -> None:
         session.flush()
         self.reached.set()
-        if not self._release.wait(WAIT_SECONDS):
+        # Longer than any wait on B, so a failing race is decided (and A
+        # aborted) before A's own safety timeout could fire.
+        if not self._release.wait(HOLD_SECONDS):
             raise AssertionError("HeldCommit was never released")
+        if self._aborted:
+            raise AssertionError("A aborted: the race failed (see the test's error)")
 
     def wait_reached(self, future_a: Future) -> None:
         """Wait until A holds at its commit. If A ends first, A's own error is
@@ -64,6 +72,19 @@ class HeldCommit:
     def release(self) -> None:
         self._release.set()
 
+    def abort(self) -> None:
+        self._aborted = True
+        self._release.set()
+
+
+def _lock_wait_state(c: Connection, pid: int) -> str | None:
+    state = c.execute(
+        text("SELECT wait_event_type FROM pg_stat_activity WHERE pid = :pid"),
+        {"pid": pid},
+    ).scalar_one_or_none()
+    c.commit()  # a fresh snapshot of pg_stat_activity on the next poll
+    return state
+
 
 def wait_until_lock_wait(engine: Engine, pid: int, future_b: Future) -> None:
     """Poll pg_stat_activity until backend `pid` waits on a lock; bounded.
@@ -75,19 +96,40 @@ def wait_until_lock_wait(engine: Engine, pid: int, future_b: Future) -> None:
             if future_b.done():
                 raise AssertionError(f"backend {pid} finished without waiting on a lock; "
                                      f"B gave {_outcome(future_b)!r}")
-            state = c.execute(
-                text("SELECT wait_event_type FROM pg_stat_activity WHERE pid = :pid"),
-                {"pid": pid},
-            ).scalar_one_or_none()
-            c.commit()  # a fresh snapshot of pg_stat_activity on the next poll
-            if state == "Lock":
+            if _lock_wait_state(c, pid) == "Lock":
                 return
             time.sleep(0.02)
     raise AssertionError(f"backend {pid} never waited on a lock")
 
 
+def wait_until_done_without_lock(engine: Engine, pid: int, future_b: Future) -> None:
+    """Poll until B finishes; fail at once if PostgreSQL shows backend `pid`
+    waiting on a lock (proof by pg_stat_activity, not by timing); bounded."""
+    deadline = time.monotonic() + WAIT_SECONDS
+    with engine.connect() as c:
+        while time.monotonic() < deadline:
+            if future_b.done():
+                return
+            if _lock_wait_state(c, pid) == "Lock":
+                raise AssertionError(f"backend {pid} waited on a lock while A held: "
+                                     "B was blocked by A")
+            time.sleep(0.02)
+    raise AssertionError(f"backend {pid} neither finished nor waited on a lock")
+
+
+def _rolled_back_on_error(fn: Callable[[Session], Any], session: Session) -> Any:
+    """Run fn; on any error roll back, so a failed A or B never keeps its
+    locks (an error raised in before_commit leaves the transaction open)."""
+    try:
+        return fn(session)
+    except BaseException:
+        session.rollback()
+        raise
+
+
 class Race:
-    """Runs A (held before commit) and B (blocked on A's lock) in threads."""
+    """Runs A (held before commit) and B in threads; B must wait on A's lock
+    (run) or must finish without waiting (run_without_wait)."""
 
     def __init__(self, engine: Engine) -> None:
         self.engine = engine
@@ -103,45 +145,38 @@ class Race:
         """A takes its locks and holds; B starts and must wait on a lock; then
         A commits and B finishes. Returns (A's result, B's result); an
         exception from B is returned, not raised, so a test can check it."""
-        session_a, session_b = session_on(self.engine), session_on(self.engine)
-        held = HeldCommit(session_a)
-        futures: list[Future] = []
-        try:
-            futures.append(self._pool.submit(a, session_a))
-            held.wait_reached(futures[0])
-            pid_b = backend_pid(session_b)
-            futures.append(self._pool.submit(b, session_b))
-            wait_until_lock_wait(self.engine, pid_b, futures[1])
-            held.release()
-            return futures[0].result(WAIT_SECONDS), _outcome(futures[1])
-        finally:
-            # On every path, let A commit and both threads end before their
-            # sessions are closed here: a Session must not be used from two
-            # threads, and the database is dropped right after the test.
-            held.release()
-            wait_futures(futures, timeout=WAIT_SECONDS)
-            if all(f.done() for f in futures):
-                session_a.close()
-                session_b.close()
+        return self._race(a, b, wait_until_lock_wait)
 
     def run_without_wait(self, a: Callable[[Session], Any],
                          b: Callable[[Session], Any]) -> tuple[Any, Any]:
         """For two actions that must NOT block each other: A takes its locks and
-        holds at its commit; B must finish while A still holds. Then A commits.
-        Returns (A's result, B's result); B's exception is returned, not raised."""
+        holds at its commit; B must finish without ever waiting on a lock.
+        Then A commits. Returns (A's result, B's result); B's exception is
+        returned, not raised."""
+        return self._race(a, b, wait_until_done_without_lock)
+
+    def _race(self, a: Callable[[Session], Any], b: Callable[[Session], Any],
+              check_b: Callable[[Engine, int, Future], None]) -> tuple[Any, Any]:
         session_a, session_b = session_on(self.engine), session_on(self.engine)
         held = HeldCommit(session_a)
         futures: list[Future] = []
+        decided = False
         try:
-            futures.append(self._pool.submit(a, session_a))
+            futures.append(self._pool.submit(_rolled_back_on_error, a, session_a))
             held.wait_reached(futures[0])
-            futures.append(self._pool.submit(b, session_b))
-            wait_futures([futures[1]], timeout=WAIT_SECONDS)
-            if not futures[1].done():
-                raise AssertionError("B did not finish while A held its locks: B was blocked")
+            pid_b = backend_pid(session_b)
+            futures.append(self._pool.submit(_rolled_back_on_error, b, session_b))
+            check_b(self.engine, pid_b, futures[1])
+            decided = True
             held.release()
             return futures[0].result(WAIT_SECONDS), _outcome(futures[1])
         finally:
+            # A failed race aborts A: it rolls back, its locks go, and a B
+            # blocked on them can end. On every path both threads end before
+            # their sessions are closed here: a Session must not be used from
+            # two threads, and the database is dropped right after the test.
+            if not decided:
+                held.abort()
             held.release()
             wait_futures(futures, timeout=WAIT_SECONDS)
             if all(f.done() for f in futures):
