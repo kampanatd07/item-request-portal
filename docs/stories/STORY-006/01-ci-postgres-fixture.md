@@ -1,6 +1,6 @@
 # 01: CI on every push, migrations on a fresh Postgres, schema drift check, AC 2
 
-Status: todo
+Status: done (2026-10-22)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: None (can start immediately)
@@ -18,25 +18,26 @@ first tests on it: the migrated schema equals the models, and two Approvals
 in the same Sub-Category at the same moment get distinct consecutive Central
 Codes (AC 2), the first use of the "A holds the lock, B waits" pattern.
 
-- [ ] A GitHub Actions workflow runs on every push and pull request: Python
+- [x] A GitHub Actions workflow runs on every push and pull request: Python
       3.12, `postgres:16` service, `requirements-dev.txt`, migrate + seed on
       an empty DB, then `pytest` with `TEST_POSTGRES_URL` set; `APP_ENV=dev`
       (CI is not a deploy; no Graph values in CI)
-- [ ] The workflow is green on this branch, and the PostgreSQL tests
+- [x] The workflow is green on this branch, and the PostgreSQL tests
       actually ran there (not skipped), checked in the run log
-- [ ] Local `pytest` without `TEST_POSTGRES_URL`: same pass count as before,
+- [x] Local `pytest` without `TEST_POSTGRES_URL`: same pass count as before,
       the new PostgreSQL tests skipped, no failures
-- [ ] Fixture: each test gets its own copy; a write in one test is not seen
+- [x] Fixture: each test gets its own copy; a write in one test is not seen
       by the next (guard test, like `test_template_db.py`)
-- [ ] Drift check: Alembic's metadata comparison between the migrated DB and
+- [x] Drift check: Alembic's metadata comparison between the migrated DB and
       the models returns nothing. If it finds drift today: **stop and show
       Peter the diff**; the fix is a new migration in this ticket (the only
       ticket besides 07 allowed to add one), verified on a fresh DB
-- [ ] AC 2: two Approvals in one Sub-Category, overlapping on real row
+- [x] AC 2: two Approvals in one Sub-Category, overlapping on real row
       locks, get two different consecutive codes; the second waited for the
       first (checked, not assumed); bounded waits, no 60 s hang on failure
-- [ ] README: how to run the PostgreSQL tests locally (compose `db` +
-      `TEST_POSTGRES_URL`), one command
+- [x] README: how to run the PostgreSQL tests locally (a `postgres:16`
+      container + `TEST_POSTGRES_URL`; the compose `db` publishes no port),
+      one command
 
 ## Code review (2026-10-21)
 
@@ -100,3 +101,11 @@ Fixed in one commit:
   run's copy survives.
 - 7: type hints on `_run_on`, the PostgreSQL fixtures/helpers and
   `test_pg_codes.py` helpers. 8: copy names use a module-level counter.
+
+## Closed (2026-10-22)
+
+CI on `0bb327c` (Peter): green; `actions/checkout@v7` and
+`actions/setup-python@v7`, no Node 20 warning; migrate + seed on an empty
+PostgreSQL 16 ends with `Seed complete.`; **817 passed, 0 skipped**; no schema
+drift, so no migration in this ticket. Local: 811 passed, 6 skipped (the
+PostgreSQL tests).
