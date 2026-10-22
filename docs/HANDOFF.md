@@ -57,8 +57,9 @@ upgrade; check `.env` is still read.
 | Requester resubmit | done — STORY-009: Requester or Originator edits and resubmits a Needs Info request (conditional claim, one 409 for the loser), queue badge + reply card + replaced-name warning, best-effort email to Procurement; the code system must now fit the request's Plant (fix also for new requests) |
 | Deployment | **not started — STORY-006** |
 
-Tests: 810 passing locally, 4 PostgreSQL tests skipped without
-`TEST_POSTGRES_URL`; CI runs all 814 on PostgreSQL 16 (STORY-006 ticket 01).
+Tests: 811 passing locally, 9 PostgreSQL tests skipped without
+`TEST_POSTGRES_URL`; CI runs all 820 on PostgreSQL 16 (STORY-006 tickets
+01–02).
 
 The suite runs in ~13 s: `create_all` + `seed` run once per pytest session
 into an in-memory template, and each test's `db_session` gets a copy through
