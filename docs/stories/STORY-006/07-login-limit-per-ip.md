@@ -1,6 +1,6 @@
 # 07: Login refuses a client IP after 50 failures in 15 minutes
 
-Status: in-progress (waiting for CI)
+Status: done (2026-10-22)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 01, 06
@@ -23,30 +23,30 @@ The login form is a plain form POST (no HTMX, no `hx-boost`; checked
 `htmx:beforeSwap` needs no change. If the login form ever moves to HTMX, 429
 must be added there.
 
-- [ ] Migration for the counter table (the only migration besides a drift
+- [x] Migration for the counter table (the only migration besides a drift
       fix in 01), read line by line, verified on a fresh DB
       (`alembic upgrade head` + seed) and by the drift check in CI
-- [ ] Through `POST /login` with the fake clock: 49 failures get the normal
+- [x] Through `POST /login` with the fake clock: 49 failures get the normal
       error, the 50th blocks; a blocked IP is refused even with the right
       password; another IP is not affected
-- [ ] The block lifts after 15 minutes; a window older than 15 minutes
+- [x] The block lifts after 15 minutes; a window older than 15 minutes
       restarts the count; a success in between does not reset it
-- [ ] A blocked IP is refused without hashing (Argon2 not called)
-- [ ] The 429 response contains the Thai message
-- [ ] Guard test: the login form posts without `hx-` attributes (if it ever
+- [x] A blocked IP is refused without hashing (Argon2 not called)
+- [x] The 429 response contains the Thai message
+- [x] Guard test: the login form posts without `hx-` attributes (if it ever
       fails, add 429 to `htmx:beforeSwap` in the same change)
-- [ ] The block is logged with the IP, never a password
-- [ ] Stale rows are pruned
-- [ ] PostgreSQL (`postgres` marker): N parallel failures from one IP (N
+- [x] The block is logged with the IP, never a password
+- [x] Stale rows are pruned
+- [x] PostgreSQL (`postgres` marker): N parallel failures from one IP (N
       well above 50) count exactly as N sequential ones; the block starts at
       50
-- [ ] Browser checklist (Peter, `APP_ENV=dev`): fire 50 failed logins with
+- [x] Browser checklist (Peter, `APP_ENV=dev`): fire 50 failed logins with
       the PowerShell command below, then open the login page in the browser
       → the Thai 429 message shows on screen. (The "second machine" check
       was dropped, Peter 2026-10-22: no dev server on the company LAN; the
       real-middleware test covers it and Part B checks it on the real
       system)
-- [ ] CI green
+- [x] CI green
 
 ## Notes (2026-10-22)
 
@@ -87,3 +87,65 @@ Then open **http://127.0.0.1:8000/login** (not `localhost`, which may go
 over IPv6 `::1`, a different IP) and log in: the Thai message above shows.
 The block lasts 15 minutes; your own Account is not locked (the 50 attempts
 used made-up emails).
+
+**Added (Peter, 2026-10-22):** every time a client IP falls into the
+`unknown` bucket, a warning `login_client_ip_unknown raw=…` is logged on
+`app.auth` (value escaped, cut to 100 characters, never a password): on a
+server it means a setup fault, and everyone in that bucket is counted and
+blocked together. 5 tests (`3ef9d7e`).
+
+## Code review (2026-10-22)
+
+Ran `/code-review` on `5629c9b..3ef9d7e`. 10 findings, sorted as before
+(**(ก)** wrong data, someone acting who should not, data lost, or an
+acceptance criterion not met; **(ข)** a note). **No (ก)**: each finding
+below either follows a decision Peter made for this ticket or is outside
+the ACs as written. **1–3 deserve a decision before go-live.**
+
+### (ข) Notes — for a decision before go-live
+1. **The IP lock held through hashing also holds a DB connection per waiting
+   login.** Peter's decision (a) accepted that logins from one IP queue
+   (~65 ms each). New point: each queued login holds a pooled connection
+   while it waits, and the pool is 5 + 10 by default. About 15 people of one
+   plant logging in at the same second would use the whole pool, and other
+   pages (any plant) would wait up to the pool timeout (30 s). In the
+   `unknown` bucket (setup fault) every login in the app queues. Options:
+   a bigger pool; or check-and-count in short transactions with a
+   reserved slot (strict count without holding the lock through hashing).
+2. **One person behind a shared IP can lock a whole plant out**, again every
+   15 minutes: 50 failures with made-up emails take seconds. Built in to a
+   per-IP limit with a shared plant IP (decisions.md 2026-10-21 chose the
+   high ceiling for this reason); the per-plant blast radius is now visible.
+   Options to weigh: let a correct password through a block from a
+   known-good IP/Account pair; a higher ceiling; an Administrator "unblock".
+3. **IPv6 sprayers can rotate addresses inside their own /64** and never
+   reach 50 at any one address. Recommend: count IPv6 per /64 (and an
+   IPv4-mapped address as its IPv4). Small change in `_ip_key`, no
+   migration.
+
+### (ข) Notes — smaller
+4. Fixed window: up to 98 failures can fit around a window boundary (49 at
+   the end of one, 49 at the start of the next). As specified ("a window
+   older than 15 minutes starts again from zero"); a sliding count would
+   close it.
+5. `_lock_ip_row` can return `None` if the row is deleted between the failed
+   insert and the second select → 500. Not reachable from the prune on
+   PostgreSQL (a conflicting row is fresh, never "idle"); reachable by a
+   manual delete, or on SQLite. Recommend: retry the select/insert once.
+6. On SQLite the prune's select and delete are not atomic (`FOR UPDATE SKIP
+   LOCKED` is ignored), so a fresh row could be deleted. Dev only.
+7. The prune scans the whole table after every failure, with no index on
+   `window_started_at`. Recommend: run it 1 in N failures, or add the index
+   (needs a migration).
+8. `authenticate(client_ip: str)` but the route passes `str | None`
+   (CLAUDE.md type hints). Recommend: `str | None`.
+9. The `blocked_until` part of the prune filter can never decide anything (a
+   block ends within 30 minutes of its window start). Cosmetic.
+10. The 429 carries no `Retry-After` header. Recommend: seconds left.
+
+## Closed (2026-10-22)
+
+CI on `80a8e27` (Peter): green, **869 passed, 0 skipped**. Browser check
+(Peter): 50 failed logins by PowerShell → the login page shows the Thai 429
+message. The `unknown` warning (`3ef9d7e`) adds 5 tests: CI there should
+show **874 passed** (to be confirmed).
