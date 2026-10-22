@@ -8,8 +8,8 @@ The app only runs on Peter's laptop. Plants need a URL.
 
 ## Scope
 - GitHub repo (private) with CI: `pytest` on every push; red blocks merge
-  (GitHub Free has no branch protection on private repos: until the plan
-  changes, the rule is "Peter does not merge on red CI", HANDOFF §8)
+  (no branch protection set up; GitHub plan not yet checked (Peter): until
+  then the rule is "Peter does not merge on red CI", HANDOFF §8)
 - CI also runs `alembic upgrade head` against a fresh Postgres service container
   (catches trap HANDOFF §6.8, which SQLite tests miss)
 - Deploy the existing `Dockerfile` to Render or Railway with managed Postgres
@@ -30,7 +30,7 @@ The app only runs on Peter's laptop. Plants need a URL.
 - **Part B — waits for IT:** deploy, backup/restore (AC 1, 3), real email
   (AC 8). AC 6 (external hosting policy) is asked of IT together with the
   Graph values; the answer decides the platform (HANDOFF §7).
-- GitHub repo is private (confirmed 2026-09-28), on GitHub Free.
+- GitHub repo is private (confirmed 2026-09-28); GitHub plan not yet checked (Peter).
 - AC 5: no platform check first (Peter, 2026-10-21) — the platform is not
   settled until the hosting answer, so the per-IP limit is built in the app.
 
@@ -125,7 +125,7 @@ together exceed the Exchange sending limit.
 ### User Stories
 
 1. As Peter, I want the test suite to run on every push, so that I never merge a branch whose tests fail.
-2. As Peter, I want a red/green result on each branch before I approve its merge, so that the "no merge on red" rule is easy to follow on GitHub Free.
+2. As Peter, I want a red/green result on each branch before I approve its merge, so that the "no merge on red" rule is easy to follow without branch protection.
 3. As Peter, I want CI to apply every migration to an empty PostgreSQL database, so that a migration that only works on SQLite is caught before deploy.
 4. As Peter, I want CI to seed that migrated database, so that the start command of the container (migrate, seed, serve) is proven end to end.
 5. As Peter, I want CI to fail when the migrated schema differs from the models, so that a model change without a migration (or a wrong migration) cannot pass just because tests use `create_all`.
@@ -259,7 +259,7 @@ together exceed the Exchange sending limit.
 - Part B: choosing and deploying to Render/Railway, managed Postgres,
   backups and restore, real email (AC 1, 3, 6, 8); setting
   `FORWARDED_ALLOW_IPS` for the real platform.
-- Branch protection (needs a paid GitHub plan).
+- Branch protection (GitHub plan not yet checked (Peter); a private repo on GitHub Free cannot have it).
 - The query-cost and mail-limiter notes below (not deploy conditions).
 - Rate limiting anything other than `POST /login`.
 

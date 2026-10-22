@@ -190,6 +190,7 @@ After first run, upload in **Snapshot** page:
 - Report problems plainly with numbers
 - Plan first, get confirmation, then build; explain significant decisions in 2–3 sentences
 - He approves every merge
-- **No merge on red CI.** GitHub Free has no branch protection on private
-  repos, so a red CI run does not block the merge button: Peter checks the
-  CI result before approving (decided 2026-10-21, until the plan changes)
+- **No merge on red CI.** No branch protection is set up (GitHub plan not
+  yet checked (Peter); on GitHub Free a private repo cannot have it), so a
+  red CI run does not block the merge button: Peter checks the CI result
+  before approving (decided 2026-10-21)

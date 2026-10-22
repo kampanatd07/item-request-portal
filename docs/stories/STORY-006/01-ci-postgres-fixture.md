@@ -9,7 +9,7 @@ Blocked by: None (can start immediately)
 empty PostgreSQL 16: first `alembic upgrade head` + seed on that empty
 database (the container's start command, minus serving), then `pytest` with
 the PostgreSQL tests switched on. Peter sees red or green on each branch
-before he approves a merge (no branch protection on GitHub Free, HANDOFF §8).
+before he approves a merge (no branch protection set up, HANDOFF §8).
 PostgreSQL tests get their own fixture: one database migrated with Alembic
 (not `create_all`) and seeded once per run, copied per test with
 `CREATE DATABASE … TEMPLATE …`, dropped after; marked `postgres`, skipped when
