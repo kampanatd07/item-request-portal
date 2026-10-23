@@ -1,6 +1,6 @@
 # 08: Login limit hardening: count first, refund later; unblock CLI; IPv6 per /64
 
-Status: in-progress (review (ก) fixed; waiting for Peter: CI)
+Status: in-progress (second review found (ก); waiting for Peter's decision)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 07
@@ -193,3 +193,60 @@ is never checked: a dummy hash takes the same time.
   password among the other 190: the real hash is checked exactly 10 times,
   the right password does not get in, the Account ends locked with no slot
   left. Local: 890 passed, 20 skipped.
+
+CI on `a600f87` (Peter, 2026-10-23): green, **910 passed, 0 skipped**.
+
+## Second code review (2026-10-23)
+
+Ran `/code-review` on `3f3db8a..a600f87` (Peter: the fix rewrote
+`authenticate()` and added a migration), focused on slot leaks and frees,
+expiry, lock order, the locked-during-hash answer, and the migration.
+10 findings. **Two (ก)**, both bugs in the fix; not yet fixed (Peter decides
+first). Migration: no finding.
+
+### (ก) Must fix — waiting for Peter
+A. **A slot is freed twice if the hash upgrade fails after a successful
+   login.** The settle commit already freed both slots; an error in
+   `_upgrade_hash` (DB error, `hash_password`) then reaches the `except`,
+   which frees them again: another login's slot is lost (one guess more
+   than the limit), and the user gets a 500 after logging in correctly.
+B. **After the third "hash changed" round, the outcome is written without
+   locks.** The round commits (releasing the row locks) before `continue`;
+   when the loop runs out, the `else` path frees slots and counts the
+   failure on rows read before that commit: absolute values written from
+   stale rows (lost updates of other logins' counts and slots), outside
+   the IP → Account lock order. Needs the hash to change 3 times during one
+   check: very rare, but wrong data when it happens.
+
+### (ข) Notes
+1. Expiry clears *all* slots 1 minute after the 0 → 1 time, including ones
+   just taken by logins still running; their later frees then take others'
+   slots. On an Account this needs slots in use for a whole minute, which
+   the 10-failure lock prevents (each guess settles in milliseconds and
+   counts). On a busy IP (a plant's successful logins keep a slot in use),
+   it can let through up to about one extra limit's worth of in-flight
+   attempts at the moment of a block. Follows the agreed design (slots
+   without identity); the principled fix is one row per slot (below, 10).
+2. (4) If an Account is locked during the check *and* its hash changes, a
+   right password costs two hashes before the refusal, a wrong one one: a
+   timing difference. Fixed with B if "locked" is checked before re-hashing.
+3. (5) A full or locked Account is checked against the dummy hash at the
+   current Argon2 cost; an Account whose own hash still has the old cost
+   (cost raised, not yet upgraded) answers faster while unlocked: timing
+   shows the lock. Only after a cost change.
+4. (6) The prune ignores slots: an IP row whose failure window started over
+   a day ago is deleted even while its logins are being checked (common for
+   a plant with only successful logins), so their slots are lost.
+   Recommend: skip rows with live slots.
+5. (7) Settle does not re-check the IP window: a failure that crosses the
+   15-minute boundary while hashing adds to the old window's count and can
+   block early. Recommend: re-run the window check in settle.
+6. (8) An Account that is full but not yet locked (9 failures + 1 being
+   checked) gives the real user's right password no slot: refused, and
+   counted against the user's IP. Lasts only until that check settles
+   (which then locks the Account anyway).
+7. (9) The 3-round re-check loop is the source of B and 2; simpler: re-check
+   once, with locks taken again before writing.
+8. (10) Slots have no identity (one counter + one time per row); per-slot
+   rows (key, token, taken_at) would make freeing and expiry exact and
+   remove 1, A and 4. Needs a new table (migration).
