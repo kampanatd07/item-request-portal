@@ -1,6 +1,6 @@
 # 08: Login limit hardening: count first, refund later; unblock CLI; IPv6 per /64
 
-Status: in-progress (second review fixed; waiting for Peter: CI)
+Status: done (2026-10-23)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 07
@@ -67,27 +67,27 @@ row). With nothing held through the hash, it now proves the re-check in
 phase 3: the count stops at exactly 10 and "locked" is logged once.
 
 ## Acceptance criteria
-- [ ] A right password on an Account locked during the hash gets exactly the
+- [x] A right password on an Account locked during the hash gets exactly the
       answer a wrong password on a locked Account gets: status, message,
       headers, no redirect, no cookie (added by Peter, 2026-10-23)
-- [ ] During the hash no transaction is open and no pooled connection is
+- [x] During the hash no transaction is open and no pooled connection is
       checked out (PostgreSQL test: the hash is replaced by a probe that
       reads the pool and session state when called)
-- [ ] PostgreSQL: 80 parallel failures from a new IP → exactly 50 counted,
+- [x] PostgreSQL: 80 parallel failures from a new IP → exactly 50 counted,
       30 get 429
-- [ ] PostgreSQL: a correct password whose Account gets locked while it is
+- [x] PostgreSQL: a correct password whose Account gets locked while it is
       being hashed is refused
-- [ ] A success refunds its slot; the count never goes below 0; every ticket
+- [x] A success refunds its slot; the count never goes below 0; every ticket
       07 test still passes
-- [ ] `python -m app.unblock_ip`: `--by` required (missing or blank → exit 1
+- [x] `python -m app.unblock_ip`: `--by` required (missing or blank → exit 1
       with a message; Peter, 2026-10-23); unblocks and logs who; bad IP → exit 1; not
       blocked → exit 2, nothing changed; any address of an IPv6 /64 unblocks
       that /64
-- [ ] README "When things break" and decisions.md updated
-- [ ] IPv6: same /64 counted together, different /64 apart, IPv4-mapped
+- [x] README "When things break" and decisions.md updated
+- [x] IPv6: same /64 counted together, different /64 apart, IPv4-mapped
       counted as IPv4
-- [ ] No migration
-- [ ] CI green (reported by Peter)
+- [x] No migration
+- [x] CI green (reported by Peter)
 
 ## Notes (2026-10-23)
 
@@ -284,3 +284,15 @@ only → no (ก): close 08 at once, the rest to the backlog; (ก): stop and as
   the owner's right password until that check settles, and counts it on
   the owner's IP).
 - Local: 896 passed, 20 skipped.
+
+## Third code review and close (2026-10-23)
+
+CI on `77e44ed` (Peter): green, **916 passed, 0 skipped**. Peter agreed not
+to change (ข) 5 (one `now` per login: it cannot cross the window).
+
+Ran `/code-review` on `3b49ec8..77e44ed` only (Peter's rule). 7 findings,
+**no (ก)**: each needs a race that cannot be caused from outside (a hash
+changing twice within one check, a process interrupt right after the
+settling commit, a deactivated Account's hash changing during a check) or is
+tidiness. Per the rule, 08 closes and the (ข) notes of all three reviews go
+to the backlog: **STORY-015** (login limit follow-ups).

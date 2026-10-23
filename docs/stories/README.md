@@ -19,6 +19,7 @@ story file plus `docs/HANDOFF.md` alone, without chat history.
 | [012](STORY-012-plant-aware-d365-snapshot.md) | Plant-aware D365 snapshot (blocked: waiting for Peter's sample export) | 010 | any |
 | [013](STORY-013-category-change-name-prefix.md) | Category change updates the name prefix — **done** (2026-10-21) | — | 009 |
 | [014](STORY-014-name-preview-matches-saved-name.md) | Name preview shows the name that will be saved (after plants open) | — | 013 |
+| [015](STORY-015-login-limit-follow-ups.md) | Login limit follow-ups (review notes from STORY-006 ticket 08) | 006 ticket 08 | any |
 
 ## Status values
 `todo` → `planned` (spec + tickets written) → `in-progress` → `review` → `done`
