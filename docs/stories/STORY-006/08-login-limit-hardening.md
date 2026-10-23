@@ -1,6 +1,6 @@
 # 08: Login limit hardening: count first, refund later; unblock CLI; IPv6 per /64
 
-Status: todo (plan waiting for Peter's approval)
+Status: in-progress (waiting for Peter: CI)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 07
@@ -67,6 +67,9 @@ row). With nothing held through the hash, it now proves the re-check in
 phase 3: the count stops at exactly 10 and "locked" is logged once.
 
 ## Acceptance criteria
+- [ ] A right password on an Account locked during the hash gets exactly the
+      answer a wrong password on a locked Account gets: status, message,
+      headers, no redirect, no cookie (added by Peter, 2026-10-23)
 - [ ] During the hash no transaction is open and no pooled connection is
       checked out (PostgreSQL test: the hash is replaced by a probe that
       reads the pool and session state when called)
@@ -76,7 +79,8 @@ phase 3: the count stops at exactly 10 and "locked" is logged once.
       being hashed is refused
 - [ ] A success refunds its slot; the count never goes below 0; every ticket
       07 test still passes
-- [ ] `python -m app.unblock_ip`: unblocks and logs who; bad IP → exit 1; not
+- [ ] `python -m app.unblock_ip`: `--by` required (missing or blank → exit 1
+      with a message; Peter, 2026-10-23); unblocks and logs who; bad IP → exit 1; not
       blocked → exit 2, nothing changed; any address of an IPv6 /64 unblocks
       that /64
 - [ ] README "When things break" and decisions.md updated
@@ -84,3 +88,27 @@ phase 3: the count stops at exactly 10 and "locked" is logged once.
       counted as IPv4
 - [ ] No migration
 - [ ] CI green (reported by Peter)
+
+## Notes (2026-10-23)
+
+Plan approved by Peter 2026-10-23, both trade-offs accepted; review 07 notes
+5 and 8 fixed here; two additions (same answer when locked during the hash;
+`--by` required).
+
+- `authenticate` in three phases as planned. Also refused in phase 3: a
+  password changed while the old one was being hashed (the stored hash no
+  longer matches). `change_own_password` (logged-in only) still holds the
+  Account row through its hash: not a login, outside this ticket.
+- `ip_key_or_none` (public, used by the CLI) + `_ip_key` (logs `unknown`).
+  IPv6 → its /64 (`2001:db8:1:2::/64`), IPv4-mapped → IPv4.
+- `_lock_ip_row` retries a vanished row (up to 3 tries) instead of returning
+  `None` (review 07 note 5). `client_ip: str | None` (note 8).
+- `auth.unblock_ip` + `app/unblock_ip.py` (exit 0 / 1 / 2; argparse's own exit
+  code 2 is turned into 1 so 2 keeps meaning "not blocked"; `unknown` lifts
+  the shared bucket). README "When things break", decisions.md 2026-10-23.
+- Tests: `tests/test_login_ip_hardening.py` (15, SQLite), 2 more cases in
+  `test_login_ip_limit.py` (IPv6 /64, IPv4-mapped; one 07 expectation changed
+  from per-address to /64), 3 more in `test_pg_login_ip_limit.py`
+  (PostgreSQL: pool and transaction during the hash, known and unknown email;
+  a right password locked during the hash is refused). The ticket 07 tests
+  all still pass. Local: 875 passed, 19 skipped.

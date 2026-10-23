@@ -179,35 +179,55 @@ def _register_failure(account: Account, now: datetime) -> bool:
 
 
 def authenticate(db: Session, email: str, password: str, now: datetime | None = None, *,
-                 client_ip: str) -> Account:
+                 client_ip: str | None) -> Account:
     """Return the active Account for these credentials, or raise one generic AuthError.
 
     Every outcome that is not a success — unknown email, wrong password,
     deactivated, locked — gives the same message after the same hashing work,
     so the form reveals neither which emails exist nor that one is locked.
-    Each such failure also counts against `client_ip`; a blocked IP gets
-    IpBlocked at once, without hashing. Lock order: the IP row, then the
-    Account row, held through the hashing so parallel guesses count one after
-    another (STORY-006 ticket 07).
+
+    Count first, refund later (STORY-006 ticket 08): a short transaction
+    counts the attempt against `client_ip` (a blocked IP, or one whose count
+    with attempts still being checked has reached the limit, gets IpBlocked
+    at once, without hashing) and commits; the password is then hashed while
+    holding no lock, transaction or connection; a second short transaction
+    settles it: a failure stays counted (and may start the block), a success
+    gives its slot back. Lock order in both: the IP row, then the Account row.
     """
     now = now or utc_now()
-    ip_row = _lock_ip_row(db, _ip_key(client_ip), now)
-    if _ip_is_blocked(ip_row, now):
+    ip = _ip_key(client_ip)
+
+    # 1. Count the attempt; read what the hash check needs; let go of everything.
+    ip_row = _lock_ip_row(db, ip, now)
+    if _ip_is_blocked(ip_row, now) or ip_row.failed_count >= MAX_FAILED_LOGINS_PER_IP:
         db.commit()
         raise IpBlocked(IP_BLOCKED)
-    found = db.scalar(select(Account.id).where(Account.email == normalize_email(email)))
+    if ip_row.failed_count == 0:
+        ip_row.window_started_at = now
+    ip_row.failed_count += 1
+    found = db.execute(select(Account.id, Account.password_hash)
+                       .where(Account.email == normalize_email(email))).first()
+    db.commit()
+
+    # 2. Hash with nothing held. An unknown email burns the same time (AC6).
+    stored_hash = found.password_hash if found else _dummy_hash(
+        settings.argon2_time_cost, settings.argon2_memory_cost, settings.argon2_parallelism)
+    password_ok = verify_password(stored_hash, password)
+
+    # 3. Settle, on fresh rows.
+    ip_row = _lock_ip_row(db, ip, now)
     if found is None:
-        # Burn the same hashing time as a real check (AC6).
-        verify_password(_dummy_hash(settings.argon2_time_cost, settings.argon2_memory_cost,
-                                    settings.argon2_parallelism), password)
         _login_failed(db, ip_row, now)
-    account = _lock_row(db, found)
-    password_ok = verify_password(account.password_hash, password)  # always, for timing
+    account = _lock_row(db, found.id)
+    # Locked meanwhile (e.g. by parallel guesses): refused exactly like a wrong
+    # password on a locked Account, so a right guess cannot be told apart.
     if _is_locked(account, now):
         _login_failed(db, ip_row, now)
-    if not password_ok or not account.active:
+    # A password changed meanwhile: the check above was against the old hash.
+    if not password_ok or not account.active or account.password_hash != stored_hash:
         _register_failure(account, now)
         _login_failed(db, ip_row, now)
+    ip_row.failed_count = max(0, ip_row.failed_count - 1)  # refund this attempt's slot
     account.failed_login_count = 0
     db.commit()
 
@@ -218,36 +238,53 @@ def authenticate(db: Session, email: str, password: str, now: datetime | None = 
     return account
 
 
-def _ip_key(client_ip: str | None) -> str:
-    """The IP as stored: normalised, or "unknown" for anything that is not an
-    IP (no client address, a test client), so odd values share one bucket and
-    never exceed the column. Every "unknown" is logged as a warning: on a
-    server it means a setup fault (e.g. FORWARDED_ALLOW_IPS), and everyone in
-    that bucket is counted, and blocked, together."""
+def ip_key_or_none(raw: str | None) -> str | None:
+    """How a client IP is counted, or None if `raw` is not an IP. IPv6 counts
+    per /64 (one subscriber's usual prefix, so a sprayer cannot rotate inside
+    it); an IPv4-mapped IPv6 address counts as its IPv4."""
     try:
-        return str(ipaddress.ip_address((client_ip or "").strip()))[:45]
+        ip = ipaddress.ip_address((raw or "").strip())
     except ValueError:
+        return None
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.ipv4_mapped is not None:
+            return str(ip.ipv4_mapped)
+        return str(ipaddress.IPv6Network((int(ip), 64), strict=False))
+    return str(ip)
+
+
+def _ip_key(client_ip: str | None) -> str:
+    """The IP as stored (see ip_key_or_none), or "unknown" for anything that
+    is not an IP (no client address, a test client), so odd values share one
+    bucket and never exceed the column. Every "unknown" is logged as a
+    warning: on a server it means a setup fault (e.g. FORWARDED_ALLOW_IPS), and
+    everyone in that bucket is counted, and blocked, together."""
+    key = ip_key_or_none(client_ip)
+    if key is None:
         logging.getLogger("app.auth").warning(
             "login_client_ip_unknown raw=%s: counted in the shared 'unknown' bucket; "
             "check FORWARDED_ALLOW_IPS", _one_line(repr(client_ip)[:100]))
         return "unknown"
+    return key
 
 
 def _lock_ip_row(db: Session, ip: str, now: datetime) -> LoginIpFailure:
     """The IP's row, locked until commit (Postgres); created if missing. Two
     first logins from a new IP at once: one inserts, the other's insert fails
-    in its savepoint, and it then waits for and reads that row."""
+    in its savepoint, and it then waits for and reads that row. A row deleted
+    in between (a manual delete) is simply created again."""
     stmt = (select(LoginIpFailure).where(LoginIpFailure.ip == ip)
             .with_for_update().execution_options(populate_existing=True))
-    row = db.scalar(stmt)
-    if row is None:
+    for _ in range(3):
+        row = db.scalar(stmt)
+        if row is not None:
+            return row
         try:
             with db.begin_nested():
                 db.add(LoginIpFailure(ip=ip, failed_count=0, window_started_at=now))
         except IntegrityError:
             pass  # another login created it first
-        row = db.scalar(stmt)
-    return row
+    raise RuntimeError(f"login_ip_failures row for {ip!r} kept vanishing")
 
 
 def _ip_is_blocked(row: LoginIpFailure, now: datetime) -> bool:
@@ -264,18 +301,38 @@ def _ip_is_blocked(row: LoginIpFailure, now: datetime) -> bool:
 
 
 def _login_failed(db: Session, ip_row: LoginIpFailure, now: datetime) -> NoReturn:
-    """Count the failure against the IP, commit (with the Account's own count,
-    if any), tidy old IP rows, and raise the one generic error."""
-    if ip_row.failed_count == 0:
-        ip_row.window_started_at = now
-    ip_row.failed_count += 1
-    if ip_row.failed_count >= MAX_FAILED_LOGINS_PER_IP:
+    """The attempt failed: it stays counted (since step 1). Start the block if
+    the count has reached the limit, commit (with the Account's own count, if
+    any), tidy old IP rows, and raise the one generic error."""
+    if ip_row.failed_count >= MAX_FAILED_LOGINS_PER_IP and ip_row.blocked_until is None:
         ip_row.blocked_until = now + IP_BLOCK
         audit_log.info("login_ip_blocked ip=%s until=%s UTC", _one_line(ip_row.ip),
                        f"{ip_row.blocked_until:%Y-%m-%d %H:%M}")
     db.commit()
     _prune_idle_ip_rows(db, now)
     raise AuthError(LOGIN_FAILED)
+
+
+def unblock_ip(db: Session, raw_ip: str, *, by: str, now: datetime | None = None) -> bool:
+    """Lift a login block on an IP (an IPv6 address lifts its /64; "unknown"
+    lifts the shared bucket). Returns False, changing nothing, if that IP is
+    not blocked. `by` names who did it, for the log; required."""
+    now = now or utc_now()
+    by = " ".join((by or "").split())
+    if not by:
+        raise AuthError("--by is required: who is lifting the block")
+    ip = "unknown" if raw_ip.strip().lower() == "unknown" else ip_key_or_none(raw_ip)
+    if ip is None:
+        raise AuthError(f"not an IP address: {raw_ip!r}")
+    row = db.scalar(select(LoginIpFailure).where(LoginIpFailure.ip == ip).with_for_update())
+    if row is None or row.blocked_until is None or row.blocked_until <= now:
+        db.rollback()
+        return False
+    row.blocked_until = None
+    row.failed_count = 0
+    db.commit()
+    audit_log.info("login_ip_unblocked ip=%s by=%s", _one_line(ip), _one_line(by))
+    return True
 
 
 def _prune_idle_ip_rows(db: Session, now: datetime) -> None:

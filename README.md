@@ -50,6 +50,15 @@ Push to `main` → GitHub Actions runs tests → deploy to Render/Railway (see d
   check that two machines are counted as two IPs.
 
 ## When things break
+- **A plant (or everyone) gets "มีการเข้าสู่ระบบผิดจากเครื่องนี้หลายครั้งเกินไป"
+  at login:** 50 failed logins from one client IP in 15 minutes block that IP
+  for 15 minutes. Find the IP in the log line `login_ip_blocked ip=… until=…`
+  (`app.accounts`). To lift it early, on the app's shell:
+  `python -m app.unblock_ip <ip> --by "<your name>"` (exit 0 = lifted, 1 = bad
+  input, 2 = not blocked). An IPv6 block covers a /64: any address in it
+  works. If the log shows `login_client_ip_unknown` warnings, everyone is
+  counted as one client: check `FORWARDED_ALLOW_IPS` (Deploying), then lift
+  the shared bucket with `unknown` as the IP.
 - Logs: Render/Railway dashboard
 - Backups: platform daily DB snapshot; weekly pg_dump
 - Owner: Peter (kampanat.d07@gmail.com)

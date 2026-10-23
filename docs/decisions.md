@@ -1,5 +1,22 @@
 # Decision Log
 
+## [2026-10-23] Accepted: one person behind a shared plant IP can block that plant's logins
+**Decision:** The login limit stays per client IP (50 failures in 15 minutes
+→ 15-minute block), knowing that one person on a plant's network can block
+every login from that plant's shared public IP, and repeat it. Lifted early
+with `python -m app.unblock_ip <ip> --by <name>` (logged with who). IPv6 is
+counted per /64.
+**Why:** to do it, the person must be on the plant's network, and the block
+is logged with the IP and time, so it can be traced; spraying from outside
+is the threat the limit exists for. `--by` is required because a container's
+OS user is usually root, which names nobody.
+**Alternatives considered:** let a correct password through a block (a
+sprayer that guesses right gets in); a per-plant allow-list (the plants'
+public IPs are not known or fixed); an unblock page in the app (more surface
+for a rare action).
+**Revisit when:** a plant is blocked in normal use, or the hosting gives a
+better signal than the IP (e.g. SSO).
+
 ## [2026-10-21] Login limit per client IP built in the app, counted in the DB
 **Decision:** `POST /login` refuses a client IP for 15 minutes after 50
 failed logins within 15 minutes (failures only; a success does not reset).

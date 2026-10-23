@@ -1,13 +1,14 @@
 """PostgreSQL: parallel failed logins from one IP count exactly as sequential
-ones (STORY-006 ticket 07, AC 5). The IP row is locked through the hashing,
-so the 51st attempt is refused without being checked, even when all arrive
-at once and the row does not exist yet."""
+ones (STORY-006 ticket 07, AC 5). Each attempt is counted under the IP row
+lock before it is hashed (ticket 08: count first, refund later), so the 51st
+is refused without being checked, even when all arrive at once and the row
+does not exist yet; and nothing is held while hashing."""
 
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from sqlalchemy import Engine
+from sqlalchemy import Engine, select
 
 from app.models import LoginIpFailure
 from app.services import auth
@@ -68,3 +69,56 @@ def test_parallel_failures_across_emails_and_ips_never_deadlock(pg_engine: Engin
     with session_on(pg_engine) as db:
         assert {ip: db.get(LoginIpFailure, ip).failed_count for ip in ips} == {
             ip: len(emails) * 3 for ip in ips}
+
+
+# --- ticket 08: count first, refund later --------------------------------------------------
+
+@pytest.mark.parametrize("known", [True, False])
+def test_no_connection_or_transaction_is_held_while_hashing(pg_engine: Engine, monkeypatch,
+                                                            known: bool) -> None:
+    if known:
+        with session_on(pg_engine) as db:
+            auth.create_account(db, "someone@test.local", "Someone", "procurement",
+                                TEST_PASSWORD, must_change_password=False)
+    real = auth.verify_password
+    seen: list[tuple[int, bool]] = []
+    with session_on(pg_engine) as db:
+        def probe(stored: str, password: str) -> bool:
+            seen.append((pg_engine.pool.checkedout(), db.in_transaction()))
+            return real(stored, password)
+
+        monkeypatch.setattr(auth, "verify_password", probe)
+        with pytest.raises(AuthError):
+            auth.authenticate(db, "someone@test.local", "wrong-password-000", client_ip=IP)
+    assert seen == [(0, False)]  # nothing checked out of the pool, no open transaction
+
+
+def test_a_right_password_on_an_account_locked_during_the_hash_is_refused(
+        pg_engine: Engine, monkeypatch) -> None:
+    from datetime import timedelta
+
+    from sqlalchemy import update
+
+    from app.models import Account
+    from app.services.clock import utc_now
+
+    with session_on(pg_engine) as db:
+        auth.create_account(db, "someone@test.local", "Someone", "procurement",
+                            TEST_PASSWORD, must_change_password=False)
+    real = auth.verify_password
+
+    def lock_while_hashing(stored: str, password: str) -> bool:
+        # Another login's 10th wrong guess commits while this one hashes.
+        with session_on(pg_engine) as other:
+            other.execute(update(Account).where(Account.email == "someone@test.local")
+                          .values(locked_until=utc_now() + timedelta(minutes=15),
+                                  failed_login_count=10))
+            other.commit()
+        return real(stored, password)
+
+    monkeypatch.setattr(auth, "verify_password", lock_while_hashing)
+    with session_on(pg_engine) as db, pytest.raises(AuthError, match=LOGIN_FAILED):
+        auth.authenticate(db, "someone@test.local", TEST_PASSWORD, client_ip=IP)
+    with session_on(pg_engine) as db:
+        account = db.scalar(select(Account).where(Account.email == "someone@test.local"))
+        assert account.locked_until is not None and account.failed_login_count == 10

@@ -169,7 +169,8 @@ def test_the_block_is_logged_once_with_the_ip_and_never_a_password(
 
 @pytest.mark.parametrize("raw, key", [
     ("198.51.100.7", "198.51.100.7"), (" 198.51.100.7 ", "198.51.100.7"),
-    ("2001:DB8::0001", "2001:db8::1"), ("testclient", "unknown"), (None, "unknown"),
+    ("2001:DB8::0001", "2001:db8::/64"), ("2001:db8::ffff:1", "2001:db8::/64"),
+    ("::ffff:198.51.100.7", "198.51.100.7"), ("testclient", "unknown"), (None, "unknown"),
     ("1.2.3.4, 5.6.7.8", "unknown"),
 ])
 def test_the_stored_ip_is_normalised_and_odd_values_share_one_bucket(raw, key):
