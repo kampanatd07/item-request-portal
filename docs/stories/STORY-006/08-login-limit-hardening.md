@@ -1,0 +1,86 @@
+# 08: Login limit hardening: count first, refund later; unblock CLI; IPv6 per /64
+
+Status: todo (plan waiting for Peter's approval)
+Triage: ready-for-agent
+Parent: STORY-006 (part A)
+Blocked by: 07
+Work order (Peter, 2026-10-22): before 04, then 05.
+
+**What to build:** from the ticket 07 review, notes 1–3 (Peter, 2026-10-22).
+(1) No login holds a DB lock, transaction or connection while its password
+is hashed, so a burst of logins from one plant cannot use up the connection
+pool; the count per IP stays exact. (2) The risk that one person behind a
+shared plant IP locks the plant out is accepted (they must be on the plant
+network, and the block is logged with the IP); an Administrator can lift a
+block from the command line. (3) IPv6 clients are counted per /64, so a
+sprayer cannot rotate addresses inside their own prefix.
+
+## Plan (proposed 2026-10-23)
+
+### 1. Count first, refund later (`auth.authenticate`)
+Three phases, lock order unchanged: IP row → Account row.
+1. **Short transaction:** lock the IP row (create if missing). Blocked →
+   `IpBlocked` (429). Count (failures + attempts being checked) ≥ 50 →
+   `IpBlocked` too, so parallel attempts cannot pass the limit. Otherwise
+   +1 and commit: lock and connection released.
+2. **Hash, holding nothing:** read the Account's hash without a lock, verify
+   (dummy hash for an unknown email, as today). The per-email lockout also
+   held the Account row through the hash today; it moves out too, or the
+   "no connection held" rule would not be true.
+3. **Short transaction:** lock IP row, then Account row.
+   - Failure: the IP count stays (counted in 1); if it is ≥ 50 and no block
+     runs, start the block and log it once. The Account's own count goes up
+     only while it is not locked, so it stops at exactly 10.
+   - Success: **check again that the Account was not locked meanwhile**
+     (refuse if it was); otherwise IP count −1 (never below 0) and the
+     Account's count reset.
+- One at a time, nothing changes: the 50th failure gets 401 and starts the
+  block; the 51st gets 429.
+- **Trade-off:** attempts still being checked hold a slot, so near 50 a
+  parallel attempt can get 429 although one of those in flight later
+  succeeds and is refunded (blocks slightly early, only near the limit). A
+  process that dies mid-hash never refunds: counted as a failure (fails
+  closed).
+
+### 2. Unblock CLI
+`python -m app.unblock_ip <ip> [--by NAME]`, built like `create_admin`. The
+IP goes through the same `_ip_key` (any address of an IPv6 /64 works); the
+block and the count are cleared; logged `login_ip_unblocked ip=… by=…`
+(`--by`, else the OS user from `getpass.getuser()`: the CLI has no login).
+Exit 0 = unblocked, 1 = not an IP, 2 = that IP is not blocked (nothing
+changed). README "When things break": find the IP in the
+`login_ip_blocked` log line, run the command. decisions.md: the accepted
+risk and why.
+
+### 3. IPv6 per /64 (`_ip_key`)
+IPv6 stored as its /64 prefix (e.g. `2001:db8:1:2::/64`); an IPv4-mapped
+address (`::ffff:1.2.3.4`) as the IPv4. Fits the column: no migration.
+
+### Small, in the same code (if Peter agrees)
+- Review 07 note 5: `_lock_ip_row` can return `None` (row deleted between
+  the failed insert and the re-read) → 500; retry once.
+- Review 07 note 8: `client_ip: str | None`.
+
+### Ticket 04, AC on one email
+Still 30 parallel wrong passwords from 30 IPs (one IP would queue on the IP
+row). With nothing held through the hash, it now proves the re-check in
+phase 3: the count stops at exactly 10 and "locked" is logged once.
+
+## Acceptance criteria
+- [ ] During the hash no transaction is open and no pooled connection is
+      checked out (PostgreSQL test: the hash is replaced by a probe that
+      reads the pool and session state when called)
+- [ ] PostgreSQL: 80 parallel failures from a new IP → exactly 50 counted,
+      30 get 429
+- [ ] PostgreSQL: a correct password whose Account gets locked while it is
+      being hashed is refused
+- [ ] A success refunds its slot; the count never goes below 0; every ticket
+      07 test still passes
+- [ ] `python -m app.unblock_ip`: unblocks and logs who; bad IP → exit 1; not
+      blocked → exit 2, nothing changed; any address of an IPv6 /64 unblocks
+      that /64
+- [ ] README "When things break" and decisions.md updated
+- [ ] IPv6: same /64 counted together, different /64 apart, IPv4-mapped
+      counted as IPv4
+- [ ] No migration
+- [ ] CI green (reported by Peter)
