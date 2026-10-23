@@ -1,6 +1,6 @@
 # 07: Login refuses a client IP after 50 failures in 15 minutes
 
-Status: in-progress (waiting for Peter: CI of `3ef9d7e`)
+Status: done (2026-10-23)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 01, 06
@@ -46,7 +46,7 @@ must be added there.
       was dropped, Peter 2026-10-22: no dev server on the company LAN; the
       real-middleware test covers it and Part B checks it on the real
       system)
-- [ ] CI green (`80a8e27` green, 869 passed; `3ef9d7e` not yet confirmed)
+- [x] CI green (`80a8e27`: 869 passed; `78b3580` incl. `3ef9d7e`: 874 passed)
 
 ## Notes (2026-10-22)
 
@@ -151,3 +151,9 @@ the Thai 429 message. The `unknown` warning (`3ef9d7e`) adds 5 tests: CI
 there should show **874 passed**, not yet confirmed by Peter, so the ticket
 stays open. (It was closed early on 2026-10-22 and reopened: tickets close
 only after Peter reports the results.)
+
+## Closed (2026-10-23)
+
+CI on `78b3580` (includes `3ef9d7e`), reported by Peter: green, **874
+passed, 0 skipped**, tests step 44.96 s. Browser check reported 2026-10-22.
+Review notes 1–3 go to ticket 08.

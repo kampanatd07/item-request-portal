@@ -34,6 +34,11 @@ done 2026-10-19) and the Name Prefix on category moves (STORY-013, done
 
 After the plants open: STORY-014 (the name preview shows the saved name).
 
+Open small item (noted 2026-10-23): CI is pinned to `ubuntu-24.04`
+(`.github/workflows/ci.yml`) because `ubuntu-latest` moves to Ubuntu 26
+from 2026-10-19. Move CI to Ubuntu 26 on purpose after go-live, as its own
+change with a green run.
+
 Open small item (not fixed, noted 2026-10-21): `app/config.py` `Settings`
 uses a class-based `Config`, which Pydantic 2 warns is deprecated
 (`PydanticDeprecatedSince20`, removed in V3). Move to
@@ -58,8 +63,8 @@ upgrade; check `.env` is still read.
 | Deployment | **not started — STORY-006** |
 
 Tests: 858 passing locally, 16 PostgreSQL tests skipped without
-`TEST_POSTGRES_URL`; CI runs all of them on PostgreSQL 16 (last confirmed:
-869 on `80a8e27`; 874 expected on `3ef9d7e`, STORY-006 tickets 01–03, 06, 07).
+`TEST_POSTGRES_URL`; CI runs all 874 on PostgreSQL 16 (confirmed on
+`78b3580`, STORY-006 tickets 01–03, 06, 07).
 
 The suite runs in ~13 s: `create_all` + `seed` run once per pytest session
 into an in-memory template, and each test's `db_session` gets a copy through
