@@ -1,6 +1,6 @@
 # 08: Login limit hardening: count first, refund later; unblock CLI; IPv6 per /64
 
-Status: in-progress (second review found (ก); waiting for Peter's decision)
+Status: in-progress (second review fixed; waiting for Peter: CI)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 07
@@ -250,3 +250,37 @@ B. **After the third "hash changed" round, the outcome is written without
 8. (10) Slots have no identity (one counter + one time per row); per-slot
    rows (key, token, taken_at) would make freeing and expiry exact and
    remove 1, A and 4. Needs a new table (migration).
+
+## Fix of the second review (2026-10-23)
+
+Peter's decisions (2026-10-23): fix (ก) A and B with tests that cause the
+failure for real; fix (ข) 4 and 5; 1 and 8 (one row per slot) not now, an
+open item in HANDOFF §2 with the accepted impact; 3 and 6 only noted here.
+After this: push → Peter checks CI → `/code-review` of this round's diff
+only → no (ก): close 08 at once, the rest to the backlog; (ก): stop and ask.
+
+- **A:** `_check_and_settle` raises nothing after its settling commit: the
+  hash upgrade is best-effort (`login_hash_upgrade_failed` warning). Test:
+  the upgrade's UPDATE fails (DB error) → the login still answers 303, the
+  warning is logged, and another login's slots on the Account and the IP
+  are still there.
+- **B:** one re-check only; after it the rows are locked again (IP →
+  Account, `_lock_rows`) and everything is written on those; a hash that
+  changed again is refused; a locked Account is refused *before* any
+  re-check (also fixes note 2: no second hash for a right guess). Tests:
+  others' writes made during the check and the re-check are kept (IP
+  failures 7 → 8, another login's Account slot); a locked Account is checked
+  once; a hash changing every time is checked twice, never a third time.
+- **(ข) 4:** the prune never deletes a row whose slots are live (not
+  expired). Tests: live slots kept, expired slots deleted.
+- **(ข) 5: not changed; it does not occur.** `authenticate` reads the time
+  once (`now`) and uses that same value when it settles, so one login cannot
+  cross the 15-minute window between its own steps: the failure is counted
+  at the time the login started, consistently. The review assumed a fresh
+  time at settle. My recommendation to fix it (2026-10-23) was wrong.
+- Notes kept, no change (Peter): 3 (dummy hash at the current Argon2 cost vs
+  an Account hash still at an older cost: timing shows the lock, only after
+  a cost change) and 6 (an Account at 9 failures + 1 being checked refuses
+  the owner's right password until that check settles, and counts it on
+  the owner's IP).
+- Local: 896 passed, 20 skipped.

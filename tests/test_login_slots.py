@@ -242,3 +242,113 @@ def test_the_hash_upgrade_never_overwrites_a_password_changed_meanwhile(
     auth._upgrade_hash(app_db, account, old, TEST_PASSWORD)  # checked the old one
     acc, _ = _rows(app_db)
     assert acc.password_hash == changed
+
+
+# --- second review (A): a failed hash upgrade -------------------------------------------
+
+def test_a_failed_hash_upgrade_still_logs_in_and_frees_no_other_logins_slot(
+        account, app_db, clock, monkeypatch, always_rehash, caplog):
+    import logging
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    since = clock() - timedelta(seconds=5)
+    _set_slots(app_db, clock, account=(1, timedelta(seconds=5)), ip=(1, timedelta(seconds=5)))
+
+    def db_error(*a, **kw):
+        raise RuntimeError("database went away")  # the upgrade's UPDATE fails
+
+    monkeypatch.setattr(auth, "update", db_error)
+    with caplog.at_level(logging.WARNING, logger="app.auth"), \
+            TestClient(app, client=(IP, 50000)) as c:
+        r = c.post("/login", data={"email": EMAIL, "password": TEST_PASSWORD},
+                   follow_redirects=False)
+    assert r.status_code == 303
+    assert "login_hash_upgrade_failed" in caplog.text
+    acc, ip = _rows(app_db)
+    assert (acc.pending_checks, acc.pending_since) == (1, since)  # the other login's slot
+    assert (ip.pending_checks, ip.pending_since) == (1, since)
+
+
+# --- second review (B): one re-check, written on rows locked afresh ---------------------
+
+def test_a_changed_hash_is_checked_once_more_and_others_writes_meanwhile_are_kept(
+        account, app_db, clock, monkeypatch):
+    calls: list[str] = []
+
+    def meanwhile(stored: str, pw: str) -> None:
+        calls.append(stored)
+        if len(calls) == 1:
+            # During the first check: another login of the same person
+            # re-hashes the password; another login fails from this IP; a
+            # third takes a slot on the Account.
+            app_db.execute(update(Account).where(Account.email == EMAIL).values(
+                password_hash=auth.hash_password(TEST_PASSWORD),
+                pending_checks=Account.pending_checks + 1))
+            app_db.execute(update(LoginIpFailure).values(failed_count=7))
+        else:
+            # During the re-check: one more failure from this IP.
+            app_db.execute(update(LoginIpFailure).values(failed_count=8))
+        app_db.commit()
+
+    _probe(monkeypatch, meanwhile)
+    assert _login(app_db, clock, TEST_PASSWORD).email == EMAIL
+    assert len(calls) == 2 and calls[0] != calls[1]  # checked again, once
+    acc, ip = _rows(app_db)
+    assert ip.failed_count == 8  # not overwritten from a row read before the re-check
+    assert ip.pending_checks == 0
+    assert acc.pending_checks == 1  # the other login's slot; this one's freed
+    assert acc.failed_login_count == 0
+
+
+def test_a_locked_account_is_refused_before_any_re_check(account, app_db, clock, monkeypatch):
+    calls: list[str] = []
+
+    def lock_and_change(stored: str, pw: str) -> None:
+        calls.append(stored)
+        app_db.execute(update(Account).where(Account.email == EMAIL).values(
+            password_hash=auth.hash_password(TEST_PASSWORD),
+            locked_until=clock() + timedelta(minutes=15), failed_login_count=10))
+        app_db.commit()
+
+    _probe(monkeypatch, lock_and_change)
+    with pytest.raises(AuthError, match=LOGIN_FAILED):
+        _login(app_db, clock, TEST_PASSWORD)
+    assert len(calls) == 1  # one hash, like a wrong password on a locked Account
+
+
+def test_a_hash_that_changes_again_during_the_re_check_is_refused(
+        account, app_db, clock, monkeypatch):
+    calls: list[str] = []
+
+    def change_every_time(stored: str, pw: str) -> None:
+        calls.append(stored)
+        app_db.execute(update(Account).where(Account.email == EMAIL)
+                       .values(password_hash=auth.hash_password(TEST_PASSWORD)))
+        app_db.commit()
+
+    _probe(monkeypatch, change_every_time)
+    with pytest.raises(AuthError, match=LOGIN_FAILED):
+        _login(app_db, clock, TEST_PASSWORD)
+    assert len(calls) == 2  # never a third round
+    acc, ip = _rows(app_db)
+    assert acc.pending_checks == 0 and ip.pending_checks == 0
+
+
+# --- (ข) 4: the prune never deletes a row whose logins are being checked ------------------
+
+@pytest.mark.parametrize("slot_age, kept", [(timedelta(seconds=10), True),
+                                            (PENDING_EXPIRY + timedelta(seconds=1), False)])
+def test_the_prune_keeps_an_idle_ip_row_while_its_slots_are_live(
+        account, app_db, clock, slot_age, kept):
+    other = "192.0.2.50"
+    app_db.add(LoginIpFailure(ip=other, failed_count=0,
+                              window_started_at=clock() - timedelta(days=2),
+                              pending_checks=3, pending_since=clock() - slot_age))
+    app_db.commit()
+    with pytest.raises(AuthError):
+        _login(app_db, clock)  # a failure runs the prune
+    app_db.expire_all()
+    assert (app_db.get(LoginIpFailure, other) is not None) is kept

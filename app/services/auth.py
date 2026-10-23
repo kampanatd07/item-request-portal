@@ -229,27 +229,27 @@ def authenticate(db: Session, email: str, password: str, now: datetime | None = 
 
 def _check_and_settle(db: Session, ip: str, account_id: int | None, checked_hash: str | None,
                       password: str, now: datetime) -> Account:
-    """Steps 2 and 3 of authenticate."""
+    """Steps 2 and 3 of authenticate. Nothing here raises after the settling
+    commit, so the caller's error path never frees the slots a second time."""
     has_slot = checked_hash is not None
-    for _ in range(3):
-        # 2. Hash with nothing held. No slot (unknown email, or the Account is
-        # locked or full): the same work against a dummy hash (AC6).
-        password_ok = verify_password(checked_hash or _dummy_hash(
-            settings.argon2_time_cost, settings.argon2_memory_cost, settings.argon2_parallelism),
-            password) and has_slot
-        # 3. Settle, on fresh rows.
-        ip_row = _lock_ip_row(db, ip, now)
-        account = _lock_row(db, account_id) if account_id is not None else None
-        if (has_slot and password_ok and account is not None
-                and account.password_hash != checked_hash):
-            # Changed while being checked (upgraded by another login, or a new
-            # password): check again against the new hash, holding nothing.
-            checked_hash = account.password_hash
-            db.commit()
-            continue
-        break
-    else:
-        password_ok = False  # kept changing under us
+    # 2. Hash with nothing held. No slot (unknown email, or the Account is
+    # locked or full): the same work against a dummy hash (AC6).
+    password_ok = _verify(checked_hash, password) and has_slot
+    # 3. Settle, on freshly locked rows (IP, then Account).
+    ip_row, account = _lock_rows(db, ip, account_id, now)
+    if (has_slot and password_ok and account is not None and not _is_locked(account, now)
+            and account.password_hash != checked_hash):
+        # Changed while being checked (upgraded by another login, or a new
+        # password). Checked again once, holding nothing; then everything is
+        # written on rows locked afresh, never on the ones read before. A
+        # locked Account is refused first, without this second hash, so a right
+        # guess costs no more time than a wrong one.
+        checked_hash = account.password_hash
+        db.commit()
+        password_ok = verify_password(checked_hash, password)
+        ip_row, account = _lock_rows(db, ip, account_id, now)
+        if account is None or account.password_hash != checked_hash:
+            password_ok = False  # changed again: refuse rather than chase it
     _free_slot(ip_row)
     if has_slot and account is not None:
         _free_slot(account)
@@ -262,8 +262,26 @@ def _check_and_settle(db: Session, ip: str, account_id: int | None, checked_hash
         _login_failed(db, ip_row, now)
     account.failed_login_count = 0
     db.commit()
-    _upgrade_hash(db, account, checked_hash, password)
+    try:
+        _upgrade_hash(db, account, checked_hash, password)
+    except Exception:  # noqa: BLE001 — the login already succeeded; the upgrade can wait
+        db.rollback()
+        logging.getLogger("app.auth").warning("login_hash_upgrade_failed", exc_info=True)
     return account
+
+
+def _verify(stored_hash: str | None, password: str) -> bool:
+    """The password check, or the same work against a dummy hash."""
+    return verify_password(stored_hash or _dummy_hash(
+        settings.argon2_time_cost, settings.argon2_memory_cost, settings.argon2_parallelism),
+        password)
+
+
+def _lock_rows(db: Session, ip: str, account_id: int | None,
+               now: datetime) -> tuple[LoginIpFailure, Account | None]:
+    """The IP row, then the Account row, locked until commit: the one lock order."""
+    ip_row = _lock_ip_row(db, ip, now)
+    return ip_row, _lock_row(db, account_id) if account_id is not None else None
 
 
 # A slot not freed within this time (its login crashed) counts as free again.
@@ -438,7 +456,10 @@ def _prune_idle_ip_rows(db: Session, now: datetime) -> None:
             select(LoginIpFailure.ip)
             .where(LoginIpFailure.window_started_at < cutoff,
                    or_(LoginIpFailure.blocked_until.is_(None),
-                       LoginIpFailure.blocked_until < cutoff))
+                       LoginIpFailure.blocked_until < cutoff),
+                   # Never a row whose logins are being checked right now.
+                   or_(LoginIpFailure.pending_checks == 0,
+                       LoginIpFailure.pending_since < now - PENDING_EXPIRY))
             .with_for_update(skip_locked=True)
         ))
         if stale:

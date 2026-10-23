@@ -34,6 +34,19 @@ done 2026-10-19) and the Name Prefix on category moves (STORY-013, done
 
 After the plants open: STORY-014 (the name preview shows the saved name).
 
+Open item (noted 2026-10-23, Peter accepted the impact): login "being
+checked" slots (`pending_checks` / `pending_since` on `accounts` and
+`login_ip_failures`, STORY-006 ticket 08) are one counter and one time per
+row, with no identity per slot. When they expire (1 minute after the count
+went 0 → 1) all are cleared, including ones taken a moment ago by logins
+still running, and those logins' later frees take others' slots. Accepted
+impact: on an Account it cannot happen in practice (the 10-failure lock
+empties the slots long before a minute); on a busy IP (a plant whose
+successful logins keep a slot in use) up to about one more limit's worth of
+in-flight attempts can pass at the moment of a block. The exact fix is one
+row per slot (key, token, taken_at): a new table and migration. Revisit if
+a block is ever seen to let through far more than 50 failures.
+
 Open small item (noted 2026-10-23): CI is pinned to `ubuntu-24.04`
 (`.github/workflows/ci.yml`) because `ubuntu-latest` moves to Ubuntu 26
 from 2026-10-19. Move CI to Ubuntu 26 on purpose after go-live, as its own
