@@ -1,6 +1,6 @@
 # 04: Postgres race: two Administrators, and parallel wrong logins for one email
 
-Status: in-progress (CI green; second review running)
+Status: done (2026-10-23)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 01
@@ -12,11 +12,11 @@ Administrator rows, in id order, STORY-001 ticket 04), and (b) parallel
 wrong logins for one email never push the count past 10 (row lock from
 STORY-001 ticket 06).
 
-- [ ] Deactivate vs deactivate, demote vs demote, deactivate vs demote:
+- [x] Deactivate vs deactivate, demote vs demote, deactivate vs demote:
       exactly one succeeds, the other is refused with the existing "last
       Administrator" message; one active Administrator remains
-- [ ] No deadlock in any of those pairs (lock order by id holds)
-- [ ] N parallel wrong passwords for one email (N well above 10): the stored
+- [x] No deadlock in any of those pairs (lock order by id holds)
+- [x] N parallel wrong passwords for one email (N well above 10): the stored
       failure count and the lock behave exactly as 10 sequential failures
       **Reworded for ticket 08's slots (2026-10-23, plan pending Peter):** 30
       parallel wrong passwords at one email from 30 IPs (one IP would stop at
@@ -27,11 +27,11 @@ STORY-001 ticket 06).
       empty). Added by Peter (2026-10-23): all 30 get the same answer (status
       and error text), slot or not; run 3 times (parametrized), and if a round
       fails, do not re-run until it passes: stop and report
-- [ ] Three Administrators deactivating each other in a cycle at once (added
+- [x] Three Administrators deactivating each other in a cycle at once (added
       in the plan, Peter 2026-10-22): all finish, no deadlock, at least one
       active Administrator remains
-- [ ] Waiting is checked; waits bounded
-- [ ] No production code change unless a test shows a real race; if one
+- [x] Waiting is checked; waits bounded
+- [x] No production code change unless a test shows a real race; if one
       does, stop and tell Peter before fixing. No migration
 
 ## Notes (2026-10-23)
@@ -141,3 +141,12 @@ prove the calls overlapped and fail if run one at a time; exact outcomes);
 
 CI on `0be8445` (Peter, 2026-10-23): green, **926 passed, 0 skipped**
 (`test_pg_account_race.py` 8 passed).
+
+## Second code review and close (2026-10-23)
+
+Ran `/code-review` on `58dd4f1..0be8445` only (Peter's rule). 9 findings,
+**no (ก)**: the heaviest (the target Account read before the lock, so two
+Administrators changing the same Account at the same moment can overwrite
+each other's `session_version`) was there before this diff (STORY-001) and
+needs two Administrators on one Account within milliseconds. Per the rule
+04 closes; all 9 notes go to STORY-016.
