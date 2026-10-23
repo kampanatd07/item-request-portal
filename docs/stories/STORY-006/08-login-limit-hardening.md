@@ -1,6 +1,6 @@
 # 08: Login limit hardening: count first, refund later; unblock CLI; IPv6 per /64
 
-Status: in-progress (waiting for Peter: CI)
+Status: in-progress (review found a (ก); waiting for Peter's decision)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 07
@@ -112,3 +112,48 @@ Plan approved by Peter 2026-10-23, both trade-offs accepted; review 07 notes
   (PostgreSQL: pool and transaction during the hash, known and unknown email;
   a right password locked during the hash is refused). The ticket 07 tests
   all still pass. Local: 875 passed, 19 skipped.
+
+CI on `f581518` (Peter, 2026-10-23): green, **894 passed, 0 skipped**, on
+Ubuntu 24.04 (includes `040a5b8`).
+
+## Code review (2026-10-23)
+
+Ran `/code-review` on `e5736e9..f581518`. 8 findings, sorted as before
+(**(ก)** wrong data, someone acting who should not, data lost, or an
+acceptance criterion not met; **(ข)** a note). **One (ก)**, not yet fixed:
+the fix needs Peter's decision, and the cleanest one a migration.
+
+### (ก) Must fix — waiting for Peter
+1. **The per-email lockout no longer limits how many guesses are checked.**
+   Before this ticket the Account row was held through the hash, so at most
+   about 10 guesses at one email were ever checked. Now the Account is read
+   unlocked in step 1 and only checked in step 3: 200 parallel guesses at one
+   email, spread over 5+ IPs (each under 50 in flight), are all hashed, and a
+   right one that settles before the 10th wrong one logs in. The stored count
+   still stops at 10, but the guesses do not. Someone acting who should not;
+   STORY-006 AC 5 ("parallel wrong logins for one email never get past 10")
+   not met in its intent. Introduced by this ticket's plan (step 2 moved the
+   Account out of the lock without reserving a slot on it). `_lock_row`'s
+   docstring is now wrong too.
+
+### (ข) Notes
+2. A count full of attempts still being checked (no block set) answers 429
+   with "wait 15 minutes" and writes no `login_ip_blocked` line; the CLI calls
+   that IP "not blocked". Rare without leaks (51 logins within one hash
+   time), lasting with them (3).
+3. Slots leak on any exception between step 1 and the refund (DB error in
+   step 3, pool timeout), not only a dead process: each counts as a failure.
+   Recommend: refund in an `except` for non-login errors.
+4. The refund takes 1 off whatever the row holds now; across a window reset
+   or an unblock it can cancel another attempt's failure.
+5. (Added in this ticket, not in the plan) "password changed during the hash"
+   also catches a hash *upgraded* by a parallel successful login (after the
+   Argon2 cost is raised): a right password then counts as a failure.
+   Recommend: verify again against the new hash instead of failing.
+6. (Existing since STORY-001) the rehash-on-login write happens after commit
+   without a lock or check, so it can overwrite a password changed at the
+   same moment (old password works again). Only when the Argon2 cost is
+   raised. Recommend: write only if the hash is still the one checked.
+7. Same as 2: the in-flight-full refusal has no audit line.
+8. `unblock_ip` leaves `window_started_at`; an expired block whose row still
+   counts ≥ 50 cannot be cleared by the CLI.
