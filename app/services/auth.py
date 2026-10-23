@@ -15,7 +15,7 @@ from typing import NoReturn
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -148,7 +148,8 @@ def create_account(
 
 def _lock_row(db: Session, account_id: int) -> Account:
     """Reload an Account with its row locked until commit (Postgres; SQLite ignores it),
-    so parallel guesses are counted one after another and none slip past the limit."""
+    so its counts change one login at a time. Never held through a hash
+    (ticket 08): parallel guesses are held to the limit by slots instead."""
     return db.scalar(
         select(Account).where(Account.id == account_id)
         .with_for_update().execution_options(populate_existing=True)
@@ -186,56 +187,142 @@ def authenticate(db: Session, email: str, password: str, now: datetime | None = 
     deactivated, locked — gives the same message after the same hashing work,
     so the form reveals neither which emails exist nor that one is locked.
 
-    Count first, refund later (STORY-006 ticket 08): a short transaction
-    counts the attempt against `client_ip` (a blocked IP, or one whose count
-    with attempts still being checked has reached the limit, gets IpBlocked
-    at once, without hashing) and commits; the password is then hashed while
-    holding no lock, transaction or connection; a second short transaction
-    settles it: a failure stays counted (and may start the block), a success
-    gives its slot back. Lock order in both: the IP row, then the Account row.
+    Hold a slot, check, settle (STORY-006 ticket 08). (1) A short transaction
+    takes a "being checked" slot on the IP and on the Account. Confirmed
+    failures + slots in use may not pass the limits (50 per IP, 10 per
+    Account), so parallel guesses cannot pass them either: a full or blocked
+    IP gets IpBlocked at once, without hashing; a full or locked Account gets
+    no slot and its real hash is never checked (a dummy hash takes the same
+    time). (2) The password is hashed holding no lock, transaction or
+    connection. (3) A second short transaction frees the slots and records the
+    outcome. Lock order in both: the IP row, then the Account row. Any other
+    error after (1) frees the slots before it is passed on.
     """
     now = now or utc_now()
     ip = _ip_key(client_ip)
 
-    # 1. Count the attempt; read what the hash check needs; let go of everything.
+    # 1. Take the slots; read what the check needs; let go of everything.
     ip_row = _lock_ip_row(db, ip, now)
-    if _ip_is_blocked(ip_row, now) or ip_row.failed_count >= MAX_FAILED_LOGINS_PER_IP:
+    if (_ip_is_blocked(ip_row, now)
+            or ip_row.failed_count + _pending(ip_row, now) >= MAX_FAILED_LOGINS_PER_IP):
         db.commit()
         raise IpBlocked(IP_BLOCKED)
-    if ip_row.failed_count == 0:
-        ip_row.window_started_at = now
-    ip_row.failed_count += 1
-    found = db.execute(select(Account.id, Account.password_hash)
-                       .where(Account.email == normalize_email(email))).first()
+    _hold_slot(ip_row, now)
+    account_id = db.scalar(select(Account.id).where(Account.email == normalize_email(email)))
+    checked_hash = None  # the real hash, only when the Account got a slot
+    if account_id is not None:
+        account = _lock_row(db, account_id)
+        if (not _is_locked(account, now)
+                and account.failed_login_count + _pending(account, now) < MAX_FAILED_LOGINS):
+            _hold_slot(account, now)
+            checked_hash = account.password_hash
     db.commit()
 
-    # 2. Hash with nothing held. An unknown email burns the same time (AC6).
-    stored_hash = found.password_hash if found else _dummy_hash(
-        settings.argon2_time_cost, settings.argon2_memory_cost, settings.argon2_parallelism)
-    password_ok = verify_password(stored_hash, password)
+    try:
+        return _check_and_settle(db, ip, account_id, checked_hash, password, now)
+    except AuthError:
+        raise
+    except BaseException:
+        _free_slots_after_error(db, ip, account_id if checked_hash else None, now)
+        raise
 
-    # 3. Settle, on fresh rows.
-    ip_row = _lock_ip_row(db, ip, now)
-    if found is None:
+
+def _check_and_settle(db: Session, ip: str, account_id: int | None, checked_hash: str | None,
+                      password: str, now: datetime) -> Account:
+    """Steps 2 and 3 of authenticate."""
+    has_slot = checked_hash is not None
+    for _ in range(3):
+        # 2. Hash with nothing held. No slot (unknown email, or the Account is
+        # locked or full): the same work against a dummy hash (AC6).
+        password_ok = verify_password(checked_hash or _dummy_hash(
+            settings.argon2_time_cost, settings.argon2_memory_cost, settings.argon2_parallelism),
+            password) and has_slot
+        # 3. Settle, on fresh rows.
+        ip_row = _lock_ip_row(db, ip, now)
+        account = _lock_row(db, account_id) if account_id is not None else None
+        if (has_slot and password_ok and account is not None
+                and account.password_hash != checked_hash):
+            # Changed while being checked (upgraded by another login, or a new
+            # password): check again against the new hash, holding nothing.
+            checked_hash = account.password_hash
+            db.commit()
+            continue
+        break
+    else:
+        password_ok = False  # kept changing under us
+    _free_slot(ip_row)
+    if has_slot and account is not None:
+        _free_slot(account)
+    # Locked meanwhile: refused exactly like a wrong password on a locked
+    # Account, so a right guess cannot be told apart.
+    locked = account is not None and _is_locked(account, now)
+    if not (password_ok and account is not None and account.active and not locked):
+        if has_slot and account is not None and not locked:
+            _register_failure(account, now)
         _login_failed(db, ip_row, now)
-    account = _lock_row(db, found.id)
-    # Locked meanwhile (e.g. by parallel guesses): refused exactly like a wrong
-    # password on a locked Account, so a right guess cannot be told apart.
-    if _is_locked(account, now):
-        _login_failed(db, ip_row, now)
-    # A password changed meanwhile: the check above was against the old hash.
-    if not password_ok or not account.active or account.password_hash != stored_hash:
-        _register_failure(account, now)
-        _login_failed(db, ip_row, now)
-    ip_row.failed_count = max(0, ip_row.failed_count - 1)  # refund this attempt's slot
     account.failed_login_count = 0
     db.commit()
-
-    # Upgrade old hashes in place when the cost parameters are raised.
-    if _current_hasher().check_needs_rehash(account.password_hash):
-        account.password_hash = hash_password(password)
-        db.commit()
+    _upgrade_hash(db, account, checked_hash, password)
     return account
+
+
+# A slot not freed within this time (its login crashed) counts as free again.
+PENDING_EXPIRY = timedelta(minutes=1)
+
+
+def _pending(row: Account | LoginIpFailure, now: datetime) -> int:
+    """Slots in use on `row`. Once they have run out (1 minute after the count
+    went 0 -> 1), they are written back as empty, so the limit holds again
+    from the next slot on, and a lost slot never locks anyone out."""
+    if (row.pending_checks and row.pending_since is not None
+            and now - row.pending_since >= PENDING_EXPIRY):
+        row.pending_checks = 0
+        row.pending_since = None
+    return row.pending_checks
+
+
+def _hold_slot(row: Account | LoginIpFailure, now: datetime) -> None:
+    if row.pending_checks <= 0:
+        row.pending_checks = 0
+        row.pending_since = now
+    row.pending_checks += 1
+
+
+def _free_slot(row: Account | LoginIpFailure) -> None:
+    """Never below 0: a login that ends after its slots expired frees nothing."""
+    row.pending_checks = max(0, row.pending_checks - 1)
+    if row.pending_checks == 0:
+        row.pending_since = None
+
+
+def _free_slots_after_error(db: Session, ip: str, account_id: int | None,
+                            now: datetime) -> None:
+    """Give back the slots of a login that failed with an error (not a wrong
+    password). If even this fails, the slots expire on their own."""
+    try:
+        db.rollback()
+        _free_slot(_lock_ip_row(db, ip, now))
+        if account_id is not None:
+            account = _lock_row(db, account_id)
+            if account is not None:
+                _free_slot(account)
+        db.commit()
+    except Exception:  # noqa: BLE001 — the original error is what matters
+        db.rollback()
+        logging.getLogger("app.auth").warning("login_slot_release_failed", exc_info=True)
+
+
+def _upgrade_hash(db: Session, account: Account, checked_hash: str, password: str) -> None:
+    """Re-hash with the current cost parameters when they were raised, but
+    only if the stored hash is still the one just checked: a password changed
+    meanwhile is never overwritten with the old one."""
+    if not _current_hasher().check_needs_rehash(checked_hash):
+        return
+    new_hash = hash_password(password)
+    db.execute(update(Account)
+               .where(Account.id == account.id, Account.password_hash == checked_hash)
+               .values(password_hash=new_hash))
+    db.commit()
 
 
 def ip_key_or_none(raw: str | None) -> str | None:
@@ -301,9 +388,12 @@ def _ip_is_blocked(row: LoginIpFailure, now: datetime) -> bool:
 
 
 def _login_failed(db: Session, ip_row: LoginIpFailure, now: datetime) -> NoReturn:
-    """The attempt failed: it stays counted (since step 1). Start the block if
-    the count has reached the limit, commit (with the Account's own count, if
-    any), tidy old IP rows, and raise the one generic error."""
+    """Count the failure against the IP and start the block when it reaches
+    the limit, commit (with the Account's own count, if any), tidy old IP rows,
+    and raise the one generic error."""
+    if ip_row.failed_count == 0:
+        ip_row.window_started_at = now
+    ip_row.failed_count += 1
     if ip_row.failed_count >= MAX_FAILED_LOGINS_PER_IP and ip_row.blocked_until is None:
         ip_row.blocked_until = now + IP_BLOCK
         audit_log.info("login_ip_blocked ip=%s until=%s UTC", _one_line(ip_row.ip),
@@ -330,6 +420,8 @@ def unblock_ip(db: Session, raw_ip: str, *, by: str, now: datetime | None = None
         return False
     row.blocked_until = None
     row.failed_count = 0
+    row.pending_checks = 0
+    row.pending_since = None
     db.commit()
     audit_log.info("login_ip_unblocked ip=%s by=%s", _one_line(ip), _one_line(by))
     return True

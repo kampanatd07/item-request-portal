@@ -338,6 +338,12 @@ class Account(Base):
     session_version: Mapped[int] = mapped_column(default=1)
     failed_login_count: Mapped[int] = mapped_column(default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Logins of this Account whose password is being checked right now
+    # (STORY-006 ticket 08): they hold a slot, so parallel guesses cannot pass
+    # the limit. The slots expire 1 minute after pending_since (set when the
+    # count goes 0 -> 1), so one lost by a crash never locks anyone out.
+    pending_checks: Mapped[int] = mapped_column(default=0, server_default="0")
+    pending_since: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     factory: Mapped[Factory | None] = relationship()
@@ -355,6 +361,9 @@ class LoginIpFailure(Base):
     # Start of the current 15-minute counting window.
     window_started_at: Mapped[datetime] = mapped_column(DateTime)
     blocked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Logins from this IP being checked right now; as on Account (ticket 08).
+    pending_checks: Mapped[int] = mapped_column(default=0, server_default="0")
+    pending_since: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 # Why a Central Code was thrown away (STORY-010).

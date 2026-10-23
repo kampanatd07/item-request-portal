@@ -122,3 +122,63 @@ def test_a_right_password_on_an_account_locked_during_the_hash_is_refused(
     with session_on(pg_engine) as db:
         account = db.scalar(select(Account).where(Account.email == "someone@test.local"))
         assert account.locked_until is not None and account.failed_login_count == 10
+
+
+# --- ticket 08 review fix: slots on the Account -------------------------------------------
+
+def test_two_hundred_parallel_guesses_at_one_email_check_its_real_hash_at_most_ten_times(
+        pg_engine: Engine, monkeypatch) -> None:
+    import threading
+    import time
+
+    from app.models import Account
+    from app.services.auth import MAX_FAILED_LOGINS
+
+    email = "victim@test.local"
+    with session_on(pg_engine) as db:
+        real_hash = auth.create_account(db, email, "Victim", "procurement", TEST_PASSWORD,
+                                        must_change_password=False).password_hash
+    real = auth.verify_password
+    gate = threading.Event()
+    real_checks: list[str] = []
+
+    def probe(stored: str, password: str) -> bool:
+        if stored == real_hash:
+            real_checks.append(password)
+            gate.wait(WAIT_SECONDS)  # keep the first slots in flight (holding nothing)
+        return real(stored, password)
+
+    monkeypatch.setattr(auth, "verify_password", probe)
+    ips = [f"198.51.100.{i}" for i in range(1, 6)]  # 40 attempts each: under 50 per IP
+
+    def attempt(password: str, ip: str) -> str:
+        with session_on(pg_engine) as db:
+            try:
+                auth.authenticate(db, email, password, client_ip=ip)
+            except IpBlocked:
+                return "blocked"
+            except AuthError:
+                return "failed"
+        return "logged in"
+
+    with ThreadPoolExecutor(max_workers=24) as pool:
+        first = [pool.submit(attempt, "wrong-password-000", ips[i % 5])
+                 for i in range(MAX_FAILED_LOGINS)]
+        deadline = time.monotonic() + WAIT_SECONDS
+        while len(real_checks) < MAX_FAILED_LOGINS and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert len(real_checks) == MAX_FAILED_LOGINS  # all 10 slots in flight
+        # 190 more, the right password among them, while the 10 are checked.
+        rest = [pool.submit(attempt, TEST_PASSWORD if i % 10 == 0 else "wrong-password-000",
+                            ips[i % 5]) for i in range(190)]
+        rest_outcomes = Counter(f.result(timeout=WAIT_SECONDS * 2) for f in rest)
+        gate.set()
+        first_outcomes = Counter(f.result(timeout=WAIT_SECONDS) for f in first)
+
+    assert rest_outcomes == {"failed": 190}  # the right password did not get in
+    assert first_outcomes == {"failed": MAX_FAILED_LOGINS}
+    assert len(real_checks) == MAX_FAILED_LOGINS  # the real hash: checked 10 times, no more
+    with session_on(pg_engine) as db:
+        acc = db.scalar(select(Account).where(Account.email == email))
+        assert acc.locked_until is not None and acc.failed_login_count == MAX_FAILED_LOGINS
+        assert (acc.pending_checks, acc.pending_since) == (0, None)
