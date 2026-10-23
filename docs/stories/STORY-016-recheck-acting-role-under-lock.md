@@ -2,6 +2,9 @@
 
 Status: todo · Depends on: STORY-006 ticket 04 · Not a go-live condition (Peter, 2026-10-23)
 Triage: needs-triage
+**Priority: the first story after go-live** (Peter, 2026-10-23), because of
+item 1 of the ticket 04 second review below: a `session_version` bump can be
+lost, so sessions can survive a password reset.
 
 ## Why
 A route's role guard runs when the request starts. An Administrator

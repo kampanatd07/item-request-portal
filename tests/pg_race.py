@@ -28,6 +28,16 @@ def session_on(engine: Engine) -> Session:
     return sessionmaker(bind=engine, expire_on_commit=False)()
 
 
+def pinned_session(engine: Engine) -> tuple[Session, Connection]:
+    """A session that keeps one connection (one PostgreSQL backend) across its
+    commits and rollbacks. A plain session hands its connection back to the
+    pool at each commit/rollback, so code that rolls back mid-way (the
+    notifier does) could continue on another backend than the one watched in
+    pg_stat_activity. Close both when done."""
+    connection = engine.connect()
+    return sessionmaker(bind=connection, expire_on_commit=False)(), connection
+
+
 def backend_pid(session: Session) -> int:
     """The PostgreSQL process serving this session's connection. The session
     keeps that connection until it commits or rolls back."""
@@ -157,7 +167,8 @@ class Race:
 
     def _race(self, a: Callable[[Session], Any], b: Callable[[Session], Any],
               check_b: Callable[[Engine, int, Future], None]) -> tuple[Any, Any]:
-        session_a, session_b = session_on(self.engine), session_on(self.engine)
+        (session_a, conn_a), (session_b, conn_b) = (pinned_session(self.engine),
+                                                    pinned_session(self.engine))
         held = HeldCommit(session_a)
         futures: list[Future] = []
         decided = False
@@ -182,6 +193,8 @@ class Race:
             if all(f.done() for f in futures):
                 session_a.close()
                 session_b.close()
+                conn_a.close()
+                conn_b.close()
 
 
 def _outcome(future: Future) -> Any:
