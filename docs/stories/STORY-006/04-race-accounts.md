@@ -1,6 +1,6 @@
 # 04: Postgres race: two Administrators, and parallel wrong logins for one email
 
-Status: in-progress (review found (ก); waiting for Peter's decision)
+Status: in-progress (review (ก) fixed; waiting for Peter: CI)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 01
@@ -95,3 +95,39 @@ ticket says: stop and tell Peter); not fixed yet.
 9. The "app on this PostgreSQL database" override repeats one in
    `test_notify_resend.py`; belongs in conftest.
 10. Type hints missing on some test parameters (CLAUDE.md).
+
+## Fix of the review (2026-10-23)
+
+Peter's decisions (2026-10-23): fix the (ก) in `deactivate_account` and
+`change_access` only (lock and check every time); the other Administrator
+actions to the backlog, approval first (STORY-016); message "สิทธิ์ของคุณ
+เปลี่ยนไปแล้ว — กรุณาเข้าสู่ระบบใหม่"; fix (ข) 2–6, 8, 10 (the tests must
+prove the calls overlapped and fail if run one at a time; exact outcomes);
+7 and 9 to the backlog (7 turned out done by the fix; 9 in STORY-016).
+
+- **(ก):** `_lock_active_administrators(db, acting)` locks every active
+  Administrator row in id order and refuses (`PERMISSION_CHANGED`) unless the
+  actor is one of them; `deactivate_account` and `change_access` call it
+  every time (`change_access` used to lock only on a Role change), then
+  apply the last-Administrator rule on the locked ids. With an active
+  Administrator as the actor, the actor is in the locked set too, so
+  deactivate's last-Administrator branch can only be reached by a
+  non-Administrator actor, now refused first: kept as a safety net.
+  `test_last_active_administrator_cannot_be_deactivated` (Procurement as the
+  actor) now expects `PERMISSION_CHANGED`. New SQLite test: an actor
+  deactivated or demoted meanwhile is refused for both actions; nothing
+  changes.
+- **Tests on PostgreSQL** (`tests/test_pg_account_race.py`, rewritten):
+  - Two Administrators, 4 orders: A's result is its own action's label; B
+    is refused with exactly `PERMISSION_CHANGED`; A1 remains.
+  - Cycle a1→a2, a2→a3, a3→a1: a1→a2 holds at its commit while **both**
+    others are seen waiting on its locks in `pg_stat_activity` (fails if
+    they never wait); then exactly: deactivated, refused (`PERMISSION_
+    CHANGED`), deactivated; a3 remains.
+  - 30 wrong passwords: the slots in use, read from the database during the
+    checks, must exceed 1 (each real-hash check waits up to 2 s for a second
+    one, so a one-at-a-time run fails); real hash checked exactly 10 times;
+    all 30 answers identical (a failure lists the differing texts).
+  - Waits bounded overall; the pool never waits on a hung thread.
+  - Type hints on the test helpers and parameters.
+- Local: 898 passed, 28 skipped.

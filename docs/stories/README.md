@@ -20,6 +20,7 @@ story file plus `docs/HANDOFF.md` alone, without chat history.
 | [013](STORY-013-category-change-name-prefix.md) | Category change updates the name prefix — **done** (2026-10-21) | — | 009 |
 | [014](STORY-014-name-preview-matches-saved-name.md) | Name preview shows the name that will be saved (after plants open) | — | 013 |
 | [015](STORY-015-login-limit-follow-ups.md) | Login limit follow-ups (review notes from STORY-006 ticket 08) | 006 ticket 08 | any |
+| [016](STORY-016-recheck-acting-role-under-lock.md) | Re-check the acting Administrator under the lock (approval first) | 006 ticket 04 | any |
 
 ## Status values
 `todo` → `planned` (spec + tickets written) → `in-progress` → `review` → `done`

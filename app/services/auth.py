@@ -555,14 +555,19 @@ def _check_plant(db: Session, role: str, factory_id: int | None) -> int | None:
     return factory.id
 
 
-def _is_last_active_administrator(db: Session, account: Account) -> bool:
-    """True if `account` is the only active Administrator.
+PERMISSION_CHANGED = "สิทธิ์ของคุณเปลี่ยนไปแล้ว — กรุณาเข้าสู่ระบบใหม่"
 
-    Locks every active Administrator row (Postgres) until commit, always in id
-    order so two requests lock in the same sequence and cannot deadlock. Two
-    Administrators deactivating each other at once are thus serialised: the
-    second sees the first's change and is refused. Decided on the rows read
-    under the lock, not on `account`'s possibly stale fields.
+
+def _lock_active_administrators(db: Session, acting: Account) -> list[int]:
+    """Lock every active Administrator row (Postgres) until commit and return
+    their ids; refuse unless `acting` is still one of them.
+
+    Always in id order, so two requests lock in the same sequence and cannot
+    deadlock. Two Administrators acting on each other at once are thus
+    serialised, and the second is decided on the rows read under the lock,
+    not on anyone's possibly stale fields: an Administrator deactivated or
+    demoted a moment ago passed the route's guard, but is refused here
+    (STORY-006 ticket 04).
     """
     active_admins = list(db.scalars(
         select(Account.id)
@@ -570,7 +575,9 @@ def _is_last_active_administrator(db: Session, account: Account) -> bool:
         .order_by(Account.id)
         .with_for_update()
     ))
-    return active_admins == [account.id]
+    if acting.id not in active_admins:
+        raise AuthError(PERMISSION_CHANGED)
+    return active_admins
 
 
 def admin_create_account(
@@ -603,7 +610,8 @@ def change_access(
     if role not in ROLES:
         raise AuthError("บทบาทไม่ถูกต้อง")
     new_plant = _check_plant(db, role, factory_id)
-    if role != account.role and _is_last_active_administrator(db, account):
+    active_admins = _lock_active_administrators(db, acting)
+    if role != account.role and active_admins == [account.id]:
         raise AuthError("ลด Role ไม่ได้ — นี่คือผู้ดูแลระบบคนสุดท้ายที่ใช้งานอยู่")
 
     changes = []
@@ -627,7 +635,7 @@ def deactivate_account(db: Session, acting: Account, account_id: int) -> Account
     account = _get_account(db, account_id)
     if account.id == acting.id:
         raise AuthError("ปิดใช้งานบัญชีของตัวเองไม่ได้")
-    if _is_last_active_administrator(db, account):
+    if _lock_active_administrators(db, acting) == [account.id]:
         raise AuthError("ปิดใช้งานไม่ได้ — นี่คือผู้ดูแลระบบคนสุดท้ายที่ใช้งานอยู่")
     if not account.active:
         return account
