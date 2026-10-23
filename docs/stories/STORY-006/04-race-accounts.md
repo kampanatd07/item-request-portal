@@ -1,6 +1,6 @@
 # 04: Postgres race: two Administrators, and parallel wrong logins for one email
 
-Status: in-progress (review (ก) fixed; waiting for Peter: CI)
+Status: in-progress (CI green; second review running)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 01
@@ -114,7 +114,14 @@ prove the calls overlapped and fail if run one at a time; exact outcomes);
   deactivate's last-Administrator branch can only be reached by a
   non-Administrator actor, now refused first: kept as a safety net.
   `test_last_active_administrator_cannot_be_deactivated` (Procurement as the
-  actor) now expects `PERMISSION_CHANGED`. New SQLite test: an actor
+  actor) now expects `PERMISSION_CHANGED`.
+  **Changing this existing test** (approved by Peter afterwards, 2026-10-23,
+  reason accepted: intended new behaviour). Reason: it used a Procurement
+  Account as the actor to reach the last-Administrator rule; the new rule
+  refuses a non-Administrator actor first, so the expected message changed
+  from "…คนสุดท้าย…" to `PERMISSION_CHANGED`; the protection it tests (the
+  last Administrator stays active) is unchanged and still asserted. From now
+  on an existing test is changed only after asking Peter first. New SQLite test: an actor
   deactivated or demoted meanwhile is refused for both actions; nothing
   changes.
 - **Tests on PostgreSQL** (`tests/test_pg_account_race.py`, rewritten):
@@ -131,3 +138,6 @@ prove the calls overlapped and fail if run one at a time; exact outcomes);
   - Waits bounded overall; the pool never waits on a hung thread.
   - Type hints on the test helpers and parameters.
 - Local: 898 passed, 28 skipped.
+
+CI on `0be8445` (Peter, 2026-10-23): green, **926 passed, 0 skipped**
+(`test_pg_account_race.py` 8 passed).
