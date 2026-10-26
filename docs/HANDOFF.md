@@ -32,8 +32,9 @@ done 2026-10-19) and the Name Prefix on category moves (STORY-013, done
    check, race tests, login limit per Account and per client IP with
    "being checked" slots, one worker, the `unblock_ip` command. Whole-branch
    review with no (ก), Peter's browser checklist passed
-   (`docs/stories/STORY-006/part-a-browser-checklist.md`); merge to master
-   waits for Peter's go. **Part B waits for IT:** deploy, backup/restore,
+   (`docs/stories/STORY-006/part-a-browser-checklist.md`). Merged to master
+   as `390e9a0` (2026-10-26); CI on master green, 939 passed, 0 skipped
+   (Peter, from the run). Branch deleted. **Part B waits for IT:** deploy, backup/restore,
    real email, plus the part B notes in the story (a reset-password
    command with `--by`, where the `unblock_ip` log line lands on the
    platform, choosing `FORWARDED_ALLOW_IPS`).
@@ -56,8 +57,9 @@ Further Notes. Avoid a trailing comma for now (STORY-015 item 21).
 
 **Never move `dev.db` data to production.** It holds test Administrator
 Accounts (`temp.admin@test.local`, `temp2.admin@test.local`) and test
-requests. A backup taken before migrating it to head on 2026-10-26,
-`dev.db.bak-2026-10-26` (ignored by git), stays until Peter deletes it.
+requests. It was migrated to head on 2026-10-26; the backup taken before
+was deleted after master's CI was green (Peter). `*.db.bak-*` is ignored
+by git for the next backup.
 
 Open work after part A (none is a go-live condition):
 - STORY-015: login-limit and review follow-ups (items 1–26).
@@ -107,11 +109,11 @@ upgrade; check `.env` is still read.
 | Login / roles | done — STORY-001: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry, lockout, My requests |
 | Email notification | done — STORY-002 tickets 01–06 (Graph sender tested with a fake transport only; first real send waits for IT, see §7) |
 | Requester resubmit | done — STORY-009: Requester or Originator edits and resubmits a Needs Info request (conditional claim, one 409 for the loser), queue badge + reply card + replaced-name warning, best-effort email to Procurement; the code system must now fit the request's Plant (fix also for new requests) |
-| Deployment | part A done (CI on PostgreSQL, race tests, login limits, one worker; merge pending) — part B (deploy, backup, real email) waits for IT — STORY-006 |
+| Deployment | part A done (CI on PostgreSQL, race tests, login limits, one worker; merged `390e9a0`) — part B (deploy, backup, real email) waits for IT — STORY-006 |
 
 Tests: 902 passing locally, 37 PostgreSQL tests skipped without
 `TEST_POSTGRES_URL`; CI runs all 939 on PostgreSQL 16 (confirmed by Peter
-from the run on `7a0ec12`, 2026-10-26). Read CI numbers from the run's log
+from the run on master `390e9a0`, 2026-10-26). Read CI numbers from the run's log
 itself, never from a summary: `f429488` was once recorded green and was red.
 
 The suite ran in ~13 s on 2026-10-21 but took ~61 s on 2026-10-26 (cause

@@ -1,8 +1,8 @@
 # STORY-006 part A: browser checklist before merge (Peter)
 
 Status: done (Peter, 2026-10-26, all 8 passed) · Run on Peter's machine, `APP_ENV=dev`, on the real `dev.db`
-Backup: `dev.db.bak-2026-10-26` (ignored by git). Keep it until every box
-below is ticked.
+Backup: `dev.db.bak-2026-10-26` (ignored by git), kept until master's CI
+was green, then deleted (Peter, 2026-10-26).
 
 ## dev.db migration (done by Claude, 2026-10-26)
 

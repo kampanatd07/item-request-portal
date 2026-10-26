@@ -1,6 +1,6 @@
 # STORY-006: Deploy for the 4 plants
 
-Status: part A done (2026-10-26, not yet merged) · part B todo · Depends on: STORY-001, STORY-002, STORY-009 (requesters must be able to answer Needs Info before the plants get access), STORY-010 (code override must be validated before deploy), STORY-013 (a category change must not leave the old prefix in names exported to AX)
+Status: part A done (merged 2026-10-26, `390e9a0`) · part B todo · Depends on: STORY-001, STORY-002, STORY-009 (requesters must be able to answer Needs Info before the plants get access), STORY-010 (code override must be validated before deploy), STORY-013 (a category change must not leave the old prefix in names exported to AX)
 Triage: ready-for-agent
 
 ## Why
@@ -322,6 +322,9 @@ together exceed the Exchange sending limit.
    locally → push master → Peter checks master's CI from the real numbers →
    the branch stays until Peter says to delete it. Keep
    `dev.db.bak-2026-10-26` until Peter's browser checks pass.
+   **Done 2026-10-26:** merged as `390e9a0`, master CI green (939 passed,
+   0 skipped, Peter from the run); branch (local + origin) and backup
+   deleted on Peter's word.
 
 ## Part A whole-branch review (2026-10-26)
 
