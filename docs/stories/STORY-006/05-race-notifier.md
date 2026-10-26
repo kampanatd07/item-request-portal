@@ -1,6 +1,6 @@
 # 05: Postgres race: two resends send one email; a notifier that cannot lock gives up
 
-Status: in-progress (CI red on 8d72f07; fix pushed, waiting for Peter: CI)
+Status: in-progress (CI green on f429488; review running)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 01
@@ -98,3 +98,10 @@ fails, analyse its error; no expectation change without asking.
   `notify_failed` "ระบบไม่ว่าง" recorded for the change.
 - The `created` lock-timeout test also runs in a bounded worker thread now.
 - Local: 898 passed, 36 skipped.
+
+CI on `f429488` (Peter, 2026-10-26, from the run itself): green, **934
+passed, 0 skipped**. The three-Administrator cycle test
+(`test_pg_account_race.py`, 5th) passed this time; it failed on `8d72f07`
+with no error text and nothing it runs had changed: **possibly flaky**. The
+review of this round also looks at that test for anything that can pass on
+one run and fail on another.
