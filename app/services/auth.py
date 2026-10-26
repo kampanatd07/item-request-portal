@@ -659,9 +659,11 @@ def reactivate_account(db: Session, acting: Account, account_id: int) -> Account
     return account
 
 
-def reset_password(db: Session, acting: Account, account_id: int) -> str:
-    """Give the Account a new random temporary password; returns it (show once, never log)."""
-    account = _get_account(db, account_id)
+def _give_temporary_password(db: Session, account: Account) -> str:
+    """The reset itself, shared by the Account admin page and the command:
+    a new random temporary password, changed at the next login; every open
+    session ends; the lockout is cleared. Returns the password (show once,
+    never log)."""
     temporary = generate_temporary_password()
     account.password_hash = hash_password(temporary)
     account.must_change_password = True
@@ -670,5 +672,32 @@ def reset_password(db: Session, acting: Account, account_id: int) -> str:
     account.failed_login_count = 0
     account.locked_until = None
     db.commit()
+    return temporary
+
+
+def reset_password(db: Session, acting: Account, account_id: int) -> str:
+    """Give the Account a new random temporary password; returns it (show once, never log)."""
+    account = _get_account(db, account_id)
+    temporary = _give_temporary_password(db, account)
     _audit(acting, "reset_password", account)
+    return temporary
+
+
+def reset_password_from_cli(db: Session, email: str, *, by: str) -> str:
+    """The reset for `python -m app.reset_password`: an Administrator locked
+    out with no other Administrator to reset them. `by` names who did it, for
+    the log (`by=cli:<name>`, so it is never taken for an Account's email);
+    required. A deactivated Account is refused: it could not log in anyway."""
+    by = " ".join((by or "").split())
+    if not by:
+        raise AuthError("--by is required: who is resetting the password")
+    account = db.scalar(select(Account).where(Account.email == normalize_email(email)))
+    if account is None:
+        raise AuthError(f"no Account with the email {email.strip()!r}")
+    if not account.active:
+        raise AuthError(f"{account.email} is deactivated: reactivate it first "
+                        "(Account admin page), then reset the password")
+    temporary = _give_temporary_password(db, account)
+    audit_log.info("account_admin by=%s action=reset_password target=%s",
+                   _one_line(f"cli:{by}"), _one_line(account.email))
     return temporary
