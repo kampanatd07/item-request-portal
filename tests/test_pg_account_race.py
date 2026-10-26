@@ -106,23 +106,27 @@ def test_two_administrators_acting_on_each_other_leave_the_first(
     assert _active_admins(pg_engine) == [a1]
 
 
-def test_three_administrators_in_a_cycle_two_succeed_and_one_is_refused(
-        pg_engine: Engine) -> None:
-    a1, a2, a3 = _admins(pg_engine, 3)
-    session_a, session_b, session_c = (session_on(pg_engine) for _ in range(3))
+def _run_cycle(engine: Engine, b_first: bool) -> tuple[list[str], list[int]]:
+    """a1 -> a2, a2 -> a3, a3 -> a1. a1 -> a2 takes the locks and holds;
+    a2 -> a3 (B) and a3 -> a1 (C) must both be waiting on them at the same
+    moment (proof of overlap). b_first: C starts only once B is seen waiting,
+    so B is first in line for a1's row. Returns (outcomes A, B, C; active
+    Administrators)."""
+    a1, a2, a3 = _admins(engine, 3)
+    session_a, session_b, session_c = (session_on(engine) for _ in range(3))
     held = HeldCommit(session_a)
     pool = ThreadPoolExecutor(max_workers=3)
     decided = False
     try:
-        # a1 -> a2 takes the locks and holds; a2 -> a3 and a3 -> a1 must both
-        # be waiting on them at the same moment (proof of overlap).
         future_a = pool.submit(_deactivate(a1, a2), session_a)
         held.wait_reached(future_a)
         pid_b, pid_c = backend_pid(session_b), backend_pid(session_c)
         future_b = pool.submit(_deactivate(a2, a3), session_b)
+        if b_first:
+            wait_until_lock_wait(engine, pid_b, future_b)
         future_c = pool.submit(_deactivate(a3, a1), session_c)
-        wait_until_lock_wait(pg_engine, pid_b, future_b)
-        wait_until_lock_wait(pg_engine, pid_c, future_c)
+        wait_until_lock_wait(engine, pid_b, future_b)
+        wait_until_lock_wait(engine, pid_c, future_c)
         decided = True
         held.release()
         _all_done(pool, [future_a, future_b, future_c], WAIT_SECONDS)
@@ -133,12 +137,31 @@ def test_three_administrators_in_a_cycle_two_succeed_and_one_is_refused(
         for s in (session_a, session_b, session_c):
             s.rollback()
             s.close()
+    return [_outcome(f) for f in (future_a, future_b, future_c)], _active_admins(engine)
 
+
+def test_three_administrators_in_a_cycle_two_succeed_and_one_is_refused(
+        pg_engine: Engine) -> None:
+    outcomes, active = _run_cycle(pg_engine, b_first=False)
     # In either order of b and c: a2 is no longer an Administrator when its
     # call runs, and a3 -> a1 leaves a3.
-    assert [_outcome(f) for f in (future_a, future_b, future_c)] == [
-        "deactivated", f"refused: {PERMISSION_CHANGED}", "deactivated"]
-    assert _active_admins(pg_engine) == [a3]
+    assert outcomes == ["deactivated", f"refused: {PERMISSION_CHANGED}", "deactivated"]
+    assert active == [_admin_id(pg_engine, 3)]
+
+
+def test_three_administrators_in_a_cycle_when_the_refused_one_goes_first(
+        pg_engine: Engine) -> None:
+    """The order that made the cycle test flaky (CI, 8d72f07): B (refused)
+    gets a1's row before C. A refused call must give its locks back, or C
+    waits behind them."""
+    outcomes, active = _run_cycle(pg_engine, b_first=True)
+    assert outcomes == ["deactivated", f"refused: {PERMISSION_CHANGED}", "deactivated"]
+    assert active == [_admin_id(pg_engine, 3)]
+
+
+def _admin_id(engine: Engine, n: int) -> int:
+    with session_on(engine) as db:
+        return db.scalar(select(Account.id).where(Account.email == f"admin{n}@test.local"))
 
 
 # --- (b) parallel wrong passwords for one email, raced freely ----------------------------
