@@ -178,6 +178,36 @@ def test_unblock_lifts_the_block_logs_who_and_login_works_again(
     assert _post(c, password=TEST_PASSWORD).status_code == 303
 
 
+def test_the_real_command_writes_who_unblocked_to_its_log(tmp_path):
+    # caplog captures the line even when nobody set up logging, so run the
+    # command as a person would: its own process, its own database file.
+    import os
+    import subprocess
+    import sys
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from app.database import Base
+    from app.services.clock import utc_now
+
+    url = f"sqlite:///{(tmp_path / 'cli.db').as_posix()}"
+    engine = create_engine(url)
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        now = utc_now()
+        db.add(LoginIpFailure(ip=IP, failed_count=MAX_FAILED_LOGINS_PER_IP,
+                              window_started_at=now, blocked_until=now + auth.IP_BLOCK))
+        db.commit()
+    engine.dispose()
+
+    env = {**os.environ, "APP_ENV": "dev", "DATABASE_URL": url}
+    done = subprocess.run([sys.executable, "-m", "app.unblock_ip", IP, "--by", "Peter"],
+                          capture_output=True, text=True, env=env)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert f"INFO app.accounts login_ip_unblocked ip={IP} by=Peter" in done.stderr
+
+
 def test_unblock_without_by_is_an_error_and_changes_nothing(account, client_from, app_db):
     _block(client_from(IP))
     for argv in ([IP], [IP, "--by", "   "]):

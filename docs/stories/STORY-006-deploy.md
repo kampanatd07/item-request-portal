@@ -283,6 +283,27 @@ together exceed the Exchange sending limit.
 - Local runs of the PostgreSQL tests: start the compose `db` service and set
   `TEST_POSTGRES_URL`; README gets the one-line command.
 
+### Part A close-out and merge (Peter, 2026-10-26)
+
+1. `/code-review` of the whole branch: done, no (ก) (section below).
+2. Migrate the real `dev.db`, backup kept: done (record in
+   `STORY-006/part-a-browser-checklist.md`).
+3. Browser checklist written to that file.
+3a. Fix the (ก) found writing it: `python -m app.unblock_ip` drops its
+    `login_ip_unblocked` log line. Subprocess test that FAILS first, then
+    one logging setup function called by `main.py` and `unblock_ip.py`
+    (same format). Then push → Peter checks CI from the real numbers →
+    `/code-review` of that diff only → no (ก), go on.
+3b. Peter runs the 8 browser checks.
+4. Docs before merge: HANDOFF §2 status "Part A done, Part B waits for IT"
+   + the `unblock_ip` command + `FORWARDED_ALLOW_IPS` + open work
+   (STORY-015/016, CI to Ubuntu 26, Pydantic config); this story's status
+   "part A done · part B todo"; the 006 row in `docs/stories/README.md`.
+5. Merge: `git merge --no-ff story/006-deploy-part-a` on master → pytest
+   locally → push master → Peter checks master's CI from the real numbers →
+   the branch stays until Peter says to delete it. Keep
+   `dev.db.bak-2026-10-26` until Peter's browser checks pass.
+
 ## Part A whole-branch review (2026-10-26)
 
 Ran `/code-review` on `d192b24..0fe08fe` (merge-base with master → part A
