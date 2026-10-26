@@ -1,5 +1,61 @@
 # Decision Log
 
+## [2026-10-26] Every notifier transaction that takes a lock or writes has a lock_timeout
+**Decision:** Each transaction of the notifier (`app/services/notify.py`)
+that takes a row lock or writes runs `SET LOCAL lock_timeout`
+(`NOTIFY_LOCK_TIMEOUT_SECONDS`): the claim, the send-and-record, and
+`_record_failure`. Plain SELECTs need none (in PostgreSQL they never wait on
+row locks). If recording a failure times out, it is logged as a warning and
+nothing is raised; the email is still owed and shows on the resend list once
+older than `LOST_AFTER`, with the generic reason.
+**Why:** a `notify_failed` INSERT's foreign key needs a KEY SHARE lock on the
+request row, which a FOR UPDATE holder (an Approval, an export) blocks. Before
+this, `_record_failure` ran right after a rollback (which ends the claim's
+SET LOCAL) with no timeout, so a notifier that had given up on a held row
+then waited on that same row without limit, keeping a thread and a DB
+connection. The gap was there since STORY-002; a STORY-006 part A test
+(ticket 05) hung on it in CI.
+**Alternatives considered:** a holder that takes FOR NO KEY UPDATE instead of
+FOR UPDATE (does not block the foreign key) — changes every `_get_locked`
+caller, larger than the bug.
+**Revisit when:** a new notifier write is added (it needs the same bound).
+
+## [2026-10-23] Accepted: one person behind a shared plant IP can block that plant's logins
+**Decision:** The login limit stays per client IP (50 failures in 15 minutes
+→ 15-minute block), knowing that one person on a plant's network can block
+every login from that plant's shared public IP, and repeat it. Lifted early
+with `python -m app.unblock_ip <ip> --by <name>` (logged with who). IPv6 is
+counted per /64.
+**Why:** to do it, the person must be on the plant's network, and the block
+is logged with the IP and time, so it can be traced; spraying from outside
+is the threat the limit exists for. `--by` is required because a container's
+OS user is usually root, which names nobody.
+**Alternatives considered:** let a correct password through a block (a
+sprayer that guesses right gets in); a per-plant allow-list (the plants'
+public IPs are not known or fixed); an unblock page in the app (more surface
+for a rare action).
+**Revisit when:** a plant is blocked in normal use, or the hosting gives a
+better signal than the IP (e.g. SSO).
+
+## [2026-10-21] Login limit per client IP built in the app, counted in the DB
+**Decision:** `POST /login` refuses a client IP for 15 minutes after 50
+failed logins within 15 minutes (failures only; a success does not reset).
+Counts live in a DB table with a row lock, not in process memory. The client
+IP comes from `X-Forwarded-For` only from proxies listed in
+`FORWARDED_ALLOW_IPS`, handled by uvicorn's proxy-headers middleware added in
+the app (start command uses `--no-proxy-headers`), so the rule is tested.
+Outside dev the app refuses to start without `FORWARDED_ALLOW_IPS` (a proxy
+list or the explicit `none`), so forgetting it fails the deploy instead of
+letting 50 failures anywhere block every plant.
+**Why:** the hosting platform is not settled until IT answers the external
+hosting question, so a platform feature cannot be relied on. A whole plant
+may share one public IP, hence failures only and a high ceiling.
+**Alternatives considered:** check Render/Railway's IP limiting first
+(STORY-006 AC 5 as written) — dropped by Peter; in-memory counter — lost on
+restart and not shared across processes.
+**Revisit when:** the chosen platform or a CDN in front offers IP rate
+limiting, or a plant hits the ceiling in normal use.
+
 ## [2026-10-19] "My requests" shows Originator rows in any Plant; resubmit checks the Plant
 **Decision:** "My requests" lists every request where the Account is the
 Requester or the Originator, matched on email only, with no Plant or active

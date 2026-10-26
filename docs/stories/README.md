@@ -10,7 +10,7 @@ story file plus `docs/HANDOFF.md` alone, without chat history.
 | [003](STORY-003-uom-standard.md) | 24-unit UoM standard + Base/Purchase UoM + pack size | — | 002, 004 |
 | [004](STORY-004-item-attributes.md) | Legacy No., Scope Owner, Lifecycle State | — | 002, 003 |
 | [005](STORY-005-register-sync.md) | Re-sync running register from Decision Sheet | Peter fills D1–D4 | — |
-| [006](STORY-006-deploy.md) | Deploy to Render/Railway + Postgres | 001, 002, 009, 010, 013 | — |
+| [006](STORY-006-deploy.md) | Deploy to Render/Railway + Postgres — part A (CI, Postgres tests, IP limit, 1 worker) **done** (2026-10-26, merge pending); part B waits for IT | 001, 002, 009, 010, 013 | — |
 | [007](STORY-007-naming-alignment.md) | Names: `mL`, `in`, no `,` (align with standard) | — | 002, 004 |
 | [008](STORY-008-classification-flags.md) | Flag Sub-Category 99 (reason required) and possible fixed assets | — | 002, 007 |
 | [009](STORY-009-requester-resubmit.md) | Requester edits and resubmits a Needs Info request — **done** (2026-10-19) | 001, 002 | — |
@@ -19,6 +19,8 @@ story file plus `docs/HANDOFF.md` alone, without chat history.
 | [012](STORY-012-plant-aware-d365-snapshot.md) | Plant-aware D365 snapshot (blocked: waiting for Peter's sample export) | 010 | any |
 | [013](STORY-013-category-change-name-prefix.md) | Category change updates the name prefix — **done** (2026-10-21) | — | 009 |
 | [014](STORY-014-name-preview-matches-saved-name.md) | Name preview shows the name that will be saved (after plants open) | — | 013 |
+| [015](STORY-015-login-limit-follow-ups.md) | Login limit follow-ups (review notes from STORY-006 ticket 08) | 006 ticket 08 | any |
+| [016](STORY-016-recheck-acting-role-under-lock.md) | Re-check the acting Administrator under the lock (approval first) — **first story after go-live** | 006 ticket 04 | any |
 
 ## Status values
 `todo` → `planned` (spec + tickets written) → `in-progress` → `review` → `done`

@@ -1,4 +1,6 @@
+import itertools
 import os
+from collections.abc import Callable, Iterator
 
 # Before any app import: Settings reads these once. Cheap Argon2 keeps the suite
 # fast (production cost is unchanged), and APP_ENV=dev whatever the local .env says.
@@ -6,10 +8,14 @@ os.environ["APP_ENV"] = "dev"
 os.environ["ARGON2_TIME_COST"] = "1"
 os.environ["ARGON2_MEMORY_COST"] = "8"
 os.environ["ARGON2_PARALLELISM"] = "1"
+# Tests that build Settings outside dev need it (required there, ticket 06);
+# the tests of that rule pass their own value.
+os.environ["FORWARDED_ALLOW_IPS"] = "none"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy import Engine, create_engine  # noqa: E402
+from sqlalchemy.engine import URL  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
@@ -109,6 +115,129 @@ def db_session(seeded_template):
     engine.dispose()
 
 
+# --- PostgreSQL (STORY-006) --------------------------------------------------
+# Row locks (FOR UPDATE) and lock_timeout only work on PostgreSQL; SQLite ignores
+# them. These fixtures run when TEST_POSTGRES_URL points at a server where the
+# user may create databases (CI does this); otherwise every test using them is
+# skipped, so a laptop without PostgreSQL runs the suite as before.
+
+TEST_POSTGRES_URL = os.environ.get("TEST_POSTGRES_URL", "")
+# Every database these fixtures make starts with one of these; only such
+# databases are ever dropped as leftovers.
+PG_TEMPLATE_PREFIX = "irp_template_"
+PG_COPY_PREFIX = "irp_test_"
+_pg_copy_number = itertools.count()
+
+
+def _pg_url(database: str) -> URL:
+    from sqlalchemy.engine import make_url
+
+    return make_url(TEST_POSTGRES_URL).set(database=database)
+
+
+def _pg_admin() -> Engine:
+    """Autocommit engine for CREATE/DROP DATABASE, which cannot run in a transaction."""
+    from sqlalchemy.pool import NullPool
+
+    return create_engine(TEST_POSTGRES_URL, isolation_level="AUTOCOMMIT", poolclass=NullPool)
+
+
+def drop_leftover_pg_databases(admin: Engine) -> list[str]:
+    """Drop test databases an earlier run left behind (a run killed by
+    pytest-timeout's os._exit or Ctrl-C never reaches teardown). Only names
+    starting with PG_TEMPLATE_PREFIX / PG_COPY_PREFIX; nothing else is touched,
+    nor this run's own databases (their names carry this process's pid)."""
+    from sqlalchemy import text
+
+    ours = (f"{PG_TEMPLATE_PREFIX}{os.getpid()}", f"{PG_COPY_PREFIX}{os.getpid()}_")
+    with admin.connect() as c:
+        names = [n for (n,) in c.execute(text("SELECT datname FROM pg_database"))
+                 if n.startswith((PG_TEMPLATE_PREFIX, PG_COPY_PREFIX))
+                 and not (n == ours[0] or n.startswith(ours[1]))]
+        for name in names:
+            c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+    return names
+
+
+def migrate(engine: Engine) -> None:
+    """alembic upgrade head on `engine`, through migrations/env.py as the
+    command line does, but on this connection instead of settings.database_url.
+    No alembic.ini: its logging config would reset the test run's loggers."""
+    from pathlib import Path
+
+    from alembic import command
+    from alembic.config import Config
+
+    cfg = Config()
+    cfg.set_main_option("script_location", str(Path(__file__).parent.parent / "migrations"))
+    with engine.begin() as connection:
+        cfg.attributes["connection"] = connection
+        command.upgrade(cfg, "head")
+
+
+@pytest.fixture(scope="session")
+def pg_template() -> Iterator[str]:
+    """Name of a PostgreSQL database migrated (not create_all) and seeded once
+    per run. Tests never use it directly; they get copies (pg_copy)."""
+    if not TEST_POSTGRES_URL:
+        pytest.skip("TEST_POSTGRES_URL not set: PostgreSQL tests skipped")
+    from sqlalchemy import text
+    from sqlalchemy.pool import NullPool
+
+    name = f"{PG_TEMPLATE_PREFIX}{os.getpid()}"
+    admin = _pg_admin()
+    drop_leftover_pg_databases(admin)
+    with admin.connect() as c:
+        # A leftover from an older run that had this same pid.
+        c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+        c.execute(text(f'CREATE DATABASE "{name}"'))
+    engine = create_engine(_pg_url(name), poolclass=NullPool)
+    migrate(engine)
+    with sessionmaker(bind=engine)() as session:
+        seed(session)
+        session.commit()
+    # CREATE DATABASE ... TEMPLATE refuses while anyone is connected to it.
+    engine.dispose()
+    yield name
+    with admin.connect() as c:
+        c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+    admin.dispose()
+
+
+@pytest.fixture()
+def pg_copy(pg_template: str) -> Iterator[Callable[[], Engine]]:
+    """pg_copy() -> an engine on a new database copied from the template.
+
+    Each call is a fresh copy; all are dropped when the test ends.
+    """
+    from sqlalchemy import text
+
+    admin = _pg_admin()
+    made: list[tuple[str, Engine]] = []
+
+    def _copy() -> Engine:
+        name = f"{PG_COPY_PREFIX}{os.getpid()}_{next(_pg_copy_number)}"
+        with admin.connect() as c:
+            c.execute(text(f'CREATE DATABASE "{name}" TEMPLATE "{pg_template}"'))
+        engine = create_engine(_pg_url(name))
+        made.append((name, engine))
+        return engine
+
+    yield _copy
+    for name, engine in made:
+        engine.dispose()
+        with admin.connect() as c:
+            c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+    admin.dispose()
+
+
+@pytest.fixture()
+def pg_engine(pg_copy: Callable[[], Engine]) -> Engine:
+    """An engine on this test's own migrated + seeded PostgreSQL database.
+    Open one session per simulated user (see tests/pg_race.py)."""
+    return pg_copy()
+
+
 def central_ids(db, factory_code: str = "APM", group_code: str = "900",
                 sub_code: str = "01"):
     """Ids for a request against the central standard: (factory, system, group, sub).
@@ -138,6 +267,8 @@ def central_ids(db, factory_code: str = "APM", group_code: str = "900",
 
 
 TEST_PASSWORD = "test-password-123"
+# Client IP for service-level authenticate() calls (TEST-NET-3, never a real host).
+TEST_IP = "203.0.113.1"
 
 
 def load_master(db, codes, name: str = "TEST - Item in group master"):

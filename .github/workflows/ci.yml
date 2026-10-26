@@ -1,0 +1,52 @@
+# Every push: migrations + seed on an empty PostgreSQL, then the whole suite
+# with the PostgreSQL tests switched on (STORY-006). Peter checks this result
+# before merging (HANDOFF §8).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    # Pinned (Peter, 2026-10-23): ubuntu-latest moves to Ubuntu 26 from
+    # 2026-10-19. Move on purpose after go-live (HANDOFF §2).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: itemportal
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app -d itemportal"
+          --health-interval 3s
+          --health-retries 10
+    env:
+      # CI is not a deploy: no Graph values here, and dev skips that check.
+      APP_ENV: dev
+    steps:
+      - uses: actions/checkout@v7  # node24 runtime
+      - uses: actions/setup-python@v7  # node24 runtime
+        with:
+          python-version: "3.12"  # as in the Dockerfile
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      # The container's start command, minus serving: the command-line path
+      # of migrations/env.py (tests use the connection path).
+      - name: Migrate + seed an empty PostgreSQL
+        env:
+          DATABASE_URL: postgresql+psycopg://app:app@localhost:5432/itemportal
+        run: alembic upgrade head && python -m app.seed
+      - name: Tests (SQLite + PostgreSQL)
+        env:
+          TEST_POSTGRES_URL: postgresql+psycopg://app:app@localhost:5432/itemportal
+        # signal (Linux): a hung test fails on its own and the run goes on to print
+        # every FAILURE; the thread method (pytest.ini, for Windows) ends the whole
+        # process instead. --durations shows what runs close to the 60 s bound.
+        run: pytest -ra -o timeout_method=signal --durations=10

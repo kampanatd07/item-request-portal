@@ -1,9 +1,9 @@
-import logging
-
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import RedirectResponse, Response
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.config import settings
+from app.logging_setup import setup_logging
 
 from app.routes.accounts import router as accounts_router
 from app.routes.admin import router as admin_router
@@ -23,9 +23,7 @@ from app.routes.requests import router as requests_router
 from app.services.sessions import COOKIE_NAME
 from app.templating import templates
 
-# App loggers (e.g. app.accounts, the Account admin log) at INFO. basicConfig is a
-# no-op if a handler is already installed, so a deploy can configure its own.
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+setup_logging()
 
 # The API docs list every route; keep them to dev machines.
 _dev = settings.app_env == "dev"
@@ -76,3 +74,11 @@ app.include_router(queue_router, dependencies=[Depends(require_role("procurement
 app.include_router(exports_router, dependencies=[Depends(require_role("procurement"))])
 app.include_router(admin_router, dependencies=[Depends(require_role("administrator"))])
 app.include_router(accounts_router, dependencies=[Depends(require_role("administrator"))])
+
+# Who the client is, behind a proxy (STORY-006 ticket 06). Added last, so it is
+# the outermost layer and everything inside sees the real client address. The
+# start command passes --no-proxy-headers: this is the one place the header is
+# read, and it is under test. "none" adds nothing: the peer is the client.
+_trusted_proxies = settings.trusted_proxies()
+if _trusted_proxies is not None:
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=_trusted_proxies)

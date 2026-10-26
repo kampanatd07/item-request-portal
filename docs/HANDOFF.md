@@ -4,7 +4,7 @@
 > `docs/decisions.md` before doing anything. If chat history contradicts these
 > files, the files win.
 >
-> Last updated: 2026-10-21 · Owner: Peter (Procurement Strategy, Carabao Group)
+> Last updated: 2026-10-26 · Owner: Peter (Procurement Strategy, Carabao Group)
 
 ---
 
@@ -27,9 +27,70 @@ done 2026-10-19) and the Name Prefix on category moves (STORY-013, done
 (STORY-006). **All code prerequisites of the deploy are done**; left:
 1. IT's Graph values for email (§7); outside `APP_ENV=dev` the app refuses
    to start without them, so STORY-006 waits for them.
-2. STORY-006 itself (Render/Railway + PostgreSQL).
+2. STORY-006 itself (Render/Railway + PostgreSQL), split on 2026-10-21.
+   **Part A done (2026-10-26):** CI on PostgreSQL 16 with a schema-drift
+   check, race tests, login limit per Account and per client IP with
+   "being checked" slots, one worker, the `unblock_ip` command. Whole-branch
+   review with no (ก), Peter's browser checklist passed
+   (`docs/stories/STORY-006/part-a-browser-checklist.md`); merge to master
+   waits for Peter's go. **Part B waits for IT:** deploy, backup/restore,
+   real email, plus the part B notes in the story (a reset-password
+   command with `--by`, where the `unblock_ip` log line lands on the
+   platform, choosing `FORWARDED_ALLOW_IPS`).
+
+Operating the login limit (README "When things break"): 50 failed logins
+from one client IP in 15 minutes block it for 15 minutes; the log line is
+`login_ip_blocked ip=… until=… UTC` (`app.accounts`). Lift early with
+`python -m app.unblock_ip <ip> --by "<your name>"` (exit 0 lifted, 1 bad
+input or no `--by`, 2 not blocked); it logs `login_ip_unblocked ip=… by=…`
+to its own window. On the dev machine there is no log file: the app logs
+to the window running `uvicorn`.
+
+`FORWARDED_ALLOW_IPS`: the proxy IPs/CIDRs whose `X-Forwarded-For` is
+believed, or `none` if clients connect directly. Required outside
+`APP_ENV=dev` (the app, migrations and `create_admin` refuse to start
+without it); `*` is refused. A wrong value is not caught: part B must check
+on the deployed app that two machines count as two IPs. If the platform
+does not publish its proxy IPs, see the "trust one hop" option in STORY-006
+Further Notes. Avoid a trailing comma for now (STORY-015 item 21).
+
+**Never move `dev.db` data to production.** It holds test Administrator
+Accounts (`temp.admin@test.local`, `temp2.admin@test.local`) and test
+requests. A backup taken before migrating it to head on 2026-10-26,
+`dev.db.bak-2026-10-26` (ignored by git), stays until Peter deletes it.
+
+Open work after part A (none is a go-live condition):
+- STORY-015: login-limit and review follow-ups (items 1–26).
+- STORY-016: re-check the acting Administrator under the lock: **first
+  story after go-live**.
+- CI pinned to `ubuntu-24.04` (below).
+- Pydantic class-based `Config` (below).
 
 After the plants open: STORY-014 (the name preview shows the saved name).
+
+Open item (noted 2026-10-23, Peter accepted the impact): login "being
+checked" slots (`pending_checks` / `pending_since` on `accounts` and
+`login_ip_failures`, STORY-006 ticket 08) are one counter and one time per
+row, with no identity per slot. When they expire (1 minute after the count
+went 0 → 1) all are cleared, including ones taken a moment ago by logins
+still running, and those logins' later frees take others' slots. Accepted
+impact: on an Account it cannot happen in practice (the 10-failure lock
+empties the slots long before a minute); on a busy IP (a plant whose
+successful logins keep a slot in use) up to about one more limit's worth of
+in-flight attempts can pass at the moment of a block. The exact fix is one
+row per slot (key, token, taken_at): a new table and migration. Revisit if
+a block is ever seen to let through far more than 50 failures.
+
+Open small item (noted 2026-10-23): CI is pinned to `ubuntu-24.04`
+(`.github/workflows/ci.yml`) because `ubuntu-latest` moves to Ubuntu 26
+from 2026-10-19. Move CI to Ubuntu 26 on purpose after go-live, as its own
+change with a green run.
+
+Open small item (not fixed, noted 2026-10-21): `app/config.py` `Settings`
+uses a class-based `Config`, which Pydantic 2 warns is deprecated
+(`PydanticDeprecatedSince20`, removed in V3). Move to
+`model_config = SettingsConfigDict(env_file=".env")` before any Pydantic 3
+upgrade; check `.env` is still read.
 
 | Area | State |
 |---|---|
@@ -46,11 +107,16 @@ After the plants open: STORY-014 (the name preview shows the saved name).
 | Login / roles | done — STORY-001: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry, lockout, My requests |
 | Email notification | done — STORY-002 tickets 01–06 (Graph sender tested with a fake transport only; first real send waits for IT, see §7) |
 | Requester resubmit | done — STORY-009: Requester or Originator edits and resubmits a Needs Info request (conditional claim, one 409 for the loser), queue badge + reply card + replaced-name warning, best-effort email to Procurement; the code system must now fit the request's Plant (fix also for new requests) |
-| Deployment | **not started — STORY-006** |
+| Deployment | part A done (CI on PostgreSQL, race tests, login limits, one worker; merge pending) — part B (deploy, backup, real email) waits for IT — STORY-006 |
 
-Tests: 810 passing (`pytest`).
+Tests: 902 passing locally, 37 PostgreSQL tests skipped without
+`TEST_POSTGRES_URL`; CI runs all 939 on PostgreSQL 16 (confirmed by Peter
+from the run on `7a0ec12`, 2026-10-26). Read CI numbers from the run's log
+itself, never from a summary: `f429488` was once recorded green and was red.
 
-The suite runs in ~13 s: `create_all` + `seed` run once per pytest session
+The suite ran in ~13 s on 2026-10-21 but took ~61 s on 2026-10-26 (cause
+not looked into; the 3 subprocess tests take 2–4 s each). The suite's setup:
+`create_all` + `seed` run once per pytest session
 into an in-memory template, and each test's `db_session` gets a copy through
 the SQLite backup API (`tests/conftest.py`; `tests/test_template_db.py`
 guards that a copy equals a fresh seed and that copies are isolated). Tests
@@ -157,6 +223,11 @@ After first run, upload in **Snapshot** page:
   one real test email (any request through needs_info) and check it arrives,
   with the Reply-To and the copy in the sender's Sent Items. Allowed originator email domains are data on the
   Settings page (seeded: apm.co.th, acmf.co.th, apg.co.th, carabao.co.th)
+- **External hosting policy (STORY-006 AC 6):** Peter asks IT together with
+  the Graph values whether company data policy allows item data on an
+  external host. If not, the deploy platform changes (company VM, see
+  decisions.md 2026-07-24), so get the answer before choosing Render/Railway
+  in part B. Answer: _(fill in)_
 - **Client secret expiry:** an Azure client secret has an end date (often
   6–24 months). Note it here when IT creates it and renew it before that
   date — after it expires every email fails with "Graph credentials do not
@@ -175,3 +246,7 @@ After first run, upload in **Snapshot** page:
 - Report problems plainly with numbers
 - Plan first, get confirmation, then build; explain significant decisions in 2–3 sentences
 - He approves every merge
+- **No merge on red CI.** No branch protection is set up (GitHub plan not
+  yet checked (Peter); on GitHub Free a private repo cannot have it), so a
+  red CI run does not block the merge button: Peter checks the CI result
+  before approving (decided 2026-10-21)

@@ -108,6 +108,8 @@ GroupKey = tuple[str, tuple[str, ...]]
 # background task could hang for good; SQLite's busy timeout (30 s) plays the
 # same role there. Past it the group stays 'created' for the resend list.
 NOTIFY_LOCK_TIMEOUT_SECONDS = 30
+# PostgreSQL's SQLSTATE when lock_timeout runs out.
+LOCK_NOT_AVAILABLE = "55P03"
 SUBJECT_CODES = 3
 
 
@@ -424,14 +426,28 @@ def notify_status(session_factory: SessionFactory, request_id: int, event_id: in
 
 def _record_failure(db: Session, request_id: int, actor: str, detail: str,
                     ref_event_id: int | None = None) -> None:
-    """notify_failed in its own transaction; never raises (logged instead)."""
+    """notify_failed in its own transaction; never raises (logged instead).
+
+    Bounded like every notifier transaction that takes a lock (decisions.md
+    2026-10-26): the INSERT's foreign key needs a KEY SHARE lock on the request
+    row, which a FOR UPDATE holder (an Approval, an export) blocks. If it times
+    out, the email is still owed: it shows on the resend list once older than
+    LOST_AFTER, with the generic reason.
+    """
     try:
+        _set_lock_timeout(db)  # SET LOCAL: this transaction only
         db.add(RequestEvent(request_id=request_id, actor=actor, action="notify_failed",
                             ref_event_id=ref_event_id, detail=detail[:1000]))
         db.commit()
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
         db.rollback()
-        log.exception("notify: could not record notify_failed for request %s", request_id)
+        if getattr(getattr(e, "orig", None), "sqlstate", None) == LOCK_NOT_AVAILABLE:
+            # Expected while another transaction holds the row: a warning.
+            log.warning("notify: could not record notify_failed for request %s "
+                        "(row busy, lock_timeout)", request_id, exc_info=True)
+        else:
+            log.exception("notify: could not record notify_failed for request %s",
+                          request_id)
 
 
 # --- Resend: what is still waiting to be sent (ticket 06) -------------------------
