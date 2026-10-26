@@ -426,10 +426,8 @@ def unblock_ip(db: Session, raw_ip: str, *, by: str, now: datetime | None = None
     lifts the shared bucket). Returns False, changing nothing, if that IP is
     not blocked. `by` names who did it, for the log; required."""
     now = now or utc_now()
-    by = " ".join((by or "").split())
-    if not by:
-        raise AuthError("--by is required: who is lifting the block")
-    ip = "unknown" if raw_ip.strip().lower() == "unknown" else ip_key_or_none(raw_ip)
+    by = clean_by(by, doing="lifting the block")
+    ip ="unknown" if raw_ip.strip().lower() == "unknown" else ip_key_or_none(raw_ip)
     if ip is None:
         raise AuthError(f"not an IP address: {raw_ip!r}")
     row = db.scalar(select(LoginIpFailure).where(LoginIpFailure.ip == ip).with_for_update())
@@ -526,6 +524,19 @@ def generate_temporary_password() -> str:
 def _one_line(value: str) -> str:
     """Escape CR/LF so no value can start a forged line in the log."""
     return value.replace("\r", "\\r").replace("\n", "\\n")
+
+
+def clean_by(by: str | None, *, doing: str) -> str:
+    """The `--by` name of a command-line action, for its audit line: spaces
+    collapsed; required; no "=", since the line is key=value and a name like
+    `x action=deactivate` would add a fake field (the audit trail must be
+    true). `doing` finishes the "required" message."""
+    by = " ".join((by or "").split())
+    if not by:
+        raise AuthError(f"--by is required: who is {doing}")
+    if "=" in by:
+        raise AuthError(f"--by must not contain '=': {by!r} (the log line is key=value)")
+    return by
 
 
 def _audit(acting: Account | None, action: str, target: Account, detail: str = "") -> None:
@@ -687,13 +698,16 @@ def reset_password_from_cli(db: Session, email: str, *, by: str) -> str:
     """The reset for `python -m app.reset_password`: an Administrator locked
     out with no other Administrator to reset them. `by` names who did it, for
     the log (`by=cli:<name>`, so it is never taken for an Account's email);
-    required. A deactivated Account is refused: it could not log in anyway."""
-    by = " ".join((by or "").split())
-    if not by:
-        raise AuthError("--by is required: who is resetting the password")
+    required. Only an Administrator: any other Account is reset on the
+    Account admin page. A deactivated Account is refused: it could not log
+    in anyway."""
+    by = clean_by(by, doing="resetting the password")
     account = db.scalar(select(Account).where(Account.email == normalize_email(email)))
     if account is None:
         raise AuthError(f"no Account with the email {email.strip()!r}")
+    if account.role != "administrator":
+        raise AuthError(f"{account.email} is not an Administrator: reset it on the "
+                        "Account admin page")
     if not account.active:
         raise AuthError(f"{account.email} is deactivated: reactivate it first "
                         "(Account admin page), then reset the password")

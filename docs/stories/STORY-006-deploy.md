@@ -287,7 +287,9 @@ together exceed the Exchange sending limit.
   password). **Built early** on `story/006-reset-password-cli`
   (2026-10-26): `reset_password_from_cli`, log `account_admin by=cli:<name>
   action=reset_password target=<email>`, a deactivated Account refused
-  (exit 1, "reactivate it first"). Interactive shell only (README).
+  (exit 1, "reactivate it first"), only an Administrator (others: the
+  Account admin page), `=` refused in `--by` for both commands (STORY-015
+  27, 28). Interactive shell only (README).
 - **Part B: never move `dev.db` data to production** (Peter, 2026-10-26).
   It holds test Administrator Accounts (`temp.admin@test.local`,
   `temp2.admin@test.local`) and test requests. Production starts from

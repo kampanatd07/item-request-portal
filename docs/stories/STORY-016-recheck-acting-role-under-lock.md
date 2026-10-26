@@ -69,6 +69,14 @@ actions (all Administrator-only).
     keep a thread and a connection about 10 minutes). Stop recording after
     the first lock timeout: the rest are owed and on the resend list anyway.
 
+## From the `story/006-reset-password-cli` review (2026-10-26; moved from STORY-015 29 by Peter)
+11. `reset_password_from_cli` (`python -m app.reset_password`) reads the
+    Account without a row lock. A command-line reset and an admin-page reset
+    of the same Account at once both write `session_version` 3 → 4, and one
+    of the two printed temporary passwords silently stops working. Same
+    family as item 1: lock the target (`with_for_update()`) in the shared
+    `_give_temporary_password` path.
+
 ## Out of scope
 - Actions open to Procurement or Requesters (their guard is a Role every
   Account of that kind keeps; a deactivated Account's session already ends

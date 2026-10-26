@@ -55,7 +55,7 @@ Push to `main` → GitHub Actions runs tests → deploy to Render/Railway (see d
   for 15 minutes. Find the IP in the log line `login_ip_blocked ip=… until=…`
   (`app.accounts`). To lift it early, on the app's shell:
   `python -m app.unblock_ip <ip> --by "<your name>"` (exit 0 = lifted, 1 = bad
-  input, 2 = not blocked). An IPv6 block covers a /64: any address in it
+  input, 2 = not blocked; the name must not contain `=`). An IPv6 block covers a /64: any address in it
   works. If the log shows `login_client_ip_unknown` warnings, everyone is
   counted as one client: check `FORWARDED_ALLOW_IPS` (Deploying), then lift
   the shared bucket with `unknown` as the IP.
@@ -64,8 +64,9 @@ Push to `main` → GitHub Actions runs tests → deploy to Render/Railway (see d
   (never a one-off job or run command whose output the platform keeps as a
   log: the temporary password would stay in that log):
   `python -m app.reset_password <email> --by "<your name>"` (exit 0 = reset,
-  1 = bad input, unknown email, or a deactivated Account: reactivate it
-  first). The temporary password is printed once; it must be changed at the
+  1 = bad input, unknown email, not an Administrator (use the Account admin
+  page), or a deactivated Account: reactivate it first; the name must not
+  contain `=`). The temporary password is printed once; it must be changed at the
   next login, every open session of that Account ends and its lockout is
   cleared. The log line `account_admin by=cli:<your name>
   action=reset_password target=<email>` says who reset whom, never the

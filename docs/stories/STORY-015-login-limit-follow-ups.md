@@ -130,20 +130,23 @@ No (ก). 7 findings; the changed proxy test was approved by Peter (item 21).
     already change the DB, so no new power; but limiting it to
     `role == "administrator"` (exit 1, "use the Account admin page") would
     match the docs and shrink the misuse. Recommend: limit it.
+    **Done** before merge (Peter, 2026-10-26): any other Role → exit 1,
+    "reset it on the Account admin page", DB unchanged.
 28. `--by` is only whitespace-collapsed; a name like `x action=deactivate
     target=boss@corp` puts fake `key=value` fields into the audit line.
     Same in `unblock_ip`. Quote the value, or refuse `=` in it.
-29. No row lock: a CLI reset and a web reset of the same Account at once
-    both write `session_version` 3 → 4 and one printed password silently
-    stops working. Same family as STORY-016 (lost `session_version` bump);
-    `with_for_update()` on the select.
+    **Done** before merge (Peter, 2026-10-26): one `auth.clean_by()` for
+    both commands refuses `=` (exit 1), because the audit trail must be
+    true. Tested on both; the existing `unblock_ip` tests unchanged.
+29. Moved to STORY-016 item 11 (Peter, 2026-10-26): same family as the lost
+    `session_version` bump.
 30. The CLI raises `AuthError` with English text, while `AuthError` is
     documented as a Thai user-facing message (`unblock_ip` already does
     this). A `CliError`, or say in the docstring that CLI messages are
     English.
 31. `app/reset_password.py` copies `unblock_ip`'s `_Parser` / `_BadInput` /
-    `run()` shape, and the `--by` clean-up is copied in `auth.py`: one
-    shared helper (with 28's fix in one place). The success line re-derives
+    `run()` shape (the `--by` clean-up is now one `clean_by`, item 28). The
+    success line re-derives
     the email with `.strip().lower()` instead of printing the Account's
     stored email.
 

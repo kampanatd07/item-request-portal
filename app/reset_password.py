@@ -11,7 +11,11 @@ session ends, the lockout is cleared. The log line says who reset whom,
 never the password. --by is required: on a container the OS user is usually
 root, which says nothing about who.
 
-Exit codes: 0 reset, 1 bad input (no --by, unknown email, deactivated Account).
+Only an Administrator's password: any other Account is reset on the Account
+admin page. --by must not contain "=" (the log line is key=value).
+
+Exit codes: 0 reset, 1 bad input (no --by, "=" in --by, unknown email, not an
+Administrator, deactivated Account).
 """
 
 import argparse
