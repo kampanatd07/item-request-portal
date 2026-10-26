@@ -1,6 +1,6 @@
 # 05: Postgres race: two resends send one email; a notifier that cannot lock gives up
 
-Status: in-progress (flake fixed; waiting for Peter: CI of 2db6a41 (red expected) and the fix)
+Status: in-progress (CI proved the flake fix; review running)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 01
@@ -179,3 +179,8 @@ level) with tests. Note 4 → STORY-016; notes 5–9 → STORY-015 (items 12–1
   its traceback, never raised. The PostgreSQL "stays owed" test still sees
   one WARNING carrying 55P03.
 - Local: 901 passed, 37 skipped.
+
+**Proved in CI (Peter, 2026-10-26, from the runs):** `2db6a41` red as
+expected, **934 passed, 1 failed**: the forced-order test, "still running
+after 15 s". `c3055e7` green, **938 passed, 0 skipped**. The forced order
+fails on the old harness and passes on the fixed one.
