@@ -85,6 +85,18 @@ Robustness and tidiness
     shuts the pool down twice; `_admin_id` rebuilds the e-mail format instead
     of returning a3's id; with `b_first` it polls B's lock wait twice.
 
+## From the STORY-006 part A whole-branch review (2026-10-26)
+21. `FORWARDED_ALLOW_IPS` with a trailing comma (`10.0.0.0/8,`) gives an
+    empty entry that `trusted_proxies()` rejects, so the app refuses to
+    start (fails closed, message names `''`). Drop empty entries. Worth
+    doing before part B sets the value.
+22. On SQLite (dev only) `_lock_ip_row`'s `begin_nested()` is the outermost
+    SAVEPOINT for a new IP; pysqlite then commits at RELEASE, so step 1 of
+    a login is not atomic on SQLite. PostgreSQL is unaffected.
+23. The new login-limit test files have no type hints on helpers/tests
+    (CLAUDE.md). Most existing test files have none either; decide once
+    whether the rule covers tests.
+
 ## Out of scope
 - Changing the limits themselves (10 / 50 / 15 minutes).
 

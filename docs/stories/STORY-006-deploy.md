@@ -283,6 +283,16 @@ together exceed the Exchange sending limit.
 - Local runs of the PostgreSQL tests: start the compose `db` service and set
   `TEST_POSTGRES_URL`; README gets the one-line command.
 
+## Part A whole-branch review (2026-10-26)
+
+Ran `/code-review` on `d192b24..0fe08fe` (merge-base with master → part A
+done). 10 findings, **no (ก)**. Seven were already recorded: slots without
+identity (STORY-015 7, HANDOFF §2), 9 + 1 slot refuses a right password
+(015 5), 429 with no block set (015 6), second hash change counts a
+failure (015 3), the prune's table scan (ticket 07 review 7), and the
+last-Administrator branch + changed test (ticket 04, approved by Peter
+2026-10-23). Three new (ข) → STORY-015 21–23.
+
 ## Notes
 
 - Query cost found in the STORY-002 review (2026-10-14), not a deploy
