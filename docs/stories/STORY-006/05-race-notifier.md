@@ -1,6 +1,6 @@
 # 05: Postgres race: two resends send one email; a notifier that cannot lock gives up
 
-Status: in-progress (review found the cycle-test flake; waiting for Peter's decision)
+Status: in-progress (flake fixed; waiting for Peter: CI of 2db6a41 (red expected) and the fix)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 01
@@ -151,3 +151,31 @@ it changes an existing test (ticket 04's), so it waits for Peter.
    `_bounded`); one shared helper in `pg_race.py` would do.
 9. CI uses the signal timeout, local Windows the thread one; a hang in a
    worker thread can still lose the error text locally.
+
+## Fix of this review (2026-10-26)
+
+Peter's decisions (2026-10-26): fix the cycle test (an existing ticket 04
+test; expectation unchanged) and prove it with a test that forces B before C:
+it must fail on the old harness and pass on the fixed one. Fix note 3 (log
+level) with tests. Note 4 → STORY-016; notes 5–9 → STORY-015 (items 12–16).
+
+- **How the failure on the old harness is shown** (no PostgreSQL here, so in
+  CI): two pushes, two runs. `2db6a41` moves the cycle into `_run_cycle(engine,
+  b_first)` *unchanged* and adds
+  `test_three_administrators_in_a_cycle_when_the_refused_one_goes_first`: C
+  starts only after B is seen waiting in `pg_stat_activity`, so B is first in
+  line for a1's row (PostgreSQL queues row-lock waiters in order: the first
+  waiter holds the tuple lock while it waits). Expected on that run: **934
+  passed, 1 failed** (that test, "1 call(s) still running after 15 s"). The
+  next commit fixes the harness: expected **all green**.
+- Harness fix: all three calls go through `_rolled_back_on_error` (a refused
+  call gives its locks back at once); `finally` releases A, waits for every
+  thread within the bound, and closes the sessions only when all are done,
+  as `Race` does. Both cycle tests keep the same expectation.
+- `_record_failure`: warning only when the error is a lock timeout (SQLSTATE
+  `55P03`, `LOCK_NOT_AVAILABLE`), `log.exception` for anything else.
+  `tests/test_notify_record_failure.py` (3, SQLite): 55P03 → WARNING; a
+  RuntimeError and an OperationalError of another kind → ERROR, each with
+  its traceback, never raised. The PostgreSQL "stays owed" test still sees
+  one WARNING carrying 55P03.
+- Local: 901 passed, 37 skipped.

@@ -31,6 +31,7 @@ from tests.pg_race import (
     WAIT_SECONDS,
     HeldCommit,
     Race,
+    _rolled_back_on_error,
     backend_pid,
     session_on,
     wait_until_lock_wait,
@@ -116,28 +117,37 @@ def _run_cycle(engine: Engine, b_first: bool) -> tuple[list[str], list[int]]:
     session_a, session_b, session_c = (session_on(engine) for _ in range(3))
     held = HeldCommit(session_a)
     pool = ThreadPoolExecutor(max_workers=3)
+    futures: list[Future] = []  # A, B, C as they start
     decided = False
     try:
-        future_a = pool.submit(_deactivate(a1, a2), session_a)
-        held.wait_reached(future_a)
+        # Through _rolled_back_on_error, as Race does: a refused call gives
+        # its locks back at once instead of keeping them until cleanup.
+        futures.append(pool.submit(_rolled_back_on_error, _deactivate(a1, a2), session_a))
+        held.wait_reached(futures[0])
         pid_b, pid_c = backend_pid(session_b), backend_pid(session_c)
-        future_b = pool.submit(_deactivate(a2, a3), session_b)
+        futures.append(pool.submit(_rolled_back_on_error, _deactivate(a2, a3), session_b))
         if b_first:
-            wait_until_lock_wait(engine, pid_b, future_b)
-        future_c = pool.submit(_deactivate(a3, a1), session_c)
-        wait_until_lock_wait(engine, pid_b, future_b)
-        wait_until_lock_wait(engine, pid_c, future_c)
+            wait_until_lock_wait(engine, pid_b, futures[1])
+        futures.append(pool.submit(_rolled_back_on_error, _deactivate(a3, a1), session_c))
+        wait_until_lock_wait(engine, pid_b, futures[1])
+        wait_until_lock_wait(engine, pid_c, futures[2])
         decided = True
         held.release()
-        _all_done(pool, [future_a, future_b, future_c], WAIT_SECONDS)
+        _all_done(pool, futures, WAIT_SECONDS)
     finally:
+        # As Race: let A go (abort it if the race failed), wait for every
+        # thread within the bound, and only then roll back and close: a
+        # Session must not be used from two threads.
         if not decided:
             held.abort()
+        held.release()
+        wait_futures(futures, timeout=WAIT_SECONDS)
         pool.shutdown(wait=False, cancel_futures=True)
-        for s in (session_a, session_b, session_c):
-            s.rollback()
-            s.close()
-    return [_outcome(f) for f in (future_a, future_b, future_c)], _active_admins(engine)
+        if all(f.done() for f in futures):
+            for s in (session_a, session_b, session_c):
+                s.rollback()
+                s.close()
+    return [_outcome(f) for f in futures], _active_admins(engine)
 
 
 def test_three_administrators_in_a_cycle_two_succeed_and_one_is_refused(

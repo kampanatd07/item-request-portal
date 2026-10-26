@@ -108,6 +108,8 @@ GroupKey = tuple[str, tuple[str, ...]]
 # background task could hang for good; SQLite's busy timeout (30 s) plays the
 # same role there. Past it the group stays 'created' for the resend list.
 NOTIFY_LOCK_TIMEOUT_SECONDS = 30
+# PostgreSQL's SQLSTATE when lock_timeout runs out.
+LOCK_NOT_AVAILABLE = "55P03"
 SUBJECT_CODES = 3
 
 
@@ -437,10 +439,15 @@ def _record_failure(db: Session, request_id: int, actor: str, detail: str,
         db.add(RequestEvent(request_id=request_id, actor=actor, action="notify_failed",
                             ref_event_id=ref_event_id, detail=detail[:1000]))
         db.commit()
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
         db.rollback()
-        log.warning("notify: could not record notify_failed for request %s", request_id,
-                    exc_info=True)
+        if getattr(getattr(e, "orig", None), "sqlstate", None) == LOCK_NOT_AVAILABLE:
+            # Expected while another transaction holds the row: a warning.
+            log.warning("notify: could not record notify_failed for request %s "
+                        "(row busy, lock_timeout)", request_id, exc_info=True)
+        else:
+            log.exception("notify: could not record notify_failed for request %s",
+                          request_id)
 
 
 # --- Resend: what is still waiting to be sent (ticket 06) -------------------------

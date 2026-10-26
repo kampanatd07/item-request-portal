@@ -50,6 +50,24 @@ Robustness and tidiness
 11. `unblock_ip` leaves `window_started_at`; an expired block whose row still
     counts ≥ 50 cannot be cleared by the CLI. (1st review, 8)
 
+## From the STORY-006 ticket 05 review (2026-10-26, notifier and test helpers)
+12. After both claims time out on a row someone holds FOR UPDATE, recording
+    the failure almost always times out on the same row: about 90 s per
+    background notification instead of 60 s, and the "ระบบไม่ว่าง" reason is
+    lost. Root: FOR UPDATE vs the foreign key's KEY SHARE; FOR NO KEY UPDATE in
+    `_get_locked` / `export_pending` would let the record through
+    (decisions.md 2026-10-26 judged it too large for the bug).
+13. `_bounded` (`tests/test_pg_notify_race.py`) leaves a timed-out worker
+    running; non-daemon threads are joined at interpreter exit, so a hang can
+    keep CI running to its 20-minute limit.
+14. `if holder.is_active:` never filters (a closed Session reports active);
+    harmless now, misleading.
+15. Three copies of "run in a worker, bounded, never wait on a hung thread"
+    (`Race`, `_all_done`, `_bounded`); one helper in `tests/pg_race.py`.
+16. CI uses the signal timeout, local Windows the thread one; a hang inside
+    a worker thread can still lose the error text locally. Document the split
+    in `pytest.ini`, or bound every thread wait.
+
 ## Out of scope
 - Changing the limits themselves (10 / 50 / 15 minutes).
 

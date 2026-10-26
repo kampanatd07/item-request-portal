@@ -63,6 +63,12 @@ actions (all Administrator-only).
 9. `test_an_administrator_who_lost_the_role_meanwhile_is_refused` has no type
    hints (CLAUDE.md).
 
+## From the ticket 05 review (2026-10-26)
+10. In `notify_created`'s error path `_record_failure` runs once per claimed
+    request, and each can now wait a full lock_timeout (20 requests × 30 s
+    keep a thread and a connection about 10 minutes). Stop recording after
+    the first lock timeout: the rest are owed and on the resend list anyway.
+
 ## Out of scope
 - Actions open to Procurement or Requesters (their guard is a Role every
   Account of that kind keeps; a deactivated Account's session already ends
