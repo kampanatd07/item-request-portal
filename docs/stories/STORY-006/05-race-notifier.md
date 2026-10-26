@@ -99,12 +99,16 @@ fails, analyse its error; no expectation change without asking.
 - The `created` lock-timeout test also runs in a bounded worker thread now.
 - Local: 898 passed, 36 skipped.
 
-CI on `f429488` (Peter, 2026-10-26, from the run itself): green, **934
-passed, 0 skipped**. The three-Administrator cycle test
-(`test_pg_account_race.py`, 5th) passed this time; it failed on `8d72f07`
-with no error text and nothing it runs had changed: **possibly flaky**. The
-review of this round also looks at that test for anything that can pass on
-one run and fail on another.
+CI on `f429488` (corrected by Peter, 2026-10-26, after opening the run's
+log): **red, 1 failed, 933 passed**; `0c9619c` the same. The one failure is
+the three-Administrator cycle test
+(`test_pg_account_race.py::test_three_administrators_in_a_cycle_two_succeed_and_one_is_refused`):
+"1 call(s) still running after 15 s", with an `IllegalStateChangeError` in
+the third future. That is the flake the review below explains (1, 2),
+fixed in `c3055e7`. Every notifier test passed; nothing else was hidden.
+(An earlier note here said "green, 934 passed" for `f429488`: wrong, the
+log had not been opened.) It also failed on `8d72f07` with no error text
+and nothing it runs had changed: **flaky**.
 
 ## Code review of this round (2026-10-26)
 
@@ -120,7 +124,8 @@ it changes an existing test (ticket 04's), so it waits for Peter.
    commits, then B is refused: pass. If B wins, B locks a1 and a3, is
    refused (`PERMISSION_CHANGED`) and keeps both locks open; C waits on a1
    until the test's `finally`, and `_all_done` fails after 15 s. About half
-   the runs: red on `8d72f07`, green on `0be8445` and `f429488`, no code
+   the runs: red on `8d72f07`, green on `0be8445`, red on `f429488` and
+   `0c9619c` (corrected 2026-10-26, see the CI note above), no code
    change. Production is not affected: a request's session is rolled back
    when the request ends (STORY-016 item 5 notes the locks are held until
    then).
