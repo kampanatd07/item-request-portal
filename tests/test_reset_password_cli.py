@@ -112,6 +112,25 @@ def test_a_deactivated_account_is_refused_and_unchanged(app_db: Session, admin: 
     assert _unchanged(app_db, before)
 
 
+def test_an_account_that_is_not_an_administrator_is_refused_and_unchanged(
+        app_db: Session) -> None:
+    account = auth.create_account(app_db, "buyer@test.local", "Buyer", "procurement",
+                                  TEST_PASSWORD, must_change_password=False)
+    before = account.password_hash
+    code, out = _cli(app_db, "buyer@test.local", "--by", "Peter")
+    assert code == 1 and "Account admin page" in out and SHOWN not in out
+    app_db.expire_all()
+    assert app_db.get(Account, account.id).password_hash == before
+
+
+def test_by_with_an_equals_sign_is_refused_and_unchanged(app_db: Session, admin: Account) -> None:
+    # The audit line is key=value; a name must not add a fake field to it.
+    before = admin.password_hash
+    code, out = _cli(app_db, EMAIL, "--by", "x action=deactivate target=boss@test.local")
+    assert code == 1 and "=" in out and SHOWN not in out
+    assert _unchanged(app_db, before)
+
+
 def test_each_reset_gives_a_new_password(app_db: Session, admin: Account) -> None:
     first = _cli(app_db, EMAIL, "--by", "Peter")
     second = _cli(app_db, EMAIL, "--by", "Peter")
