@@ -1,10 +1,9 @@
-import logging
-
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import RedirectResponse, Response
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.config import settings
+from app.logging_setup import setup_logging
 
 from app.routes.accounts import router as accounts_router
 from app.routes.admin import router as admin_router
@@ -24,9 +23,7 @@ from app.routes.requests import router as requests_router
 from app.services.sessions import COOKIE_NAME
 from app.templating import templates
 
-# App loggers (e.g. app.accounts, the Account admin log) at INFO. basicConfig is a
-# no-op if a handler is already installed, so a deploy can configure its own.
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+setup_logging()
 
 # The API docs list every route; keep them to dev machines.
 _dev = settings.app_env == "dev"

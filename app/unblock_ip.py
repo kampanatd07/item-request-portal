@@ -17,6 +17,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
+from app.logging_setup import setup_logging
 from app.services.auth import AuthError, unblock_ip
 
 
@@ -53,5 +54,6 @@ def run(db: Session, argv: list[str], out: Callable[[str], None] = print,
 
 
 if __name__ == "__main__":
+    setup_logging()  # else the login_ip_unblocked line (who did it) is dropped
     with SessionLocal() as session:
         sys.exit(run(session, sys.argv[1:]))
