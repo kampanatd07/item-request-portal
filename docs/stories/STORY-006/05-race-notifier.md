@@ -1,6 +1,6 @@
 # 05: Postgres race: two resends send one email; a notifier that cannot lock gives up
 
-Status: in-progress (CI green on f429488; review running)
+Status: in-progress (review found the cycle-test flake; waiting for Peter's decision)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 01
@@ -105,3 +105,49 @@ passed, 0 skipped**. The three-Administrator cycle test
 with no error text and nothing it runs had changed: **possibly flaky**. The
 review of this round also looks at that test for anything that can pass on
 one run and fail on another.
+
+## Code review of this round (2026-10-26)
+
+Ran `/code-review` on `8d72f07..f429488`, plus the cycle test and its
+helpers (Peter). 9 findings. The first explains the flaky cycle test; fixing
+it changes an existing test (ticket 04's), so it waits for Peter.
+
+### The cycle test flake (test only; waiting for Peter)
+1. **When B is refused, nothing rolls B back, so B keeps its locks and C
+   waits behind them.** The cycle test submits the actions bare, not through
+   `_rolled_back_on_error` as `Race` does. After A commits, whichever of B
+   (a2→a3) and C (a3→a1) gets a1's lock first decides the run: if C wins, C
+   commits, then B is refused: pass. If B wins, B locks a1 and a3, is
+   refused (`PERMISSION_CHANGED`) and keeps both locks open; C waits on a1
+   until the test's `finally`, and `_all_done` fails after 15 s. About half
+   the runs: red on `8d72f07`, green on `0be8445` and `f429488`, no code
+   change. Production is not affected: a request's session is rolled back
+   when the request ends (STORY-016 item 5 notes the locks are held until
+   then).
+2. With 1, the `finally` rolls back and closes C's session from the main
+   thread while C's worker may still be using it, which can hide the real
+   assertion or hang (fits "F with no error text").
+
+### (ข) Notes
+3. `_record_failure` now logs *every* failure as a warning (was an error):
+   a real failure (connection lost, constraint) drops to WARNING too.
+   Recommend: warning only for a lock timeout (55P03), `log.exception` for
+   the rest.
+4. In `notify_created`'s error path, `_record_failure` runs once per claimed
+   request; each can now wait a full lock_timeout (20 requests × 30 s).
+   Recommend: stop recording after the first lock timeout (the rest are
+   owed anyway).
+5. After both claims time out on a row someone holds, recording the failure
+   almost always times out too (same row): about 90 s instead of 60 s, and
+   the reason is lost anyway. The root is FOR UPDATE vs the foreign key's
+   KEY SHARE; FOR NO KEY UPDATE in `_get_locked` / `export_pending` would let
+   the record through (rejected as too large in decisions.md 2026-10-26).
+6. `_bounded` leaves a timed-out worker running; non-daemon threads are
+   joined at interpreter exit, so a hang could keep CI running to its 20
+   minute limit.
+7. `if holder.is_active:` never filters (a closed Session reports active);
+   harmless now.
+8. A third copy of "run bounded in a worker" (`Race`, `_all_done`,
+   `_bounded`); one shared helper in `pg_race.py` would do.
+9. CI uses the signal timeout, local Windows the thread one; a hang in a
+   worker thread can still lose the error text locally.
