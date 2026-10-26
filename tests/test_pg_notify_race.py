@@ -9,8 +9,11 @@ means not in the file.
 """
 
 import io
+import logging
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 
 import pytest
 from openpyxl import load_workbook
@@ -122,56 +125,80 @@ def test_two_resends_of_a_status_email_at_once_send_one(pg_engine: Engine, statu
 
 # --- a notifier that cannot get the row gives up -------------------------------------------
 
+class LockTimeouts:
+    """What the notifier's claims ran into, and a hook for the moment it gave up."""
+
+    def __init__(self) -> None:
+        self.sqlstates: list[str | None] = []
+        self.after_giving_up: Callable[[], None] = lambda: None
+
+
 @pytest.fixture()
-def short_lock_timeout(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+def short_lock_timeout(monkeypatch: pytest.MonkeyPatch) -> LockTimeouts:
     """lock_timeout of 1 s for the notifier, and a record of the SQLSTATE of
     each claim that failed: proof it gave up on a lock, not for another reason."""
     monkeypatch.setattr(notify, "NOTIFY_LOCK_TIMEOUT_SECONDS", 1)
     real_claim = notify._claim
-    sqlstates: list[str] = []
+    seen = LockTimeouts()
 
     def claim(db: Session, request_id: int, status: str) -> ItemRequest | None:
         try:
             return real_claim(db, request_id, status)
         except OperationalError as e:
-            sqlstates.append(getattr(e.orig, "sqlstate", None))
+            seen.sqlstates.append(getattr(e.orig, "sqlstate", None))
+            if len(seen.sqlstates) == 2:  # the second try: the notifier gives up
+                seen.after_giving_up()
             raise
 
     monkeypatch.setattr(notify, "_claim", claim)
-    return sqlstates
+    return seen
 
 
 def _hold_row(engine: Engine, request_id: int) -> Session:
-    """Another transaction holding the request row (e.g. a long write)."""
+    """Another transaction holding the request row FOR UPDATE, as an Approval or
+    an export does (_get_locked, export_pending)."""
     holder = session_on(engine)
     holder.execute(text("SELECT id FROM item_requests WHERE id = :id FOR UPDATE"),
                    {"id": request_id})
     return holder
 
 
-def _timed(call: Callable[[], object]) -> tuple[object, float]:
+def _bounded(call: Callable[[], object]) -> tuple[object, float]:
+    """Run `call` in a worker thread; fail (not hang) if it outlives the bound.
+    The caller releases the holder in `finally`, so a stuck worker can end."""
+    pool = ThreadPoolExecutor(max_workers=1)
     started = time.monotonic()
-    result = call()
+    future = pool.submit(call)
+    try:
+        result = future.result(WAIT_SECONDS)
+    except FutureTimeout:
+        raise AssertionError(f"notifier still running after {WAIT_SECONDS} s") from None
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
     return result, time.monotonic() - started
+
+
+def _release(holder: Session) -> None:
+    holder.rollback()
+    holder.close()
 
 
 LOCK_NOT_AVAILABLE = "55P03"  # PostgreSQL: lock_timeout reached
 
 
 def test_a_created_email_whose_row_stays_locked_is_left_owed(
-        pg_engine: Engine, short_lock_timeout: list[str]) -> None:
+        pg_engine: Engine, short_lock_timeout: LockTimeouts) -> None:
     request_id = _created(pg_engine)
     outbox = FakeMailSender()
     holder = _hold_row(pg_engine, request_id)
     try:
-        result, seconds = _timed(lambda: notify_created(
+        result, seconds = _bounded(lambda: notify_created(
             lambda: session_on(pg_engine), [request_id], outbox, ACTOR))
     finally:
-        holder.rollback()
-        holder.close()
+        _release(holder)
 
     assert result == {"sent": 0, "failed": 0, "skipped": 1}
-    assert short_lock_timeout == [LOCK_NOT_AVAILABLE] * 2  # both tries hit lock_timeout
+    assert short_lock_timeout.sqlstates == [LOCK_NOT_AVAILABLE] * 2  # both tries
     assert 1.5 <= seconds < WAIT_SECONDS, seconds  # 2 x 1 s: SET LOCAL applied
     assert outbox.sent == []
     assert _status(pg_engine, request_id) == "created"
@@ -180,20 +207,53 @@ def test_a_created_email_whose_row_stays_locked_is_left_owed(
         assert [(p.req.id, p.kind) for p in owed] == [(request_id, "created")]
 
 
-def test_a_status_email_whose_row_stays_locked_is_recorded_for_resend(
-        pg_engine: Engine, short_lock_timeout: list[str]) -> None:
+def test_a_status_email_whose_row_stays_locked_gives_up_and_stays_owed(
+        pg_engine: Engine, short_lock_timeout: LockTimeouts,
+        caplog: pytest.LogCaptureFixture) -> None:
+    """The holder keeps the row the whole time: even recording the failure
+    (its INSERT's foreign key needs the row) times out. Bounded, logged, and
+    the email is still owed (decisions.md 2026-10-26)."""
     request_id, change_id = _announced(pg_engine, "needs_info")
     outbox = FakeMailSender()
     holder = _hold_row(pg_engine, request_id)
     try:
-        result, seconds = _timed(lambda: notify_status(
-            lambda: session_on(pg_engine), request_id, change_id, outbox, ACTOR))
+        with caplog.at_level(logging.WARNING, logger="app.notify"):
+            result, seconds = _bounded(lambda: notify_status(
+                lambda: session_on(pg_engine), request_id, change_id, outbox, ACTOR))
     finally:
-        holder.rollback()
-        holder.close()
+        _release(holder)
 
     assert result == "failed"
-    assert short_lock_timeout == [LOCK_NOT_AVAILABLE] * 2
+    assert short_lock_timeout.sqlstates == [LOCK_NOT_AVAILABLE] * 2
+    assert 2.5 <= seconds < WAIT_SECONDS, seconds  # 2 claims + the record, 1 s each
+    assert outbox.sent == []
+    assert _events(pg_engine, request_id, "notify_failed") == []
+    records = [r for r in caplog.records if "could not record notify_failed" in r.getMessage()]
+    assert len(records) == 1 and records[0].levelno == logging.WARNING
+    assert getattr(records[0].exc_info[1].orig, "sqlstate", None) == LOCK_NOT_AVAILABLE
+    with session_on(pg_engine) as db:  # not lost: on the resend list once LOST_AFTER old
+        owed = pending_notifications(db, utc_now() + LOST_AFTER + LOST_AFTER)
+        assert [(p.req.id, p.kind, p.event_id) for p in owed] == [
+            (request_id, "needs_info", change_id)]
+
+
+def test_a_status_email_given_up_is_recorded_once_the_row_is_free(
+        pg_engine: Engine, short_lock_timeout: LockTimeouts) -> None:
+    """The holder lets go right after the notifier gave up: the failure is
+    recorded, with its reason, for the resend list."""
+    request_id, change_id = _announced(pg_engine, "needs_info")
+    outbox = FakeMailSender()
+    holder = _hold_row(pg_engine, request_id)
+    short_lock_timeout.after_giving_up = lambda: _release(holder)
+    try:
+        result, seconds = _bounded(lambda: notify_status(
+            lambda: session_on(pg_engine), request_id, change_id, outbox, ACTOR))
+    finally:
+        if holder.is_active:
+            _release(holder)
+
+    assert result == "failed"
+    assert short_lock_timeout.sqlstates == [LOCK_NOT_AVAILABLE] * 2
     assert 1.5 <= seconds < WAIT_SECONDS, seconds
     assert outbox.sent == []
     failed = _events(pg_engine, request_id, "notify_failed")

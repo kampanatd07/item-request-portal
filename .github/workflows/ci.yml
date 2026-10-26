@@ -46,4 +46,7 @@ jobs:
       - name: Tests (SQLite + PostgreSQL)
         env:
           TEST_POSTGRES_URL: postgresql+psycopg://app:app@localhost:5432/itemportal
-        run: pytest -ra
+        # signal (Linux): a hung test fails on its own and the run goes on to print
+        # every FAILURE; the thread method (pytest.ini, for Windows) ends the whole
+        # process instead. --durations shows what runs close to the 60 s bound.
+        run: pytest -ra -o timeout_method=signal --durations=10

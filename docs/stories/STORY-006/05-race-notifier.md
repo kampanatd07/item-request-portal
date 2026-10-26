@@ -1,6 +1,6 @@
 # 05: Postgres race: two resends send one email; a notifier that cannot lock gives up
 
-Status: in-progress (waiting for Peter: CI)
+Status: in-progress (CI red on 8d72f07; fix pushed, waiting for Peter: CI)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 01
@@ -62,3 +62,39 @@ pooled connection, possibly not the backend watched in `pg_stat_activity`.
 Found while writing these tests, before any CI run.
 
 No production code change, no migration. Local: 898 passed, 35 skipped.
+
+## CI red on `8d72f07` (2026-10-26)
+
+(An earlier "green, 933" message was sent before Peter looked at the run;
+the real result was red.) Two problems:
+1. `test_a_status_email_whose_row_stays_locked_is_recorded_for_resend` hung
+   to the 60 s timeout in `_record_failure`'s commit. Cause (from the code):
+   after both claims hit 55P03 and rolled back (ending the claim's `SET
+   LOCAL`), `_record_failure` INSERTs a `notify_failed` event whose foreign
+   key needs a KEY SHARE lock on the request row; the test's FOR UPDATE holder
+   blocks it, with no lock_timeout, and the holder is released only after the
+   notifier returns. In production: a notifier that gave up on a row held
+   FOR UPDATE for over 2 × 30 s then waited on it without limit. Since
+   STORY-002.
+2. The three-Administrator cycle test (`test_pg_account_race.py`, 5th) shows
+   F although it passed on `0be8445`; the error text was lost because the
+   thread timeout method ended the process. Nothing the cycle test runs
+   changed since `0be8445` (it does not use `Race`); cause not found yet.
+
+Peter's decisions (2026-10-26): (1) `_record_failure` gets a lock_timeout in
+its own transaction; on timeout a warning, no raise (app change approved);
+decisions.md records that every notifier transaction taking a lock or
+writing has a lock_timeout. (2) The status lock-timeout test (new in this
+ticket) split in two and run in a worker thread with a bound (approved).
+(3) CI runs `pytest -ra -o timeout_method=signal --durations=10`, so a hung
+test fails alone and every failure is printed. If the cycle test still
+fails, analyse its error; no expectation change without asking.
+
+- Status email, holder keeps the row: `failed` within the bound (2 claims +
+  the record, about 3 s), both claims 55P03, no `notify_failed` row, one
+  warning whose error is 55P03, and the change is on the resend list once
+  older than `LOST_AFTER`.
+- Status email, holder lets go right after the notifier gave up:
+  `notify_failed` "ระบบไม่ว่าง" recorded for the change.
+- The `created` lock-timeout test also runs in a bounded worker thread now.
+- Local: 898 passed, 36 skipped.

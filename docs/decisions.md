@@ -1,5 +1,25 @@
 # Decision Log
 
+## [2026-10-26] Every notifier transaction that takes a lock or writes has a lock_timeout
+**Decision:** Each transaction of the notifier (`app/services/notify.py`)
+that takes a row lock or writes runs `SET LOCAL lock_timeout`
+(`NOTIFY_LOCK_TIMEOUT_SECONDS`): the claim, the send-and-record, and
+`_record_failure`. Plain SELECTs need none (in PostgreSQL they never wait on
+row locks). If recording a failure times out, it is logged as a warning and
+nothing is raised; the email is still owed and shows on the resend list once
+older than `LOST_AFTER`, with the generic reason.
+**Why:** a `notify_failed` INSERT's foreign key needs a KEY SHARE lock on the
+request row, which a FOR UPDATE holder (an Approval, an export) blocks. Before
+this, `_record_failure` ran right after a rollback (which ends the claim's
+SET LOCAL) with no timeout, so a notifier that had given up on a held row
+then waited on that same row without limit, keeping a thread and a DB
+connection. The gap was there since STORY-002; a STORY-006 part A test
+(ticket 05) hung on it in CI.
+**Alternatives considered:** a holder that takes FOR NO KEY UPDATE instead of
+FOR UPDATE (does not block the foreign key) — changes every `_get_locked`
+caller, larger than the bug.
+**Revisit when:** a new notifier write is added (it needs the same bound).
+
 ## [2026-10-23] Accepted: one person behind a shared plant IP can block that plant's logins
 **Decision:** The login limit stays per client IP (50 failures in 15 minutes
 → 15-minute block), knowing that one person on a plant's network can block
