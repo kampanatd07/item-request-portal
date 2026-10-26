@@ -68,6 +68,23 @@ Robustness and tidiness
     a worker thread can still lose the error text locally. Document the split
     in `pytest.ini`, or bound every thread wait.
 
+## From the STORY-006 ticket 05 second review (2026-10-26)
+17. `_record_failure` treats only PostgreSQL 55P03 as an expected busy row:
+    SQLite's "database is locked" (dev) and PostgreSQL 40P01 (deadlock) /
+    57014 (statement timeout) are now logged as errors. One
+    `_is_lock_timeout(e)` helper, also used by the two claim paths, which
+    still take any `OperationalError` for a lock timeout (a lost connection
+    there reads as "busy" with no traceback).
+18. `db.rollback()` in `_record_failure`'s `except` is unguarded (as before
+    this ticket): if it raises, the "never raises" contract breaks and
+    nothing is logged.
+19. `tests/test_pg_notify_race.py` keeps its own `LOCK_NOT_AVAILABLE`; use
+    `notify.LOCK_NOT_AVAILABLE`. The SQLite log-level test fakes `.sqlstate`
+    instead of using psycopg's `LockNotAvailable`.
+20. `_run_cycle` copies `Race`'s cleanup (see 15); its success path waits and
+    shuts the pool down twice; `_admin_id` rebuilds the e-mail format instead
+    of returning a3's id; with `b_first` it polls B's lock wait twice.
+
 ## Out of scope
 - Changing the limits themselves (10 / 50 / 15 minutes).
 

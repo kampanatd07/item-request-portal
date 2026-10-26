@@ -1,6 +1,6 @@
 # 05: Postgres race: two resends send one email; a notifier that cannot lock gives up
 
-Status: in-progress (CI proved the flake fix; review running)
+Status: done (2026-10-26)
 Triage: ready-for-agent
 Parent: STORY-006 (part A)
 Blocked by: 01
@@ -12,22 +12,22 @@ request row within its `lock_timeout` (`SET LOCAL`, 30 s in production)
 gives up and leaves the requests `created` on the resend list instead of
 hanging its background task.
 
-- [ ] Two resends of one `created` group at once: the fake outbox holds one
+- [x] Two resends of one `created` group at once: the fake outbox holds one
       email; the request is recorded as notified once
-- [ ] Two resends of one status email (`needs_info` / `rejected`) at once:
+- [x] Two resends of one status email (`needs_info` / `rejected`) at once:
       one email
-- [ ] A transaction holds the request row; the notifier's timeout is lowered
+- [x] A transaction holds the request row; the notifier's timeout is lowered
       to about 1 s for the test: the notifier gives up within a few seconds,
       nothing is sent, the request is still on the resend list, and the
       failure is recorded as the existing code records it
-- [ ] The `SET LOCAL` really applies on PostgreSQL (the wait ends at the
+- [x] The `SET LOCAL` really applies on PostgreSQL (the wait ends at the
       lowered timeout, not at the test timeout)
-- [ ] A rejection (`approved → rejected`) while an export holds that row
+- [x] A rejection (`approved → rejected`) while an export holds that row
       (added by Peter, 2026-10-22, from the ticket 03 review): the loser
       waits on the lock, and the outcome is consistent: if the request is in
       the file it is `exported`, not `rejected`; if it is `rejected` it is
       not in the file
-- [ ] Waits bounded; no production code change unless a test shows a real
+- [x] Waits bounded; no production code change unless a test shows a real
       problem; if one does, stop and tell Peter before fixing. No migration
 
 ## Notes (2026-10-23)
@@ -184,3 +184,12 @@ level) with tests. Note 4 → STORY-016; notes 5–9 → STORY-015 (items 12–1
 expected, **934 passed, 1 failed**: the forced-order test, "still running
 after 15 s". `c3055e7` green, **938 passed, 0 skipped**. The forced order
 fails on the old harness and passes on the fixed one.
+
+## Second code review and close (2026-10-26)
+
+Ran `/code-review` on `b9154f2..c3055e7` only (Peter's rule). 10 findings,
+**no (ก)**: log levels for other busy errors, two gaps that predate this
+ticket (an unguarded rollback in `_record_failure`; the claims taking any
+`OperationalError` for a lock timeout), and test tidiness. Per the rule 05
+closes; the notes are STORY-015 items 17–20. **Part A (tickets 01–08) is
+complete.**
