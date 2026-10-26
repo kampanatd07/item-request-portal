@@ -86,7 +86,10 @@ class Settings(BaseSettings):
         (no proxy: the connecting address is the client). Raises ValueError
         on a value that must not start the app."""
         raw = self.forwarded_allow_ips.strip()
-        if not raw:
+        # A stray comma leaves an empty entry: a typo, not a wrong value. Only
+        # commas count as unset (STORY-015 21).
+        entries = [e.strip() for e in raw.split(",") if e.strip()]
+        if not entries:
             if self.app_env == "dev":
                 return ["127.0.0.1"]
             # Unset behind a platform proxy, every request would look like the
@@ -95,7 +98,6 @@ class Settings(BaseSettings):
                 "FORWARDED_ALLOW_IPS must be set when APP_ENV is not 'dev': the IPs or "
                 "CIDR ranges of the proxy in front of the app (comma separated), or "
                 "'none' if clients connect directly (see .env.example)")
-        entries = [e.strip() for e in raw.split(",")]
         if "*" in raw:
             # uvicorn's "*" takes the leftmost X-Forwarded-For entry, which the
             # client writes itself: anyone could pose as any IP.

@@ -90,6 +90,14 @@ Robustness and tidiness
     empty entry that `trusted_proxies()` rejects, so the app refuses to
     start (fails closed, message names `''`). Drop empty entries. Worth
     doing before part B sets the value.
+    **Done** on `story/006-reset-password-cli` (2026-10-26): empty entries
+    are dropped; only commas (`" , "`) count as unset. This changed an
+    existing test, approved by Peter (2026-10-26):
+    `test_a_value_that_is_not_an_ip_or_cidr_refuses_to_start` no longer
+    lists `"10.0.0.5,"`, which moved to `test_accepted_values`. Reason: an
+    empty entry left by a stray comma is a typo, not a wrong value; real
+    wrong values (`"none, 10.0.0.5"`, `"10.0.0.300"`, a hostname, `*`) still
+    fail closed.
 22. On SQLite (dev only) `_lock_ip_row`'s `begin_nested()` is the outermost
     SAVEPOINT for a new IP; pysqlite then commits at RELEASE, so step 1 of
     a login is not atomic on SQLite. PostgreSQL is unaffected.

@@ -58,7 +58,8 @@ believed, or `none` if clients connect directly. Required outside
 without it); `*` is refused. A wrong value is not caught: part B must check
 on the deployed app that two machines count as two IPs. If the platform
 does not publish its proxy IPs, see the "trust one hop" option in STORY-006
-Further Notes. Avoid a trailing comma for now (STORY-015 item 21).
+Further Notes. A stray comma is ignored; only commas count as unset
+(STORY-015 item 21, done on `story/006-reset-password-cli`).
 
 **Never move `dev.db` data to production.** It holds test Administrator
 Accounts (`temp.admin@test.local`, `temp2.admin@test.local`) and test
