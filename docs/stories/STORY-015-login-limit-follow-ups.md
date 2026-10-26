@@ -122,6 +122,31 @@ Robustness and tidiness
     `run()`), and matches the exact `INFO app.accounts` prefix of
     `LOG_FORMAT`.
 
+## From the review of `story/006-reset-password-cli` (2026-10-26, `dae3940..b428020`)
+No (ก). 7 findings; the changed proxy test was approved by Peter (item 21).
+27. **Any active Account, not only an Administrator:** `reset_password_from_cli`
+    resets whatever email it is given, while its docstring and README frame
+    it as the locked-out-Administrator command. Whoever has the shell can
+    already change the DB, so no new power; but limiting it to
+    `role == "administrator"` (exit 1, "use the Account admin page") would
+    match the docs and shrink the misuse. Recommend: limit it.
+28. `--by` is only whitespace-collapsed; a name like `x action=deactivate
+    target=boss@corp` puts fake `key=value` fields into the audit line.
+    Same in `unblock_ip`. Quote the value, or refuse `=` in it.
+29. No row lock: a CLI reset and a web reset of the same Account at once
+    both write `session_version` 3 → 4 and one printed password silently
+    stops working. Same family as STORY-016 (lost `session_version` bump);
+    `with_for_update()` on the select.
+30. The CLI raises `AuthError` with English text, while `AuthError` is
+    documented as a Thai user-facing message (`unblock_ip` already does
+    this). A `CliError`, or say in the docstring that CLI messages are
+    English.
+31. `app/reset_password.py` copies `unblock_ip`'s `_Parser` / `_BadInput` /
+    `run()` shape, and the `--by` clean-up is copied in `auth.py`: one
+    shared helper (with 28's fix in one place). The success line re-derives
+    the email with `.strip().lower()` instead of printing the Account's
+    stored email.
+
 ## Out of scope
 - Changing the limits themselves (10 / 50 / 15 minutes).
 
