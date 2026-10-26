@@ -97,6 +97,23 @@ Robustness and tidiness
     (CLAUDE.md). Most existing test files have none either; decide once
     whether the rule covers tests.
 
+## From the review of the unblock log fix (2026-10-26, `2ad9b3d..7a0ec12`)
+24. `setup_logging` relies on `basicConfig` being a no-op when a handler
+    exists: a deploy whose root logger is at WARNING drops every
+    `app.accounts` INFO line (blocked, unblocked, Account admin). Set
+    `logging.getLogger("app").setLevel(logging.INFO)` explicitly.
+    (Same as before the fix; main.py had the same call.)
+25. `%(asctime)s` is local time while the lines carry `... UTC` times: on a
+    Bangkok machine one line shows two clocks 7 h apart. Use UTC
+    (`Formatter.converter = time.gmtime`) or label the time.
+26. The subprocess test (`test_the_real_command_writes_who_unblocked_to_its_log`):
+    no `timeout=` (a stall hangs the run until pytest-timeout's 60 s), no
+    `cwd` (needs pytest run from the repo root, like the two sibling
+    subprocess tests), inherits the whole `os.environ`, does not re-read the
+    DB to check the block was lifted (other tests cover that through
+    `run()`), and matches the exact `INFO app.accounts` prefix of
+    `LOG_FORMAT`.
+
 ## Out of scope
 - Changing the limits themselves (10 / 50 / 15 minutes).
 

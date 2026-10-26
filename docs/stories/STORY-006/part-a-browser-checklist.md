@@ -55,10 +55,9 @@ Use **http://127.0.0.1:8000** (not `localhost`, which may go over IPv6 `::1`).
 - [ ] 7. `python -m app.unblock_ip 127.0.0.1 --by Peter` → `Unblocked
       127.0.0.1.`, `$LASTEXITCODE` is `0`, and the second window shows
       `login_ip_unblocked ip=127.0.0.1 by=Peter`
-      **(fails today: see the note below; needs the fix first)**
 - [ ] 8. Log in again in the browser → it works
 
-## Note: item 7 fails today (found 2026-10-26)
+## Note: item 7 failed before `7a0ec12` (found 2026-10-26)
 
 Checked on a copy of `dev.db`: the command unblocks (exit 0) but prints no
 `login_ip_unblocked` line anywhere. `app/unblock_ip.py` never sets up
@@ -66,3 +65,10 @@ logging (only `app/main.py` calls `basicConfig`), so the INFO line is
 dropped. The ticket 08 test passes because `caplog` captures the line
 itself. Ticket 08's "unblocks and logs who" therefore does not hold
 outside tests: (ก).
+
+Fixed in `7a0ec12` (one `setup_logging()` for the app and the command;
+a subprocess test that failed first, `114f5fa`). CI on `7a0ec12`: green,
+939 passed, 0 skipped (Peter, from the run). `/code-review` of
+`2ad9b3d..7a0ec12`: 8 findings, no (ก); notes in STORY-015 24–26 and a
+part B note in STORY-006 (where the command's log line ends up on the
+platform).

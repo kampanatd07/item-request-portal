@@ -279,6 +279,14 @@ together exceed the Exchange sending limit.
   plant-wide block. A *wrong* value still is not caught (e.g. `none` behind a
   proxy makes every request look like the proxy's IP): part B must check, on
   the deployed app, that two machines are counted as two IPs.
+- **Part B: where `python -m app.unblock_ip`'s log line ends up** (review
+  of `2ad9b3d..7a0ec12`, 2026-10-26). The command logs who lifted a block
+  to its own stderr. On a platform, a command run in a shell session
+  (`docker exec`, the platform's web shell) prints there, not into the
+  service's log stream where `login_ip_blocked` lands, so the record of who
+  unblocked closes with the session. Part B checks it on the chosen
+  platform; if it is not kept, write the line where the app's log goes or
+  keep an audit row in the DB.
 - The drift check may find existing drift; budget a migration for it.
 - Local runs of the PostgreSQL tests: start the compose `db` service and set
   `TEST_POSTGRES_URL`; README gets the one-line command.
