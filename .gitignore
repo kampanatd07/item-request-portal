@@ -3,6 +3,7 @@ __pycache__/
 .env
 dev.db
 *.db
+*.db.bak-*
 .pytest_cache/
 # Real company data files (e.g. item master exports) — never commit
 private/
