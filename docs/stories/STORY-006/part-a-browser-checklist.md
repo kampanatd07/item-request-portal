@@ -1,6 +1,6 @@
 # STORY-006 part A: browser checklist before merge (Peter)
 
-Status: open · Run on Peter's machine, `APP_ENV=dev`, on the real `dev.db`
+Status: done (Peter, 2026-10-26, all 8 passed) · Run on Peter's machine, `APP_ENV=dev`, on the real `dev.db`
 Backup: `dev.db.bak-2026-10-26` (ignored by git). Keep it until every box
 below is ticked.
 
@@ -36,26 +36,30 @@ Use **http://127.0.0.1:8000** (not `localhost`, which may go over IPv6 `::1`).
 
 ## Checklist
 
-- [ ] 1. The app starts with no error in the uvicorn window
-- [ ] 2. Log in with your own Administrator Account → the queue shows the 2
+- [x] 1. The app starts with no error in the uvicorn window
+- [x] 2. Log in with your own Administrator Account → the queue shows the 2
       existing requests (data kept through the migration)
-- [ ] 3. Open a request, My requests and the Account admin page: each opens
+      _Peter: #1 90701000065 exported, #2 90701000064 rejected + retired._
+- [x] 3. Open a request, My requests and the Account admin page: each opens
       with no error
-- [ ] 4. Log out, log in once with a wrong password, then with the right
+- [x] 4. Log out, log in once with a wrong password, then with the right
       one → you are in (a failed login does not stop the right one)
-- [ ] 5. **IP limit:** in a second PowerShell window, fire 50 failed logins:
+- [x] 5. **IP limit:** in a second PowerShell window, fire 50 failed logins:
       ```powershell
       1..50 | ForEach-Object { try { Invoke-WebRequest -Uri http://127.0.0.1:8000/login -Method Post -UseBasicParsing -Body @{ email = "spray$_@test.local"; password = "wrong-password" } | Out-Null } catch {} }
       ```
       → the login page now shows the Thai "wait 15 minutes" message, and the
       uvicorn window shows a line `login_ip_blocked ip=127.0.0.1 until=…`
-- [ ] 6. In the second window (`$env:APP_ENV = "dev"` set there too):
+      _Peter: 48 × 401, then 429: his 2 earlier wrong logins (item 4)
+      count on the same IP, 2 + 48 = 50. Thai message on the 429 page;
+      the line was in the uvicorn window._
+- [x] 6. In the second window (`$env:APP_ENV = "dev"` set there too):
       `python -m app.unblock_ip 127.0.0.1` (no `--by`) → `Error: the
       following arguments are required: --by`, and `$LASTEXITCODE` is `1`
-- [ ] 7. `python -m app.unblock_ip 127.0.0.1 --by Peter` → `Unblocked
+- [x] 7. `python -m app.unblock_ip 127.0.0.1 --by Peter` → `Unblocked
       127.0.0.1.`, `$LASTEXITCODE` is `0`, and the second window shows
       `login_ip_unblocked ip=127.0.0.1 by=Peter`
-- [ ] 8. Log in again in the browser → it works
+- [x] 8. Log in again in the browser → it works
 
 ## Note: item 7 failed before `7a0ec12` (found 2026-10-26)
 
@@ -72,3 +76,13 @@ a subprocess test that failed first, `114f5fa`). CI on `7a0ec12`: green,
 `2ad9b3d..7a0ec12`: 8 findings, no (ก); notes in STORY-015 24–26 and a
 part B note in STORY-006 (where the command's log line ends up on the
 platform).
+
+## Found while running it (Peter, 2026-10-26)
+
+- Peter had forgotten his own Administrator password and reset it with
+  `auth.reset_password` through `python -c`: there is no command for it.
+  → Part B: a reset-password command like `unblock_ip`, `--by` required
+  (STORY-006 Further Notes).
+- `dev.db` holds test Administrator Accounts `temp.admin@test.local` and
+  `temp2.admin@test.local`. **Never move dev.db data to production**
+  (HANDOFF §2, STORY-006 Further Notes).

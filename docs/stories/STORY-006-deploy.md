@@ -1,6 +1,6 @@
 # STORY-006: Deploy for the 4 plants
 
-Status: planned (part A) · part B todo · Depends on: STORY-001, STORY-002, STORY-009 (requesters must be able to answer Needs Info before the plants get access), STORY-010 (code override must be validated before deploy), STORY-013 (a category change must not leave the old prefix in names exported to AX)
+Status: part A done (2026-10-26, not yet merged) · part B todo · Depends on: STORY-001, STORY-002, STORY-009 (requesters must be able to answer Needs Info before the plants get access), STORY-010 (code override must be validated before deploy), STORY-013 (a category change must not leave the old prefix in names exported to AX)
 Triage: ready-for-agent
 
 ## Why
@@ -279,6 +279,17 @@ together exceed the Exchange sending limit.
   plant-wide block. A *wrong* value still is not caught (e.g. `none` behind a
   proxy makes every request look like the proxy's IP): part B must check, on
   the deployed app, that two machines are counted as two IPs.
+- **Part B: a reset-password command** (Peter, 2026-10-26). An
+  Administrator who forgets their password, with no other Administrator to
+  reset it, has only `python -c` today. Add `python -m app.reset_password
+  <email> --by "<name>"`, built like `unblock_ip` (`--by` required, exit
+  codes, prints the temporary password once, logs who but never the
+  password).
+- **Part B: never move `dev.db` data to production** (Peter, 2026-10-26).
+  It holds test Administrator Accounts (`temp.admin@test.local`,
+  `temp2.admin@test.local`) and test requests. Production starts from
+  `alembic upgrade head` + `python -m app.seed` + `create_admin`; reference
+  data comes from the seed and the Snapshot uploads.
 - **Part B: where `python -m app.unblock_ip`'s log line ends up** (review
   of `2ad9b3d..7a0ec12`, 2026-10-26). The command logs who lifted a block
   to its own stderr. On a platform, a command run in a shell session
@@ -302,8 +313,8 @@ together exceed the Exchange sending limit.
     one logging setup function called by `main.py` and `unblock_ip.py`
     (same format). Then push → Peter checks CI from the real numbers →
     `/code-review` of that diff only → no (ก), go on.
-3b. Peter runs the 8 browser checks.
-4. Docs before merge: HANDOFF §2 status "Part A done, Part B waits for IT"
+3b. Peter runs the 8 browser checks: done 2026-10-26, all 8 passed.
+4. (done 2026-10-26) Docs before merge: HANDOFF §2 status "Part A done, Part B waits for IT"
    + the `unblock_ip` command + `FORWARDED_ALLOW_IPS` + open work
    (STORY-015/016, CI to Ubuntu 26, Pydantic config); this story's status
    "part A done · part B todo"; the 006 row in `docs/stories/README.md`.

@@ -4,7 +4,7 @@
 > `docs/decisions.md` before doing anything. If chat history contradicts these
 > files, the files win.
 >
-> Last updated: 2026-10-21 · Owner: Peter (Procurement Strategy, Carabao Group)
+> Last updated: 2026-10-26 · Owner: Peter (Procurement Strategy, Carabao Group)
 
 ---
 
@@ -27,10 +27,44 @@ done 2026-10-19) and the Name Prefix on category moves (STORY-013, done
 (STORY-006). **All code prerequisites of the deploy are done**; left:
 1. IT's Graph values for email (§7); outside `APP_ENV=dev` the app refuses
    to start without them, so STORY-006 waits for them.
-2. STORY-006 itself (Render/Railway + PostgreSQL). Split on 2026-10-21:
-   part A (CI, Postgres tests, login rate limit per IP, one worker) needs
-   no Graph values and starts now, CI + Postgres first; part B (deploy,
-   backup/restore, real email) waits for IT.
+2. STORY-006 itself (Render/Railway + PostgreSQL), split on 2026-10-21.
+   **Part A done (2026-10-26):** CI on PostgreSQL 16 with a schema-drift
+   check, race tests, login limit per Account and per client IP with
+   "being checked" slots, one worker, the `unblock_ip` command. Whole-branch
+   review with no (ก), Peter's browser checklist passed
+   (`docs/stories/STORY-006/part-a-browser-checklist.md`); merge to master
+   waits for Peter's go. **Part B waits for IT:** deploy, backup/restore,
+   real email, plus the part B notes in the story (a reset-password
+   command with `--by`, where the `unblock_ip` log line lands on the
+   platform, choosing `FORWARDED_ALLOW_IPS`).
+
+Operating the login limit (README "When things break"): 50 failed logins
+from one client IP in 15 minutes block it for 15 minutes; the log line is
+`login_ip_blocked ip=… until=… UTC` (`app.accounts`). Lift early with
+`python -m app.unblock_ip <ip> --by "<your name>"` (exit 0 lifted, 1 bad
+input or no `--by`, 2 not blocked); it logs `login_ip_unblocked ip=… by=…`
+to its own window. On the dev machine there is no log file: the app logs
+to the window running `uvicorn`.
+
+`FORWARDED_ALLOW_IPS`: the proxy IPs/CIDRs whose `X-Forwarded-For` is
+believed, or `none` if clients connect directly. Required outside
+`APP_ENV=dev` (the app, migrations and `create_admin` refuse to start
+without it); `*` is refused. A wrong value is not caught: part B must check
+on the deployed app that two machines count as two IPs. If the platform
+does not publish its proxy IPs, see the "trust one hop" option in STORY-006
+Further Notes. Avoid a trailing comma for now (STORY-015 item 21).
+
+**Never move `dev.db` data to production.** It holds test Administrator
+Accounts (`temp.admin@test.local`, `temp2.admin@test.local`) and test
+requests. A backup taken before migrating it to head on 2026-10-26,
+`dev.db.bak-2026-10-26` (ignored by git), stays until Peter deletes it.
+
+Open work after part A (none is a go-live condition):
+- STORY-015: login-limit and review follow-ups (items 1–26).
+- STORY-016: re-check the acting Administrator under the lock: **first
+  story after go-live**.
+- CI pinned to `ubuntu-24.04` (below).
+- Pydantic class-based `Config` (below).
 
 After the plants open: STORY-014 (the name preview shows the saved name).
 
@@ -73,13 +107,16 @@ upgrade; check `.env` is still read.
 | Login / roles | done — STORY-001: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry, lockout, My requests |
 | Email notification | done — STORY-002 tickets 01–06 (Graph sender tested with a fake transport only; first real send waits for IT, see §7) |
 | Requester resubmit | done — STORY-009: Requester or Originator edits and resubmits a Needs Info request (conditional claim, one 409 for the loser), queue badge + reply card + replaced-name warning, best-effort email to Procurement; the code system must now fit the request's Plant (fix also for new requests) |
-| Deployment | **not started — STORY-006** |
+| Deployment | part A done (CI on PostgreSQL, race tests, login limits, one worker; merge pending) — part B (deploy, backup, real email) waits for IT — STORY-006 |
 
-Tests: 901 passing locally, 37 PostgreSQL tests skipped without
-`TEST_POSTGRES_URL`; CI runs all 938 on PostgreSQL 16 (confirmed on
-`c3055e7`, STORY-006 part A, tickets 01–08).
+Tests: 902 passing locally, 37 PostgreSQL tests skipped without
+`TEST_POSTGRES_URL`; CI runs all 939 on PostgreSQL 16 (confirmed by Peter
+from the run on `7a0ec12`, 2026-10-26). Read CI numbers from the run's log
+itself, never from a summary: `f429488` was once recorded green and was red.
 
-The suite runs in ~13 s: `create_all` + `seed` run once per pytest session
+The suite ran in ~13 s on 2026-10-21 but took ~61 s on 2026-10-26 (cause
+not looked into; the 3 subprocess tests take 2–4 s each). The suite's setup:
+`create_all` + `seed` run once per pytest session
 into an in-memory template, and each test's `db_session` gets a copy through
 the SQLite backup API (`tests/conftest.py`; `tests/test_template_db.py`
 guards that a copy equals a fresh seed and that copies are isolated). Tests
