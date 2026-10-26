@@ -47,6 +47,11 @@ input or no `--by`, 2 not blocked); it logs `login_ip_unblocked ip=… by=…`
 to its own window. On the dev machine there is no log file: the app logs
 to the window running `uvicorn`.
 
+An Administrator locked out with no other Administrator to reset them:
+`python -m app.reset_password <email> --by "<your name>"` (README "When
+things break"; interactive shell only, it prints the temporary password).
+Built ahead of part B on `story/006-reset-password-cli` (2026-10-26).
+
 `FORWARDED_ALLOW_IPS`: the proxy IPs/CIDRs whose `X-Forwarded-For` is
 believed, or `none` if clients connect directly. Required outside
 `APP_ENV=dev` (the app, migrations and `create_admin` refuse to start

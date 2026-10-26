@@ -59,6 +59,17 @@ Push to `main` → GitHub Actions runs tests → deploy to Render/Railway (see d
   works. If the log shows `login_client_ip_unknown` warnings, everyone is
   counted as one client: check `FORWARDED_ALLOW_IPS` (Deploying), then lift
   the shared bucket with `unknown` as the IP.
+- **An Administrator forgot their password (or is locked out) and no other
+  Administrator can reset it:** in an **interactive shell** on the app
+  (never a one-off job or run command whose output the platform keeps as a
+  log: the temporary password would stay in that log):
+  `python -m app.reset_password <email> --by "<your name>"` (exit 0 = reset,
+  1 = bad input, unknown email, or a deactivated Account: reactivate it
+  first). The temporary password is printed once; it must be changed at the
+  next login, every open session of that Account ends and its lockout is
+  cleared. The log line `account_admin by=cli:<your name>
+  action=reset_password target=<email>` says who reset whom, never the
+  password. Any other Account: use the Account admin page.
 - Logs: Render/Railway dashboard
 - Backups: platform daily DB snapshot; weekly pg_dump
 - Owner: Peter (kampanat.d07@gmail.com)

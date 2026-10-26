@@ -284,7 +284,10 @@ together exceed the Exchange sending limit.
   reset it, has only `python -c` today. Add `python -m app.reset_password
   <email> --by "<name>"`, built like `unblock_ip` (`--by` required, exit
   codes, prints the temporary password once, logs who but never the
-  password).
+  password). **Built early** on `story/006-reset-password-cli`
+  (2026-10-26): `reset_password_from_cli`, log `account_admin by=cli:<name>
+  action=reset_password target=<email>`, a deactivated Account refused
+  (exit 1, "reactivate it first"). Interactive shell only (README).
 - **Part B: never move `dev.db` data to production** (Peter, 2026-10-26).
   It holds test Administrator Accounts (`temp.admin@test.local`,
   `temp2.admin@test.local`) and test requests. Production starts from
@@ -298,6 +301,13 @@ together exceed the Exchange sending limit.
   unblocked closes with the session. Part B checks it on the chosen
   platform; if it is not kept, write the line where the app's log goes or
   keep an audit row in the DB.
+- **Part B: is a shell session's output kept as a log?** (Peter,
+  2026-10-26; the other side of the note above.) `python -m
+  app.reset_password` prints a temporary password. Check on the chosen
+  platform whether its shell (web shell, `exec`, one-off job / run command)
+  stores output in a log. Only a shell whose output is not kept may run it;
+  if every way keeps output, the command must not print the password there
+  (e.g. write it to a file only the operator reads) before go-live.
 - The drift check may find existing drift; budget a migration for it.
 - Local runs of the PostgreSQL tests: start the compose `db` service and set
   `TEST_POSTGRES_URL`; README gets the one-line command.
