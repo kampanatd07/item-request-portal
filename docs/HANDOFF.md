@@ -34,9 +34,17 @@ up from these files alone; opening it to the plants is the next owner's.
 (`Central_v5_with_DCM`, 13,400 codes) is **not yet loaded into D365**, and
 the plants still open items in the old system. The portal may open only
 after phase 1 of the Cutover Plan. Items opened in the old system after
-2026-08-07 (after the v5 master was cut) must go through the group pipeline
-as a delta before cutover, and the register then re-synced (STORY-005);
-otherwise the portal and the delta issue the same numbers.
+2026-08-07 (after the v5 master was cut) need a delta before cutover. The
+successor picks the route (OneDrive `Handover 2026-11/04-pipeline-master-กลาง.md`):
+option A, the delta goes through the portal, which issues the numbers
+itself; option B, the delta goes through the group pipeline and the
+register is then re-synced (STORY-005), otherwise the portal and the delta
+issue the same numbers.
+
+**Never re-run the whole group pipeline once v5 codes are in use.** The
+pipeline issues every code afresh, so existing codes may shift. A delta
+must keep every v5 code as it is (details: OneDrive
+`Handover 2026-11/04-pipeline-master-กลาง.md`).
 
 Besides the cutover, it still has to be deployed (STORY-006). **All code
 prerequisites of the deploy are done**; left:
@@ -187,6 +195,9 @@ After first run, upload in **Snapshot** page:
 2. Legacy item master export → CBD / D365 snapshot (enables duplicate check)
 
 (`Central_v5_with_DCM.xlsx` is IRM-encrypted and cannot be read by code.)
+So the snapshot in use is `Central_v4`, which has **no DCM items**: the
+duplicate check and any re-check against the master do not see DCM items.
+Upload an unencrypted copy of v5 instead once one is available.
 
 ## 5. Where things are
 
