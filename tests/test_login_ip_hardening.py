@@ -221,7 +221,7 @@ def test_unblock_with_an_equals_sign_in_by_is_an_error_and_changes_nothing(
     # The audit line is key=value; a name must not add a fake field to it.
     _block(client_from(IP))
     code, out = _cli(app_db, IP, "--by", "x ip=10.9.9.9")
-    assert code == 1 and "=" in out
+    assert code == 1 and "must not contain" in out
     assert _count(app_db) == MAX_FAILED_LOGINS_PER_IP
 
 

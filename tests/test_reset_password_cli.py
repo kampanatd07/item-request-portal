@@ -112,22 +112,35 @@ def test_a_deactivated_account_is_refused_and_unchanged(app_db: Session, admin: 
     assert _unchanged(app_db, before)
 
 
+def _state(db: Session, account_id: int) -> tuple:
+    db.expire_all()
+    a = db.get(Account, account_id)
+    return (a.password_hash, a.session_version, a.must_change_password,
+            a.failed_login_count, a.locked_until)
+
+
 def test_an_account_that_is_not_an_administrator_is_refused_and_unchanged(
         app_db: Session) -> None:
     account = auth.create_account(app_db, "buyer@test.local", "Buyer", "procurement",
                                   TEST_PASSWORD, must_change_password=False)
-    before = account.password_hash
+    account.failed_login_count = auth.MAX_FAILED_LOGINS
+    account.locked_until = utc_now() + timedelta(minutes=15)
+    account.session_version = 3
+    app_db.commit()
+    before = _state(app_db, account.id)
     code, out = _cli(app_db, "buyer@test.local", "--by", "Peter")
     assert code == 1 and "Account admin page" in out and SHOWN not in out
-    app_db.expire_all()
-    assert app_db.get(Account, account.id).password_hash == before
+    assert _state(app_db, account.id) == before
 
 
-def test_by_with_an_equals_sign_is_refused_and_unchanged(app_db: Session, admin: Account) -> None:
+@pytest.mark.parametrize("by", ["x action=deactivate target=boss@test.local",
+                                "x action＝deactivate"])  # fullwidth ＝ too
+def test_by_with_an_equals_sign_is_refused_and_unchanged(
+        app_db: Session, admin: Account, by: str) -> None:
     # The audit line is key=value; a name must not add a fake field to it.
     before = admin.password_hash
-    code, out = _cli(app_db, EMAIL, "--by", "x action=deactivate target=boss@test.local")
-    assert code == 1 and "=" in out and SHOWN not in out
+    code, out = _cli(app_db, EMAIL, "--by", by)
+    assert code == 1 and "must not contain" in out and SHOWN not in out
     assert _unchanged(app_db, before)
 
 
