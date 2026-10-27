@@ -9,7 +9,7 @@ story file plus `docs/HANDOFF.md` alone, without chat history.
 | [002](STORY-002-email-notification.md) | Email requester when item is created — **done** (2026-10-14) | 001 | 003, 004 |
 | [003](STORY-003-uom-standard.md) | 24-unit UoM standard + Base/Purchase UoM + pack size | — | 002, 004 |
 | [004](STORY-004-item-attributes.md) | Legacy No., Scope Owner, Lifecycle State | — | 002, 003 |
-| [005](STORY-005-register-sync.md) | Re-sync running register from Decision Sheet | Peter fills D1–D4 | — |
+| [005](STORY-005-register-sync.md) | Re-sync running register for the delta before cutover (D1–D4 applied 2026-08-06) | the group pipeline's delta register | — |
 | [006](STORY-006-deploy.md) | Deploy to Render/Railway + Postgres — part A (CI, Postgres tests, IP limit, 1 worker) **done** (merged 2026-10-26); part B waits for IT | 001, 002, 009, 010, 013 | — |
 | [007](STORY-007-naming-alignment.md) | Names: `mL`, `in`, no `,` (align with standard) | — | 002, 004 |
 | [008](STORY-008-classification-flags.md) | Flag Sub-Category 99 (reason required) and possible fixed assets | — | 002, 007 |

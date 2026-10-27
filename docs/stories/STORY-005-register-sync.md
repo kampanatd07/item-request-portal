@@ -1,12 +1,18 @@
 # STORY-005: Re-sync the running register
 
-Status: blocked — waiting for Peter to fill `Carabao_Item_Master_Decision_Sheet.xlsx` (D1–D4)
+Status: todo — no longer blocked. The Decision Sheet (D1–D4) was filled and
+applied on 2026-08-06; this story is now needed for the **delta before
+cutover** (HANDOFF §2).
 
 ## Why
 The register was seeded from `Carabao_Item_Master_Running_Number_Register_v1.xlsx`
-(Aug 2026). The Decision Sheet will change which legacy items get central codes,
-so the last-issued number per group+sub will move. If the portal keeps the old
-numbers, it will issue codes that the final migration also issues — a collision.
+(Aug 2026), which refers to the final master `Central_v5_with_DCM` (13,400
+codes; chain: `Decision_Sheet_v2_corrected` → group pipeline → `Central_v4` →
+`Central_v5_with_DCM`). The plants still open items in the old system: items
+opened after 2026-08-07 go through the pipeline as a delta before cutover
+(Cutover Plan phase 1), and that moves the last-issued number per
+group+sub. If the portal keeps the old numbers, it will issue codes that the
+delta also issues — a collision.
 
 ## Scope
 - Admin upload of an updated register file (same format as the v1 register, sheet
@@ -20,8 +26,8 @@ numbers, it will issue codes that the final migration also issues — a collisio
   can feed them back into the group master
 
 ## Out of scope
-- Reading the Decision Sheet directly (Peter runs the group pipeline; this story
-  consumes its output register)
+- Reading the Decision Sheet or the delta directly (the group pipeline runs
+  them; this story consumes its output register)
 
 ## Acceptance criteria
 1. Uploading a register never moves any counter backwards
@@ -57,6 +63,12 @@ _(filled by /to-spec + /to-tickets)_
      direction (no clash), but those numbers are neither in the master nor
      retired; decide whether they are burned (retire them) or were never used.
      (`907-01`, 64 vs 62, is explained by dev.db test approvals.)
+     **Explained (Peter, 2026-10-27):** the extra numbers are DCM items that
+     are in `Central_v5_with_DCM` but not in `Central_v4`, e.g.
+     `90099001234` / `90099001235` = DCM `64SVSP0199` / `64SVSP0200`, and
+     `90899000003` = DCM `64MD000292`. They are real codes in the final
+     master: not burned, nothing to retire. The dry run read v4 only because
+     v5 is IRM-encrypted and cannot be read by code (HANDOFF §4).
   2. The file's `Taxonomy` sheet says **20 groups / 105 sub-categories**; the
      portal's `app/data/taxonomy.json` has **130** sub-categories (HANDOFF §3).
      Confirm which taxonomy is current before syncing.
