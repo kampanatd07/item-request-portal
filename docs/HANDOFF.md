@@ -35,9 +35,9 @@ done 2026-10-19) and the Name Prefix on category moves (STORY-013, done
    (`docs/stories/STORY-006/part-a-browser-checklist.md`). Merged to master
    as `390e9a0` (2026-10-26); CI on master green, 939 passed, 0 skipped
    (Peter, from the run). Branch deleted. **Part B waits for IT:** deploy, backup/restore,
-   real email, plus the part B notes in the story (a reset-password
-   command with `--by`, where the `unblock_ip` log line lands on the
-   platform, choosing `FORWARDED_ALLOW_IPS`).
+   real email, plus the part B notes in the story (where the `unblock_ip`
+   and `reset_password` log lines land on the platform, whether its shell
+   output is kept as a log, choosing `FORWARDED_ALLOW_IPS`).
 
 Operating the login limit (README "When things break"): 50 failed logins
 from one client IP in 15 minutes block it for 15 minutes; the log line is
@@ -50,7 +50,10 @@ to the window running `uvicorn`.
 An Administrator locked out with no other Administrator to reset them:
 `python -m app.reset_password <email> --by "<your name>"` (README "When
 things break"; interactive shell only, it prints the temporary password).
-Built ahead of part B on `story/006-reset-password-cli` (2026-10-26).
+Administrators only (any other Account: the Account admin page); exit 0
+reset, 1 bad input. Built ahead of part B on `story/006-reset-password-cli`,
+merged to master as `7325bc9` (2026-10-27); CI on master green, 953
+passed, 0 skipped (Peter, from the run). Branch deleted.
 
 `FORWARDED_ALLOW_IPS`: the proxy IPs/CIDRs whose `X-Forwarded-For` is
 believed, or `none` if clients connect directly. Required outside
@@ -68,7 +71,8 @@ was deleted after master's CI was green (Peter). `*.db.bak-*` is ignored
 by git for the next backup.
 
 Open work after part A (none is a go-live condition):
-- STORY-015: login-limit and review follow-ups (items 1–26).
+- STORY-015: login-limit and review follow-ups (items 1–42).
+- STORY-017: quote the `--by` value in the CLI audit lines.
 - STORY-016: re-check the acting Administrator under the lock: **first
   story after go-live**.
 - CI pinned to `ubuntu-24.04` (below).
@@ -117,9 +121,9 @@ upgrade; check `.env` is still read.
 | Requester resubmit | done — STORY-009: Requester or Originator edits and resubmits a Needs Info request (conditional claim, one 409 for the loser), queue badge + reply card + replaced-name warning, best-effort email to Procurement; the code system must now fit the request's Plant (fix also for new requests) |
 | Deployment | part A done (CI on PostgreSQL, race tests, login limits, one worker; merged `390e9a0`) — part B (deploy, backup, real email) waits for IT — STORY-006 |
 
-Tests: 902 passing locally, 37 PostgreSQL tests skipped without
-`TEST_POSTGRES_URL`; CI runs all 939 on PostgreSQL 16 (confirmed by Peter
-from the run on master `390e9a0`, 2026-10-26). Read CI numbers from the run's log
+Tests: 916 passing locally, 37 PostgreSQL tests skipped without
+`TEST_POSTGRES_URL`; CI runs all 953 on PostgreSQL 16 (confirmed by Peter
+from the run on master `7325bc9`, 2026-10-27). Read CI numbers from the run's log
 itself, never from a summary: `f429488` was once recorded green and was red.
 
 The suite ran in ~13 s on 2026-10-21 but took ~61 s on 2026-10-26 (cause
