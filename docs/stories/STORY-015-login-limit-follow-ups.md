@@ -179,9 +179,10 @@ went to STORY-016 item 11. The rest:
 
 ## From the review of the "＝" fix (2026-10-27, `1031004..94ab3e4`)
 9 findings. Done before merge (Peter, 2026-10-27): the refusal printed "＝"
-and crashed on a cp1252 (piped Windows) window, so every CLI error is now
-ASCII (`ascii()` for echoed input: `--by`, the IP, the email), with a
-cp1252 subprocess test; docstrings of both commands match the code; the
+and crashed on a cp1252 (piped Windows) window, so the errors the services
+raise are now ASCII (`ascii()` for echoed input: `--by`, the IP, the
+email), with a cp1252 subprocess test (argparse errors and the success
+lines are not: item 40); docstrings of both commands match the code; the
 unblock test covers "＝"; the reset "=" tests check every field. Items 2
 and 9 (other look-alikes, bidi / zero-width characters) → STORY-017.
 38. `_state` and `_unchanged` in `tests/test_reset_password_cli.py` do the
@@ -189,6 +190,28 @@ and 9 (other look-alikes, bidi / zero-width characters) → STORY-017.
     no-`--by` tests still use the hash-only `_unchanged`. Fold into `_state`.
 39. The non-Administrator test copies `_locked_admin`'s lockout set-up line
     for line; one `_locked(db, email, role)` helper for both.
+
+## From the review of the ASCII fix (2026-10-27, `94ab3e4..e49bfbf`)
+No (ก), nothing that breaks normal use (interactive console, or the UTF-8
+platform). 10 findings. Checked by running them on Peter's machine:
+- Not real: "a Thai `--by` loses the audit line on cp1252". Python's stderr
+  uses `backslashreplace`, so the line is kept as `by=cli:ป…`.
+- Not a finding: the parametrized `=` tests were added by this branch
+  (Peter: tests this branch added may be changed).
+40. **Real, only when the output is piped on Windows (cp1252):**
+    argparse errors (an unquoted Thai name: `--by ปีเตอร์ ส.` →
+    "unrecognized arguments: ส.") and the success / "not blocked" lines that
+    echo `args.ip` (a pasted `"unknown　"` passes validation) still end
+    in a `UnicodeEncodeError` traceback. Root fix, once, instead of
+    `ascii()` per message: in each command's `__main__`,
+    `sys.stdout.reconfigure(errors="backslashreplace")` before printing;
+    then the services' messages can go back to readable `!r` (output
+    encoding is the CLI layer's concern, not the service's). Extend the
+    cp1252 test to a Thai `--by` and an unquoted name.
+41. `_unchanged` (hash only) still serves the no-`--by` and deactivated
+    tests; fold into `_state` (with 38).
+42. The cp1252 subprocess test disposes its engine only at the end; a
+    failing assert leaves `cli.db` open on Windows. A fixture with teardown.
 
 ## Out of scope
 - Changing the limits themselves (10 / 50 / 15 minutes).
