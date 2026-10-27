@@ -429,7 +429,7 @@ def unblock_ip(db: Session, raw_ip: str, *, by: str, now: datetime | None = None
     by = clean_by(by, doing="lifting the block")
     ip = "unknown" if raw_ip.strip().lower() == "unknown" else ip_key_or_none(raw_ip)
     if ip is None:
-        raise AuthError(f"not an IP address: {raw_ip!r}")
+        raise AuthError(f"not an IP address: {ascii(raw_ip)}")  # ASCII: see clean_by
     row = db.scalar(select(LoginIpFailure).where(LoginIpFailure.ip == ip).with_for_update())
     if row is None or row.blocked_until is None or row.blocked_until <= now:
         db.rollback()
@@ -536,7 +536,10 @@ def clean_by(by: str | None, *, doing: str) -> str:
     if not by:
         raise AuthError(f"--by is required: who is {doing}")
     if "=" in by or "＝" in by:
-        raise AuthError(f"--by must not contain '=' or '＝': {by!r} (the log line is key=value)")
+        # ASCII only: a piped Windows window writes cp1252 and could not print
+        # "＝" or a Thai name, so the refusal would end in a traceback.
+        raise AuthError(f"--by must not contain '=' or U+FF1D: {ascii(by)} "
+                        "(the log line is key=value)")
     return by
 
 
@@ -705,7 +708,7 @@ def reset_password_from_cli(db: Session, email: str, *, by: str) -> str:
     by = clean_by(by, doing="resetting the password")
     account = db.scalar(select(Account).where(Account.email == normalize_email(email)))
     if account is None:
-        raise AuthError(f"no Account with the email {email.strip()!r}")
+        raise AuthError(f"no Account with the email {ascii(email.strip())}")  # see clean_by
     if account.role != "administrator":
         raise AuthError(f"{account.email} is not an Administrator: reset it on the "
                         "Account admin page")

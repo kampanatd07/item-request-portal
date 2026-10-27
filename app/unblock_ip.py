@@ -5,9 +5,9 @@ The IP is the one in the `login_ip_blocked ip=...` log line ("unknown" for the
 shared bucket; any address of an IPv6 /64 lifts that /64). --by is required:
 on a container the OS user is usually root, which says nothing about who.
 
-Exit codes: 0 unblocked, 1 bad input (not an IP, no --by, "=" in --by: the log
-line is key=value), 2 that IP is not
-blocked (nothing changed).
+Exit codes: 0 unblocked, 1 bad input (not an IP, no --by, "=" or a fullwidth
+"＝" (U+FF1D) in --by: the log line is key=value), 2 that IP is not blocked
+(nothing changed).
 """
 
 import argparse

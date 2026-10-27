@@ -1,5 +1,6 @@
-"""Reset an Account's password from the command line (STORY-006 part B prep):
-for an Administrator locked out with no other Administrator to reset them.
+"""Reset an Administrator's password from the command line (STORY-006 part B
+prep): for an Administrator locked out with no other Administrator to reset
+them.
 
 Run: python -m app.reset_password <email> --by "<your name>"
 Run it only in an interactive shell: the temporary password is printed once
@@ -12,10 +13,11 @@ never the password. --by is required: on a container the OS user is usually
 root, which says nothing about who.
 
 Only an Administrator's password: any other Account is reset on the Account
-admin page. --by must not contain "=" (the log line is key=value).
+admin page. --by must not contain "=" or a fullwidth "＝" (U+FF1D): the log
+line is key=value.
 
-Exit codes: 0 reset, 1 bad input (no --by, "=" in --by, unknown email, not an
-Administrator, deactivated Account).
+Exit codes: 0 reset, 1 bad input (no --by, "=" or "＝" in --by, unknown email,
+not an Administrator, deactivated Account).
 """
 
 import argparse

@@ -21,6 +21,7 @@ story file plus `docs/HANDOFF.md` alone, without chat history.
 | [014](STORY-014-name-preview-matches-saved-name.md) | Name preview shows the name that will be saved (after plants open) | — | 013 |
 | [015](STORY-015-login-limit-follow-ups.md) | Login limit follow-ups (review notes from STORY-006 ticket 08) | 006 ticket 08 | any |
 | [016](STORY-016-recheck-acting-role-under-lock.md) | Re-check the acting Administrator under the lock (approval first) — **first story after go-live** | 006 ticket 04 | any |
+| [017](STORY-017-audit-line-by-value.md) | Audit line: quote the `--by` value or allow only a set of characters | 006 reset-password CLI | any |
 
 ## Status values
 `todo` → `planned` (spec + tickets written) → `in-progress` → `review` → `done`

@@ -170,12 +170,25 @@ went to STORY-016 item 11. The rest:
     whose NFKC form contains `=`.
     **Done** before merge (Peter, 2026-10-27), without NFKC (project rule,
     HANDOFF §6.2): `clean_by` refuses `=` and `＝` (U+FF1D) by name. Other
-    look-alikes (e.g. `⁼` U+207C, `₌` U+208C, `﹦` U+FE66) still pass; add
-    them by name if ever needed.
+    look-alikes (e.g. `⁼` U+207C, `₌` U+208C, `﹦` U+FE66) still pass: now
+    STORY-017 (quote the value or allow a set of characters).
 36. `_one_line(by)` is now redundant after `clean_by` (which collapses all
     whitespace, CR/LF included); harmless.
 37. The new `unblock_ip` test has no type hints on `client_from`, `app_db`
     (like its neighbours; see item 23).
+
+## From the review of the "＝" fix (2026-10-27, `1031004..94ab3e4`)
+9 findings. Done before merge (Peter, 2026-10-27): the refusal printed "＝"
+and crashed on a cp1252 (piped Windows) window, so every CLI error is now
+ASCII (`ascii()` for echoed input: `--by`, the IP, the email), with a
+cp1252 subprocess test; docstrings of both commands match the code; the
+unblock test covers "＝"; the reset "=" tests check every field. Items 2
+and 9 (other look-alikes, bidi / zero-width characters) → STORY-017.
+38. `_state` and `_unchanged` in `tests/test_reset_password_cli.py` do the
+    same "nothing changed" check at two strengths; the deactivated and
+    no-`--by` tests still use the hash-only `_unchanged`. Fold into `_state`.
+39. The non-Administrator test copies `_locked_admin`'s lockout set-up line
+    for line; one `_locked(db, email, role)` helper for both.
 
 ## Out of scope
 - Changing the limits themselves (10 / 50 / 15 minutes).
