@@ -4,7 +4,8 @@
 > `docs/decisions.md` before doing anything. If chat history contradicts these
 > files, the files win.
 >
-> Last updated: 2026-10-26 · Owner: Peter (Procurement Strategy, Carabao Group)
+> Last updated: 2026-10-27 · Owner: Peter (Procurement Strategy, Carabao Group)
+> until 2026-11-13, when Peter leaves; the goal now is handover, not go-live.
 
 ---
 
@@ -23,8 +24,30 @@ It replaces: Microsoft Forms → Peter checks manually → types into AX → ema
 2026-09-30), validated code override (STORY-010, done 2026-10-01), email
 notification (STORY-002, done 2026-10-14), requester resubmit (STORY-009,
 done 2026-10-19) and the Name Prefix on category moves (STORY-013, done
-2026-10-21). Not yet open to the plants** — it still has to be deployed
-(STORY-006). **All code prerequisites of the deploy are done**; left:
+2026-10-21). Not yet open to the plants.**
+
+**Goal now: handover, not go-live (Peter, 2026-10-27).** Peter leaves on
+2026-11-13. The aim until then is that the next owner can pick the portal
+up from these files alone; opening it to the plants is the next owner's.
+
+**Go-live condition: Cutover Plan phase 1 first.** The group central master
+(`Central_v5_with_DCM`, 13,400 codes) is **not yet loaded into D365**, and
+the plants still open items in the old system. The portal may open only
+after phase 1 of the Cutover Plan. Items opened in the old system after
+2026-08-07 (after the v5 master was cut) need a delta before cutover. The
+successor picks the route (OneDrive `Handover 2026-11/04-pipeline-master-กลาง.md`):
+option A, the delta goes through the portal, which issues the numbers
+itself; option B, the delta goes through the group pipeline and the
+register is then re-synced (STORY-005), otherwise the portal and the delta
+issue the same numbers.
+
+**Never re-run the whole group pipeline once v5 codes are in use.** The
+pipeline issues every code afresh, so existing codes may shift. A delta
+must keep every v5 code as it is (details: OneDrive
+`Handover 2026-11/04-pipeline-master-กลาง.md`).
+
+Besides the cutover, it still has to be deployed (STORY-006). **All code
+prerequisites of the deploy are done**; left:
 1. IT's Graph values for email (§7); outside `APP_ENV=dev` the app refuses
    to start without them, so STORY-006 waits for them.
 2. STORY-006 itself (Render/Railway + PostgreSQL), split on 2026-10-21.
@@ -172,6 +195,9 @@ After first run, upload in **Snapshot** page:
 2. Legacy item master export → CBD / D365 snapshot (enables duplicate check)
 
 (`Central_v5_with_DCM.xlsx` is IRM-encrypted and cannot be read by code.)
+So the snapshot in use is `Central_v4`, which has **no DCM items**: the
+duplicate check and any re-check against the master do not see DCM items.
+Upload an unencrypted copy of v5 instead once one is available.
 
 ## 5. Where things are
 
@@ -244,10 +270,14 @@ After first run, upload in **Snapshot** page:
   6–24 months). Note it here when IT creates it and renew it before that
   date — after it expires every email fails with "Graph credentials do not
   work". Secret expires on: _(fill in)_
-- Fill `Carabao_Item_Master_Decision_Sheet.xlsx` (D1–D4); the register must be
-  re-synced afterwards
+- ~~Fill the Decision Sheet (D1–D4)~~ **Done and applied since 2026-08-06:**
+  `Decision_Sheet_v2_corrected` → group pipeline → `Central_v4` →
+  `Central_v5_with_DCM` (final, 13,400 codes). The register the portal was
+  seeded from (`Running_Number_Register_v1`) refers to v5.
 - The cut-over date after which **only** this portal issues central codes —
-  until then, codes issued by hand elsewhere will collide with the register
+  until then, codes issued by hand elsewhere will collide with the register.
+  It comes after Cutover Plan phase 1 and the delta of items opened in the
+  old system since 2026-08-07 (§2)
 - Complete reference lists: UoM confirmation, procurement categories,
   group → D365 ItemGroupId mapping
 

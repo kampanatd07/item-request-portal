@@ -16,9 +16,11 @@ the `carabao-item-master` skill (source in `docs/claude-setup/skills/`).
 Status: login and roles (STORY-001), validated code override (STORY-010),
 email notification (STORY-002), requester resubmit (STORY-009) and Name
 Prefix on category moves (STORY-013) done: all code before deploy is done.
-Not yet open to plants — deploy (STORY-006) must ship first and waits for
-IT's Graph values (docs/stories/STORY-006-deploy.md). Current test count and
-next steps: docs/HANDOFF.md §2.
+Goal now: handover, not go-live — Peter leaves on 2026-11-13. Not yet open
+to plants: go-live comes only after Cutover Plan phase 1 (the central master
+is not in D365 yet and plants still open items in the old system), then
+deploy (STORY-006, part B waits for IT's Graph values). Current test count,
+the go-live condition and next steps: docs/HANDOFF.md §2.
 
 ## Stack
 FastAPI + SQLAlchemy + Alembic | SQLite (dev) / PostgreSQL (prod) | HTMX + Jinja2 | Docker → Render/Railway
