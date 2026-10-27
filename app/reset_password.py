@@ -42,7 +42,8 @@ class _Parser(argparse.ArgumentParser):
 def run(db: Session, argv: list[str], out: Callable[[str], None] = print) -> int:
     """Parse `argv`, reset the password, show it once. Returns an exit code."""
     parser = _Parser(prog="python -m app.reset_password",
-                     description="Reset an Account's password to a temporary one.")
+                     description="Reset an Administrator's password to a temporary "
+                                 "one (any other Account: the Account admin page).")
     parser.add_argument("email", help="the Account's email")
     parser.add_argument("--by", required=True, help="your name: who is resetting it")
     try:

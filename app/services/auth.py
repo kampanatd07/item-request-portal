@@ -427,7 +427,7 @@ def unblock_ip(db: Session, raw_ip: str, *, by: str, now: datetime | None = None
     not blocked. `by` names who did it, for the log; required."""
     now = now or utc_now()
     by = clean_by(by, doing="lifting the block")
-    ip ="unknown" if raw_ip.strip().lower() == "unknown" else ip_key_or_none(raw_ip)
+    ip = "unknown" if raw_ip.strip().lower() == "unknown" else ip_key_or_none(raw_ip)
     if ip is None:
         raise AuthError(f"not an IP address: {raw_ip!r}")
     row = db.scalar(select(LoginIpFailure).where(LoginIpFailure.ip == ip).with_for_update())
@@ -528,14 +528,15 @@ def _one_line(value: str) -> str:
 
 def clean_by(by: str | None, *, doing: str) -> str:
     """The `--by` name of a command-line action, for its audit line: spaces
-    collapsed; required; no "=", since the line is key=value and a name like
-    `x action=deactivate` would add a fake field (the audit trail must be
-    true). `doing` finishes the "required" message."""
+    collapsed; required; no "=" or fullwidth "＝", since the line is
+    key=value and a name like `x action=deactivate` would add a fake field
+    (the audit trail must be true). Checked by name, never through NFKC
+    (HANDOFF §6.2). `doing` finishes the "required" message."""
     by = " ".join((by or "").split())
     if not by:
         raise AuthError(f"--by is required: who is {doing}")
-    if "=" in by:
-        raise AuthError(f"--by must not contain '=': {by!r} (the log line is key=value)")
+    if "=" in by or "＝" in by:
+        raise AuthError(f"--by must not contain '=' or '＝': {by!r} (the log line is key=value)")
     return by
 
 
