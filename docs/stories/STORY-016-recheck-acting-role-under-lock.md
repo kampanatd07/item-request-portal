@@ -75,7 +75,11 @@ actions (all Administrator-only).
     of the same Account at once both write `session_version` 3 → 4, and one
     of the two printed temporary passwords silently stops working. Same
     family as item 1: lock the target (`with_for_update()`) in the shared
-    `_give_temporary_password` path.
+    `_give_temporary_password` path. The same missing lock lets the
+    Administrator-only and active checks (STORY-015 27) read a Role or
+    active flag another session is changing at that moment: a target demoted
+    or deactivated in the same instant still gets reset (review of
+    `ce6648e..95b96cf`, 2026-10-27). The lock on the select closes both.
 
 ## Out of scope
 - Actions open to Procurement or Requesters (their guard is a Role every

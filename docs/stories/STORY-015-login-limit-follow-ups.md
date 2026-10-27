@@ -150,6 +150,27 @@ No (ก). 7 findings; the changed proxy test was approved by Peter (item 21).
     the email with `.strip().lower()` instead of printing the Account's
     stored email.
 
+## From the review of the 27/28 fix (2026-10-27, `ce6648e..95b96cf`)
+No (ก). 9 findings; the race between the Role/active check and the reset
+went to STORY-016 item 11. The rest:
+32. Introduced by the fix: `ip ="unknown" if …` in `unblock_ip` lost its
+    space after `=` (cosmetic), and the reset command's `-h` description
+    still says "Reset an Account's password" (now only an Administrator's).
+33. The two `=` tests assert `"=" in out`, which the echoed name always
+    satisfies; assert "must not contain" instead. The non-Administrator test
+    checks only the hash; use `_unchanged`-style checks of
+    `session_version`, `must_change_password` and the lockout too.
+34. `role != "administrator"` is a literal (also in
+    `_lock_active_administrators`); `has_role(account, "administrator")` is
+    the same today (it is the top Role) and follows any Role added above.
+35. `clean_by` refuses only ASCII `=`; a fullwidth `＝` passes, and would
+    read as `=` to a log reader that applies NFKC. Refuse any character
+    whose NFKC form contains `=`.
+36. `_one_line(by)` is now redundant after `clean_by` (which collapses all
+    whitespace, CR/LF included); harmless.
+37. The new `unblock_ip` test has no type hints on `client_from`, `app_db`
+    (like its neighbours; see item 23).
+
 ## Out of scope
 - Changing the limits themselves (10 / 50 / 15 minutes).
 
