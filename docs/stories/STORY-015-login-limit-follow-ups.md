@@ -90,6 +90,14 @@ Robustness and tidiness
     empty entry that `trusted_proxies()` rejects, so the app refuses to
     start (fails closed, message names `''`). Drop empty entries. Worth
     doing before part B sets the value.
+    **Done** on `story/006-reset-password-cli` (2026-10-26): empty entries
+    are dropped; only commas (`" , "`) count as unset. This changed an
+    existing test, approved by Peter (2026-10-26):
+    `test_a_value_that_is_not_an_ip_or_cidr_refuses_to_start` no longer
+    lists `"10.0.0.5,"`, which moved to `test_accepted_values`. Reason: an
+    empty entry left by a stray comma is a typo, not a wrong value; real
+    wrong values (`"none, 10.0.0.5"`, `"10.0.0.300"`, a hostname, `*`) still
+    fail closed.
 22. On SQLite (dev only) `_lock_ip_row`'s `begin_nested()` is the outermost
     SAVEPOINT for a new IP; pysqlite then commits at RELEASE, so step 1 of
     a login is not atomic on SQLite. PostgreSQL is unaffected.
@@ -113,6 +121,97 @@ Robustness and tidiness
     DB to check the block was lifted (other tests cover that through
     `run()`), and matches the exact `INFO app.accounts` prefix of
     `LOG_FORMAT`.
+
+## From the review of `story/006-reset-password-cli` (2026-10-26, `dae3940..b428020`)
+No (ก). 7 findings; the changed proxy test was approved by Peter (item 21).
+27. **Any active Account, not only an Administrator:** `reset_password_from_cli`
+    resets whatever email it is given, while its docstring and README frame
+    it as the locked-out-Administrator command. Whoever has the shell can
+    already change the DB, so no new power; but limiting it to
+    `role == "administrator"` (exit 1, "use the Account admin page") would
+    match the docs and shrink the misuse. Recommend: limit it.
+    **Done** before merge (Peter, 2026-10-26): any other Role → exit 1,
+    "reset it on the Account admin page", DB unchanged.
+28. `--by` is only whitespace-collapsed; a name like `x action=deactivate
+    target=boss@corp` puts fake `key=value` fields into the audit line.
+    Same in `unblock_ip`. Quote the value, or refuse `=` in it.
+    **Done** before merge (Peter, 2026-10-26): one `auth.clean_by()` for
+    both commands refuses `=` (exit 1), because the audit trail must be
+    true. Tested on both; the existing `unblock_ip` tests unchanged.
+29. Moved to STORY-016 item 11 (Peter, 2026-10-26): same family as the lost
+    `session_version` bump.
+30. The CLI raises `AuthError` with English text, while `AuthError` is
+    documented as a Thai user-facing message (`unblock_ip` already does
+    this). A `CliError`, or say in the docstring that CLI messages are
+    English.
+31. `app/reset_password.py` copies `unblock_ip`'s `_Parser` / `_BadInput` /
+    `run()` shape (the `--by` clean-up is now one `clean_by`, item 28). The
+    success line re-derives
+    the email with `.strip().lower()` instead of printing the Account's
+    stored email.
+
+## From the review of the 27/28 fix (2026-10-27, `ce6648e..95b96cf`)
+No (ก). 9 findings; the race between the Role/active check and the reset
+went to STORY-016 item 11. The rest:
+32. Introduced by the fix: `ip ="unknown" if …` in `unblock_ip` lost its
+    space after `=` (cosmetic), and the reset command's `-h` description
+    still says "Reset an Account's password" (now only an Administrator's).
+    **Done** before merge (Peter, 2026-10-27).
+33. The two `=` tests assert `"=" in out`, which the echoed name always
+    satisfies; assert "must not contain" instead. The non-Administrator test
+    checks only the hash; use `_unchanged`-style checks of
+    `session_version`, `must_change_password` and the lockout too.
+    **Done** before merge (Peter, 2026-10-27; tests this branch added).
+34. `role != "administrator"` is a literal (also in
+    `_lock_active_administrators`); `has_role(account, "administrator")` is
+    the same today (it is the top Role) and follows any Role added above.
+35. `clean_by` refuses only ASCII `=`; a fullwidth `＝` passes, and would
+    read as `=` to a log reader that applies NFKC. Refuse any character
+    whose NFKC form contains `=`.
+    **Done** before merge (Peter, 2026-10-27), without NFKC (project rule,
+    HANDOFF §6.2): `clean_by` refuses `=` and `＝` (U+FF1D) by name. Other
+    look-alikes (e.g. `⁼` U+207C, `₌` U+208C, `﹦` U+FE66) still pass: now
+    STORY-017 (quote the value or allow a set of characters).
+36. `_one_line(by)` is now redundant after `clean_by` (which collapses all
+    whitespace, CR/LF included); harmless.
+37. The new `unblock_ip` test has no type hints on `client_from`, `app_db`
+    (like its neighbours; see item 23).
+
+## From the review of the "＝" fix (2026-10-27, `1031004..94ab3e4`)
+9 findings. Done before merge (Peter, 2026-10-27): the refusal printed "＝"
+and crashed on a cp1252 (piped Windows) window, so the errors the services
+raise are now ASCII (`ascii()` for echoed input: `--by`, the IP, the
+email), with a cp1252 subprocess test (argparse errors and the success
+lines are not: item 40); docstrings of both commands match the code; the
+unblock test covers "＝"; the reset "=" tests check every field. Items 2
+and 9 (other look-alikes, bidi / zero-width characters) → STORY-017.
+38. `_state` and `_unchanged` in `tests/test_reset_password_cli.py` do the
+    same "nothing changed" check at two strengths; the deactivated and
+    no-`--by` tests still use the hash-only `_unchanged`. Fold into `_state`.
+39. The non-Administrator test copies `_locked_admin`'s lockout set-up line
+    for line; one `_locked(db, email, role)` helper for both.
+
+## From the review of the ASCII fix (2026-10-27, `94ab3e4..e49bfbf`)
+No (ก), nothing that breaks normal use (interactive console, or the UTF-8
+platform). 10 findings. Checked by running them on Peter's machine:
+- Not real: "a Thai `--by` loses the audit line on cp1252". Python's stderr
+  uses `backslashreplace`, so the line is kept as `by=cli:ป…`.
+- Not a finding: the parametrized `=` tests were added by this branch
+  (Peter: tests this branch added may be changed).
+40. **Real, only when the output is piped on Windows (cp1252):**
+    argparse errors (an unquoted Thai name: `--by ปีเตอร์ ส.` →
+    "unrecognized arguments: ส.") and the success / "not blocked" lines that
+    echo `args.ip` (a pasted `"unknown　"` passes validation) still end
+    in a `UnicodeEncodeError` traceback. Root fix, once, instead of
+    `ascii()` per message: in each command's `__main__`,
+    `sys.stdout.reconfigure(errors="backslashreplace")` before printing;
+    then the services' messages can go back to readable `!r` (output
+    encoding is the CLI layer's concern, not the service's). Extend the
+    cp1252 test to a Thai `--by` and an unquoted name.
+41. `_unchanged` (hash only) still serves the no-`--by` and deactivated
+    tests; fold into `_state` (with 38).
+42. The cp1252 subprocess test disposes its engine only at the end; a
+    failing assert leaves `cli.db` open on Windows. A fixture with teardown.
 
 ## Out of scope
 - Changing the limits themselves (10 / 50 / 15 minutes).

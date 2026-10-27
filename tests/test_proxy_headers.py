@@ -101,7 +101,7 @@ def test_a_star_refuses_to_start_everywhere_and_says_why(app_env, value):
 
 
 @pytest.mark.parametrize("value", ["10.0.0.300", "proxy.example.com", "10.0.0.1/8",
-                                   "10.0.0.5,", "none, 10.0.0.5"])
+                                   "none, 10.0.0.5"])
 def test_a_value_that_is_not_an_ip_or_cidr_refuses_to_start(value):
     with pytest.raises(ValidationError, match="FORWARDED_ALLOW_IPS: .* is not an IP"):
         _settings(value)
@@ -110,6 +110,8 @@ def test_a_value_that_is_not_an_ip_or_cidr_refuses_to_start(value):
 @pytest.mark.parametrize("value, proxies", [
     ("none", None), ("NONE", None), ("10.0.0.5", ["10.0.0.5"]),
     ("10.0.0.5, 10.1.0.0/16, ::1", ["10.0.0.5", "10.1.0.0/16", "::1"]),
+    # An extra comma leaves an empty entry: a typo, not a wrong value (STORY-015 21).
+    ("10.0.0.5,", ["10.0.0.5"]), ("none, ", None),
 ])
 def test_accepted_values(value, proxies):
     assert _settings(value).trusted_proxies() == proxies
@@ -117,6 +119,15 @@ def test_accepted_values(value, proxies):
 
 def test_in_dev_an_empty_value_means_localhost():
     assert _settings("", app_env="dev").trusted_proxies() == ["127.0.0.1"]
+
+
+def test_outside_dev_only_commas_count_as_unset():
+    with pytest.raises(ValidationError, match="FORWARDED_ALLOW_IPS must be set"):
+        _settings(" , ")
+
+
+def test_in_dev_only_commas_mean_localhost():
+    assert _settings(" , ", app_env="dev").trusted_proxies() == ["127.0.0.1"]
 
 
 # --- one worker (AC 7) -----------------------------------------------------------------

@@ -47,13 +47,19 @@ input or no `--by`, 2 not blocked); it logs `login_ip_unblocked ip=… by=…`
 to its own window. On the dev machine there is no log file: the app logs
 to the window running `uvicorn`.
 
+An Administrator locked out with no other Administrator to reset them:
+`python -m app.reset_password <email> --by "<your name>"` (README "When
+things break"; interactive shell only, it prints the temporary password).
+Built ahead of part B on `story/006-reset-password-cli` (2026-10-26).
+
 `FORWARDED_ALLOW_IPS`: the proxy IPs/CIDRs whose `X-Forwarded-For` is
 believed, or `none` if clients connect directly. Required outside
 `APP_ENV=dev` (the app, migrations and `create_admin` refuse to start
 without it); `*` is refused. A wrong value is not caught: part B must check
 on the deployed app that two machines count as two IPs. If the platform
 does not publish its proxy IPs, see the "trust one hop" option in STORY-006
-Further Notes. Avoid a trailing comma for now (STORY-015 item 21).
+Further Notes. A stray comma is ignored; only commas count as unset
+(STORY-015 item 21, done on `story/006-reset-password-cli`).
 
 **Never move `dev.db` data to production.** It holds test Administrator
 Accounts (`temp.admin@test.local`, `temp2.admin@test.local`) and test
