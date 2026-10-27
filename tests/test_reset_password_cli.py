@@ -10,7 +10,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import Engine, create_engine, select
 from sqlalchemy.orm import Session
 
 from app.database import Base
@@ -36,21 +36,31 @@ def _locked_admin(db: Session) -> Account:
     return account
 
 
-def test_the_real_command_resets_shows_the_password_once_and_logs_who(tmp_path: Path) -> None:
-    # Run it as a person would: its own process, its own database file, and
-    # only the environment it needs.
+def _real_db(tmp_path: Path) -> tuple[Engine, str]:
+    """A database file holding the locked Administrator, and its URL."""
     url = f"sqlite:///{(tmp_path / 'cli.db').as_posix()}"
     engine = create_engine(url)
     Base.metadata.create_all(engine)
     with Session(engine) as db:
         _locked_admin(db)
+    return engine, url
+
+
+def _run_command(url: str, *argv: str, encoding: str = "utf-8") -> subprocess.CompletedProcess:
+    """Run the command as a person would: its own process, and only the
+    environment it needs. `encoding` is what its stdout/stderr can write."""
     env = {k: v for k, v in os.environ.items()
            if k in ("PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE")}
-    env.update(APP_ENV="dev", DATABASE_URL=url, PYTHONIOENCODING="utf-8")
+    env.update(APP_ENV="dev", DATABASE_URL=url, PYTHONIOENCODING=encoding)
+    return subprocess.run([sys.executable, "-m", "app.reset_password", *argv],
+                          capture_output=True, text=True, encoding=encoding, env=env,
+                          cwd=REPO, timeout=60)
 
-    done = subprocess.run(
-        [sys.executable, "-m", "app.reset_password", EMAIL.upper(), "--by", "Peter"],
-        capture_output=True, text=True, env=env, cwd=REPO, timeout=60)
+
+def test_the_real_command_resets_shows_the_password_once_and_logs_who(tmp_path: Path) -> None:
+    engine, url = _real_db(tmp_path)
+
+    done = _run_command(url, EMAIL.upper(), "--by", "Peter")
 
     assert done.returncode == 0, done.stdout + done.stderr
     shown = [line for line in done.stdout.splitlines() if line.startswith(SHOWN)]
@@ -69,6 +79,23 @@ def test_the_real_command_resets_shows_the_password_once_and_logs_who(tmp_path: 
     engine.dispose()
 
 
+def test_a_refusal_prints_on_a_window_that_is_not_utf8(tmp_path: Path) -> None:
+    # A piped Windows window writes cp1252: the refusal must still be a plain
+    # message, not a traceback from a character it cannot write.
+    engine, url = _real_db(tmp_path)
+    with Session(engine) as db:
+        before = _state(db, db.scalar(select(Account.id).where(Account.email == EMAIL)))
+
+    done = _run_command(url, EMAIL, "--by", "x=y", encoding="cp1252")
+
+    assert done.returncode == 1
+    assert "must not contain" in done.stdout
+    assert "Traceback" not in done.stderr, done.stderr
+    with Session(engine) as db:
+        assert _state(db, db.scalar(select(Account.id).where(Account.email == EMAIL))) == before
+    engine.dispose()
+
+
 # --- in-process: the refusals -----------------------------------------------------------
 
 def _cli(db: Session, *argv: str) -> tuple[int, str]:
@@ -82,6 +109,14 @@ def _cli(db: Session, *argv: str) -> tuple[int, str]:
 def _unchanged(db: Session, before: str) -> bool:
     db.expire_all()
     return db.scalar(select(Account.password_hash).where(Account.email == EMAIL)) == before
+
+
+def _state(db: Session, account_id: int) -> tuple:
+    """Every field a reset touches, to show a refusal changed nothing."""
+    db.expire_all()
+    a = db.get(Account, account_id)
+    return (a.password_hash, a.session_version, a.must_change_password,
+            a.failed_login_count, a.locked_until)
 
 
 @pytest.fixture()
@@ -112,13 +147,6 @@ def test_a_deactivated_account_is_refused_and_unchanged(app_db: Session, admin: 
     assert _unchanged(app_db, before)
 
 
-def _state(db: Session, account_id: int) -> tuple:
-    db.expire_all()
-    a = db.get(Account, account_id)
-    return (a.password_hash, a.session_version, a.must_change_password,
-            a.failed_login_count, a.locked_until)
-
-
 def test_an_account_that_is_not_an_administrator_is_refused_and_unchanged(
         app_db: Session) -> None:
     account = auth.create_account(app_db, "buyer@test.local", "Buyer", "procurement",
@@ -138,10 +166,10 @@ def test_an_account_that_is_not_an_administrator_is_refused_and_unchanged(
 def test_by_with_an_equals_sign_is_refused_and_unchanged(
         app_db: Session, admin: Account, by: str) -> None:
     # The audit line is key=value; a name must not add a fake field to it.
-    before = admin.password_hash
+    before = _state(app_db, admin.id)
     code, out = _cli(app_db, EMAIL, "--by", by)
     assert code == 1 and "must not contain" in out and SHOWN not in out
-    assert _unchanged(app_db, before)
+    assert _state(app_db, admin.id) == before
 
 
 def test_each_reset_gives_a_new_password(app_db: Session, admin: Account) -> None:

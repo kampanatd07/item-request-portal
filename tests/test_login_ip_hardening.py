@@ -216,11 +216,12 @@ def test_unblock_without_by_is_an_error_and_changes_nothing(account, client_from
     assert _count(app_db) == MAX_FAILED_LOGINS_PER_IP
 
 
+@pytest.mark.parametrize("by", ["x ip=10.9.9.9", "x ip＝10.9.9.9"])  # fullwidth ＝ too
 def test_unblock_with_an_equals_sign_in_by_is_an_error_and_changes_nothing(
-        account: Account, client_from, app_db) -> None:
+        account: Account, client_from, app_db, by: str) -> None:
     # The audit line is key=value; a name must not add a fake field to it.
     _block(client_from(IP))
-    code, out = _cli(app_db, IP, "--by", "x ip=10.9.9.9")
+    code, out = _cli(app_db, IP, "--by", by)
     assert code == 1 and "must not contain" in out
     assert _count(app_db) == MAX_FAILED_LOGINS_PER_IP
 
