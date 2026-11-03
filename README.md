@@ -24,7 +24,10 @@ $env:TEST_POSTGRES_URL = "postgresql+psycopg://app:app@localhost:5432/itemportal
 user must be allowed to create databases: each test gets its own copy.)
 
 ## Deploying
-Push to `main` → GitHub Actions runs tests → deploy to Render/Railway (see docs/architecture.md)
+**Not deployed yet** (STORY-006 part B; go-live conditions in
+`docs/HANDOFF.md` §2). Every push to any branch runs CI (GitHub Actions:
+migrations, schema-drift check and the whole suite on PostgreSQL 16); there
+is no automatic deploy. Rules the deploy must keep:
 
 - **One worker process.** The container runs `uvicorn --workers 1`. The mail
   limiter spaces sends per process (`MAIL_RATE_PER_MINUTE`, default 25) and
@@ -71,6 +74,9 @@ Push to `main` → GitHub Actions runs tests → deploy to Render/Railway (see d
   cleared. The log line `account_admin by=cli:<your name>
   action=reset_password target=<email>` says who reset whom, never the
   password. Any other Account: use the Account admin page.
-- Logs: Render/Railway dashboard
-- Backups: platform daily DB snapshot; weekly pg_dump
-- Owner: Peter (kampanat.d07@gmail.com)
+- Logs: on the dev machine, the window running `uvicorn`. On the platform:
+  to be set up and written here in STORY-006 part B.
+- Backups: none yet. Planned: the platform's daily database snapshot plus a
+  weekly `pg_dump`, with one restore tested before go-live (STORY-006 part B).
+- Owner: the IT team (`[IT-OWNER]`, see `docs/IT-HANDOVER.md`). Built by
+  Peter (Procurement Strategy) until 2026-11-13.

@@ -1,11 +1,12 @@
 # HANDOFF — Item Request Portal
 
-> For any new Claude Code session or agent: read this file, `CLAUDE.md`, `CONTEXT.md`, and
-> `docs/decisions.md` before doing anything. If chat history contradicts these
-> files, the files win.
+> For any new Claude Code session or agent: read `docs/IT-HANDOVER.md`, this
+> file, `CLAUDE.md`, `CONTEXT.md`, and `docs/decisions.md` before doing
+> anything. If chat history contradicts these files, the files win.
 >
-> Last updated: 2026-10-27 · Owner: Peter (Procurement Strategy, Carabao Group)
-> until 2026-11-13, when Peter leaves; the goal now is handover, not go-live.
+> Last updated: 2026-11-03 · Owner: Peter (Procurement Strategy, Carabao Group)
+> until 2026-11-13, when Peter leaves; then the IT team (`docs/IT-HANDOVER.md`).
+> The goal now is handover, not go-live.
 
 ---
 
@@ -242,16 +243,21 @@ Upload an unencrypted copy of v5 instead once one is available.
    cuts a real name. Use `naming.starts_with_prefix` / `searchable_part` /
    `swap_prefix` with the Sub-Category's prefix (STORY-013).
 
-## 7. Decisions only Peter can make (not code)
+## 7. Open decisions and outside steps (not code)
+
+Until 2026-11-13 Peter; after that the role named in **who** (roles:
+`docs/IT-HANDOVER.md` C1).
 
 - Test-import 1–2 exported rows into real AX/D365 (STORY-005 depends on it)
+  — **who:** `[BUSINESS-OWNER]` with the AX/D365 team
 - In that test, also import a code that already exists in one D365 company
   (e.g. APG) into another (e.g. APM), and record what AX/D365 does (refuses,
   releases, or duplicates). The result decides whether the override check
   on a D365 match goes back from a warning to a refusal (STORY-012)
+  — **who:** `[BUSINESS-OWNER]`
 - Send a sample D365 item export showing the company / legal-entity column
-  (STORY-012 is blocked on it)
-- Email (STORY-002) — ask IT for: an App Registration with the `Mail.Send`
+  (STORY-012 is blocked on it) — **who:** `[BUSINESS-OWNER]`
+- Email (STORY-002) — **who:** `[IT-OWNER]`. Ask IT for: an App Registration with the `Mail.Send`
   **application** permission + admin consent, and an Application Access
   Policy that limits it to one shared sender mailbox (e.g.
   `item-portal@carabao.co.th`). Then provide `MS_TENANT_ID`, `MS_CLIENT_ID`,
@@ -261,12 +267,11 @@ Upload an unencrypted copy of v5 instead once one is available.
   one real test email (any request through needs_info) and check it arrives,
   with the Reply-To and the copy in the sender's Sent Items. Allowed originator email domains are data on the
   Settings page (seeded: apm.co.th, acmf.co.th, apg.co.th, carabao.co.th)
-- **External hosting policy (STORY-006 AC 6):** Peter asks IT together with
-  the Graph values whether company data policy allows item data on an
-  external host. If not, the deploy platform changes (company VM, see
+- **External hosting policy (STORY-006 AC 6)** — **who:** `[IT-OWNER]`:
+  whether company data policy allows item data on an external host. If not, the deploy platform changes (company VM, see
   decisions.md 2026-07-24), so get the answer before choosing Render/Railway
   in part B. Answer: _(fill in)_
-- **Client secret expiry:** an Azure client secret has an end date (often
+- **Client secret expiry** — **who:** `[IT-OWNER]`: an Azure client secret has an end date (often
   6–24 months). Note it here when IT creates it and renew it before that
   date — after it expires every email fails with "Graph credentials do not
   work". Secret expires on: _(fill in)_
@@ -277,18 +282,23 @@ Upload an unencrypted copy of v5 instead once one is available.
 - The cut-over date after which **only** this portal issues central codes —
   until then, codes issued by hand elsewhere will collide with the register.
   It comes after Cutover Plan phase 1 and the delta of items opened in the
-  old system since 2026-08-07 (§2)
+  old system since 2026-08-07 (§2) — **who:** `[BUSINESS-OWNER]`
+- The delta route, option A (through the portal) or B (through the
+  pipeline, then STORY-005) (§2) — **who:** `[BUSINESS-OWNER]`
+- Which taxonomy is current: 105 sub-categories in the v4 file vs 130 in
+  the portal (STORY-005 note 2) — **who:** `[BUSINESS-OWNER]`
+- Verify `700-02`, `901-06`, `906-02` against an unencrypted copy of v5
+  (STORY-005 note 1) — **who:** `[BUSINESS-OWNER]`
 - Complete reference lists: UoM confirmation, procurement categories,
-  group → D365 ItemGroupId mapping
+  group → D365 ItemGroupId mapping — **who:** `[BUSINESS-OWNER]`
 
-## 8. Working with Peter
+## 8. Working with the owner
 
-- Thai for conversation, English for code/comments/commits
-- Short and direct; give a recommendation with the reason, not a menu
-- Report problems plainly with numbers
-- Plan first, get confirmation, then build; explain significant decisions in 2–3 sentences
-- He approves every merge
-- **No merge on red CI.** No branch protection is set up (GitHub plan not
-  yet checked (Peter); on GitHub Free a private repo cannot have it), so a
-  red CI run does not block the merge button: Peter checks the CI result
-  before approving (decided 2026-10-21)
+How Claude works with the user (language, plans, merges, CI, tests) is in
+`CLAUDE.md` ("Working with the user", "Working rules"). One rule kept here:
+
+- **No merge on red CI.** No branch protection is set up (on GitHub Free a
+  private repo cannot have it), so a red CI run does not block the merge
+  button: whoever approves the merge (`[IT-OWNER]`) checks the CI result
+  first (decided 2026-10-21). Turn on branch protection after the repo move
+  if the plan allows (`docs/IT-HANDOVER.md` A5).

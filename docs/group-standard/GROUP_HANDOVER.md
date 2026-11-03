@@ -1,5 +1,12 @@
 # _HANDOVER — Carabao Group Item Master Restructure
 
+> **หยุดอัปเดตตั้งแต่ 3 ส.ค. 2026 / Not updated since 2026-08-03.** เก็บไว้เป็น
+> ประวัติและที่มาของมาตรฐานกลุ่ม สถานะปัจจุบันอยู่ที่ `docs/IT-HANDOVER.md` และ
+> `docs/HANDOFF.md` (เช่น D1–D4 ใช้แล้วตั้งแต่ 2026-08-06, master สุดท้ายคือ
+> `Central_v5_with_DCM`) / Kept as the history of the group standard; current
+> status is in `docs/IT-HANDOVER.md` and `docs/HANDOFF.md`. The pipeline and
+> source files it lists are outside this repo (`docs/IT-HANDOVER.md` C3).
+
 > **สำหรับ Claude / Cowork session ใหม่: อ่านไฟล์นี้ทั้งไฟล์ก่อนตอบอะไรทั้งสิ้น**
 > เอกสารนี้คือ single source of truth ของสถานะโปรเจกต์ ถ้าข้อมูลใน chat ขัดกับไฟล์นี้ ให้เชื่อไฟล์นี้
 > อัปเดตล่าสุด: 3 ส.ค. 2026 · เจ้าของงาน: Peter (kampanat.d07@gmail.com) — Procurement Strategy, Carabao Group
