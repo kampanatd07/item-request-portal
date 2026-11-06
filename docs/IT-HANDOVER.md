@@ -213,21 +213,29 @@ Listed in HANDOFF §7, each with a "who" column. Most belong to
 
 ### C3. ข้อมูลนอก repo / Data outside the repository
 
-ที่อยู่ปัจจุบันของไฟล์กลุ่ม / Current location of the group files: OneDrive บริษัท
-ของ Peter / Peter's company OneDrive, under
-`Kmapanat\Project - Plant\2026 - Item Createter\` (Peter ยืนยัน path ของแต่ละไฟล์
-/ Peter to confirm each file's path).
+ไฟล์ทั้งหมดย้ายไปที่เดียว โครงสร้างโฟลเดอร์คงเดิม (ตัดสิน 2026-11-06) / Every
+file moves to one place, keeping the folder structure (decided 2026-11-06):
 
-| ไฟล์ / File | คืออะไร / What | ที่ใหม่ / New location |
+- **เดิม / Old (OneDrive ของ Peter, ถูกลบหลังปิดบัญชี / deleted when his account closes):**
+  `https://carabao-my.sharepoint.com/personal/kampanat_dae_carabao_co_th/Documents/Kmapanat/Project - Plant/2026 - Item Createter/`
+- **ใหม่ / New (SharePoint ของทีม / team site):**
+  `https://carabao.sharepoint.com/sites/PurchaseWFH/Shared Documents/General/15. Procurement Strategy/15_Handover_Peter_Kampanat/2026 - Item Createter/`
+
+คอลัมน์ path ด้านล่างนับจากโฟลเดอร์ `2026 - Item Createter/` ซึ่งใช้ได้ทั้งที่เดิมและที่ใหม่
+ช่องที่ยังเป็น "(fill in)" คือไฟล์ที่ยังหา path ไม่เจอ: Peter ยืนยัน
+/ The path column is relative to `2026 - Item Createter/`, the same under the
+old and the new root. "(fill in)": path not found yet, Peter to confirm.
+
+| ไฟล์ / File | คืออะไร / What | path ใต้ / under `2026 - Item Createter/` |
 |---|---|---|
-| `Handover 2026-11\` (รวม / incl. `04-pipeline-master-กลาง.md`) | ส่งมอบฝั่งกลุ่ม, เส้นทาง delta A/B / group handover, delta routes | (fill in) |
-| `Carabao_Group_Item_Master_Central_v4.xlsx` | master ที่ใช้เป็น snapshot (ไม่มี DCM) / used as the snapshot (no DCM) | (fill in) |
-| `Central_v5_with_DCM.xlsx` (IRM) | master สุดท้าย 13,400 รหัส / final master, 13,400 codes; **ให้สิทธิ์ IRM กับ IT / grant IT IRM rights** | (fill in) |
+| `Handover 2026-11\` (รวม / incl. `04-pipeline-master-กลาง.md`) | ส่งมอบฝั่งกลุ่ม, เส้นทาง delta A/B / group handover, delta routes | `Rule of Item/Handover 2026-11/` |
+| `Carabao_Group_Item_Master_Central_v4.xlsx` | master ที่ใช้เป็น snapshot (ไม่มี DCM) / used as the snapshot (no DCM) | `hand-off from other device/Carabao/2026/2026 - Item Creator/` |
+| `Carabao_Group_Item_Master_Central_v5_with_DCM.xlsx` (IRM) | master สุดท้าย 13,400 รหัส / final master, 13,400 codes; **ให้สิทธิ์ IRM กับ IT / grant IT IRM rights** | `hand-off from other device/Carabao/2026/2026 - Item Creator/` |
 | สำเนา v5 ไม่เข้ารหัส / unencrypted v5 copy | ยังไม่มี; ต้องใช้กับ snapshot และตรวจ 3 หมวดย่อย / does not exist yet; needed for the snapshot and the 3 sub-categories | (fill in) |
-| `Carabao_Item_Master_Running_Number_Register_v1.xlsx` | ต้นทางของ register (อยู่ใน `app/data/running_register.json` แล้ว) / register seed source (already in the repo) | (fill in) |
+| `Carabao_Item_Master_Running_Number_Register_v1.xlsx` | ต้นทางของ register (อยู่ใน `app/data/running_register.json` แล้ว) / register seed source (already in the repo) | `hand-off from other device/Carabao/2026/2026 - Item Creator/` |
 | `Decision_Sheet_v2_corrected` | D1–D4 ใช้แล้ว 2026-08-06 / applied | (fill in) |
 | group pipeline (`_pipeline\`, `docs/group-standard/GROUP_HANDOVER.md` §5) | สร้าง master; ห้ามรันใหม่ทั้งชุด / builds the master; never re-run whole | (fill in) |
-| export item master เดิม / legacy item master exports (CBD, D365) | snapshot ตรวจซ้ำ / duplicate-check snapshot | (fill in) |
+| export item master เดิม / legacy item master exports: `All Item (CBD).xlsx` (CBD); D365 (fill in) | snapshot ตรวจซ้ำ / duplicate-check snapshot | `hand-off from other device/Carabao/2026/2026 - Item Creator/` (CBD) |
 | `dev.db` บนเครื่อง Peter / on Peter's machine | ข้อมูลทดสอบ / test data | **ไม่ต้องส่งมอบ ห้ามย้ายเข้า production / do not hand over, never move to production** |
 
 ---
