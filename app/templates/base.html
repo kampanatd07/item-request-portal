@@ -234,6 +234,18 @@
     .subfilters a { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 12px; border: 1px solid var(--border); border-radius: 999px; color: var(--ink-2); font-size: 13.5px; font-weight: 500; text-decoration: none; }
     .subfilters a:hover { border-color: var(--border-strong); color: var(--ink); }
     .subfilters a[aria-current="page"] { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-ink); }
+    /* Reference data: tabs + filters (admin config). */
+    .config.tabbed .config-panel[hidden] { display: none; }
+    .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: var(--space-3) 0; }
+    .filter-bar .filter-input { width: 260px; min-height: 36px; padding: 6px 12px; }
+    .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; }
+    .seg label { display: inline-flex; align-items: center; margin: 0; padding: 6px 12px; font-size: 14px; font-weight: 500; color: var(--ink-2); cursor: pointer; border-left: 1px solid var(--border); }
+    .seg label:first-child { border-left: 0; }
+    .seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    .seg label:has(input:checked) { background: var(--brand-soft); color: var(--brand-ink); font-weight: 600; }
+    .seg label:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: -2px; }
+    tr[hidden] { display: none; }
+
     /* Request detail: content left, actions right. */
     .back-link { display: inline-block; margin-bottom: var(--space-3); color: var(--muted); font-size: 14px; text-decoration: none; }
     .back-link:hover { color: var(--ink); }
