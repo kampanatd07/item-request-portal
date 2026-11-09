@@ -1,5 +1,8 @@
+from pathlib import Path
+
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.config import settings
@@ -69,6 +72,9 @@ def _forbidden_page(request: Request, exc: RoleForbidden) -> Response:
 # matrix (STORY-001), so a new route inherits its router's guard even if its
 # author forgets. Only auth_router is public.
 app.include_router(auth_router)
+# Public on purpose: the login page needs the font too. Holds only the
+# self-hosted Thai font (STORY-018); never put data or templates here.
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 app.include_router(requests_router, dependencies=[Depends(current_account)])
 app.include_router(queue_router, dependencies=[Depends(require_role("procurement"))])
 app.include_router(exports_router, dependencies=[Depends(require_role("procurement"))])

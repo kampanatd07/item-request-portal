@@ -1,12 +1,12 @@
 {% if categories %}
 <div id="cat-slot" hx-swap-oob="innerHTML">
-  <div class="card" style="background:#eef4fb; border-color:#9cc0e8;">
+  <div class="callout info">
     <strong>หมวดที่ระบบแนะนำ</strong>
     <p class="muted" style="margin:4px 0 8px;">กดเลือกได้เลย หรือเลือกเองจากช่องด้านล่าง</p>
     {% for c in categories %}
     <div style="margin-bottom:6px;">
-      <button type="button"
-              style="padding:5px 12px; border:1px solid #185FA5; background:{{ '#185FA5' if loop.first and c.confidence >= auto_select else '#fff' }}; color:{{ '#fff' if loop.first and c.confidence >= auto_select else '#185FA5' }}; border-radius:6px; cursor:pointer;"
+      {% set picked = loop.first and c.confidence >= auto_select %}
+      <button type="button" class="chip{{ ' selected' if picked }}" aria-pressed="{{ 'true' if picked else 'false' }}"
               onclick="pickCategory('{{ c.group.id }}','{{ c.sub.id }}', this)">
         {{ c.label }} · {{ (c.confidence * 100) | round | int }}%
       </button>
@@ -30,7 +30,7 @@
 </div>
 {% endif %}
 {% if items %}
-<div class="card" style="background:#faeeda; border-color:#efb95f;">
+<div class="callout warning">
   <strong>พบรายการใกล้เคียง {{ items|length }} รายการ</strong>
   <p class="muted">ถ้าตรงกับที่ต้องการ ให้ใช้ item เดิมแทนการขอสร้างใหม่</p>
   <table>
@@ -48,5 +48,5 @@
 {% elif no_snapshot %}
 <p class="muted">ยังไม่มีข้อมูล item master สำหรับเช็คซ้ำ — แจ้งจัดซื้ออัปโหลด snapshot</p>
 {% else %}
-<p class="muted" style="color:#3b6d11;">ไม่พบรายการใกล้เคียงใน item master</p>
+<p class="muted ok-text">ไม่พบรายการใกล้เคียงใน item master</p>
 {% endif %}

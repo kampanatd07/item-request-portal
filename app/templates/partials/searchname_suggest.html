@@ -1,11 +1,11 @@
 <div style="margin-top:6px; font-size:13px;">
   <span class="muted">แนะนำ search name{% if source == "dictionary" %} (จาก dictionary){% elif source == "llm" %} (AI){% else %} (คาดเดา){% endif %}:</span>
   {% for c in candidates %}
-  <button type="button" class="secondary" style="padding:3px 10px; margin:2px;"
+  <button type="button" class="chip" style="margin:2px;"
           onclick="document.getElementById('search_name').value='{{ c }}'">{{ c }}</button>
   {% endfor %}
   {% if not candidates %}
-  <button type="button" class="secondary" style="padding:3px 10px;"
+  <button type="button" class="chip"
           onclick="document.getElementById('search_name').value='{{ suggestion }}'">{{ suggestion }}</button>
   {% endif %}
 </div>

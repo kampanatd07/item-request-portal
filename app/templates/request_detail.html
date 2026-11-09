@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block main_class %}wide{% endblock %}
 {% block title %}คำขอ #{{ req.id }}{% endblock %}
 {% block content %}
 {% if req is none %}
@@ -10,7 +11,7 @@
 
 {% if resubmit %}
 {# Above everything Procurement acts on, so the answer is read first (STORY-009). #}
-<div class="card" id="resubmit-summary" style="background:#fff6d6;">
+<div class="card" id="resubmit-summary" style="background: var(--attn-bg); border-color: var(--attn-line);">
   <h3 style="margin-top:0;">{% if resubmit.by_owner %}ส่งกลับจากรอข้อมูล{% else %}รับเข้าคิวใหม่โดยจัดซื้อ{% endif %}</h3>
   <p class="muted">{{ resubmit.actor }} · {{ resubmit.at | thai_time("%d/%m/%Y %H:%M") }}</p>
   {% if resubmit.replaced_name %}

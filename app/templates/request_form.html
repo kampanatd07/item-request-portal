@@ -6,7 +6,7 @@
 <div class="card">
   <h2>{% if r %}แก้ไขและส่งกลับคำขอ #{{ r.id }}{% else %}ส่งคำขอสร้าง Item{% endif %}</h2>
   {% if r %}
-  <div class="card" style="background:#fff6d6;">
+  <div class="callout attention">
     <strong>จัดซื้อต้องการ: {{ reason or "-" }}</strong>
   </div>
   {% endif %}
@@ -174,7 +174,7 @@
     <label>สเปค / รายละเอียดเพิ่มเติม</label>
     <textarea name="spec_note" rows="3" placeholder="ชนิด สี หรือรายละเอียดอื่นๆ">{% if r %}{{ "\n" }}{{ r.spec_note or '' }}{% endif %}</textarea>
 
-    <div class="card" style="background:#f0f7f4; margin-top:16px;">
+    <div class="callout brand" style="margin-top:16px;">
       <span class="muted">ชื่อสินค้าที่ระบบจะบันทึก (ประกอบอัตโนมัติ):</span>
       {# Resubmit: the stored name until a field changes (no edit keeps it, even one Procurement typed). #}
       <div id="name-preview" style="font-size:17px; font-weight:500; min-height:24px;">{{ r.item_name if r else "—" }}</div>
@@ -205,10 +205,10 @@ function pickCategory(groupId, subId, btn) {
     });
   if (btn) {
     btn.parentElement.parentElement
-       .querySelectorAll('button').forEach(function (b) {
-         b.style.background = '#fff'; b.style.color = '#185FA5';
+       .querySelectorAll('button.chip').forEach(function (b) {
+         b.classList.remove('selected'); b.setAttribute('aria-pressed', 'false');
        });
-    btn.style.background = '#185FA5'; btn.style.color = '#fff';
+    btn.classList.add('selected'); btn.setAttribute('aria-pressed', 'true');
   }
 }
 
