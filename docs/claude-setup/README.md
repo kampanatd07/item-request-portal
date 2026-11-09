@@ -1,6 +1,21 @@
 # ตั้งค่า Claude Code สำหรับโปรเจกต์นี้
 
-## 1. ย้ายโปรเจกต์ออกจาก OneDrive (ครั้งเดียว)
+## 0. เครื่องใหม่ของทีม IT (เริ่มที่นี่)
+
+ข้อ 1–2 ด้านล่างคือสิ่งที่ Peter ทำตอนเริ่มโปรเจกต์ เก็บไว้เป็นประวัติ เครื่องใหม่ทำแค่นี้:
+
+```powershell
+cd D:\dev                                  # โฟลเดอร์ใดก็ได้ที่ไม่อยู่ใน OneDrive
+git clone <URL ของ repo ที่ใหม่> item-request-portal   # docs/IT-HANDOVER.md A5
+cd item-request-portal
+python -m venv .venv                       # Python 3.12 หรือ 3.13 จาก python.org
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+```
+
+แล้วรันตาม `docs/HANDOFF.md` §4 และติดตั้ง Claude Code ตามข้อ 4.1–4.2
+(ข้อ 4.3–4.4 ทำไว้แล้ว ผลอยู่ใน repo ไม่ต้องทำซ้ำ)
+
+## 1. ย้ายโปรเจกต์ออกจาก OneDrive (ครั้งเดียว, ประวัติ)
 
 OneDrive ทำให้ SQLite และ git พัง และ git worktree (ที่ใช้รันหลาย agent ขนานกัน)
 จะพังหนักกว่านี้อีก ใช้ `D:\dev` (ไดรฟ์ C พื้นที่ใกล้เต็ม) — จะไดรฟ์ไหนก็ได้
@@ -26,7 +41,7 @@ venv อยู่ใน `D:\dev\item-request-portal\.venv` (~200 MB) ส่ว�
 เมื่อย้ายเสร็จและรันได้แล้ว ลบ `.venv` ในโฟลเดอร์ OneDrive ทิ้งได้ (ประหยัดพื้นที่ sync)
 โฟลเดอร์ OneDrive เก็บไว้เป็นแค่ backup — **แก้งานที่ `D:\dev` ที่เดียว** ไม่งั้นจะมีสองชุดที่ไม่ตรงกัน
 
-## 2. ขึ้น GitHub (private)
+## 2. ขึ้น GitHub (private, ประวัติ)
 
 สร้าง repo เปล่าบน GitHub ชื่อ `item-request-portal` แบบ **Private** แล้ว:
 ```powershell
@@ -79,9 +94,10 @@ Copy-Item docs\claude-setup\skills\carabao-item-master $HOME\.claude\skills\ -Re
 | 3. แตกงาน | `/to-tickets` | ticket ย่อยที่รู้ลำดับว่าอะไรต้องทำก่อน |
 | 4. ลงมือ | `/implement` | ทำด้วย `/tdd` (test fail ก่อนเสมอ) แล้วปิดด้วย `/code-review` |
 | 5. ตรวจมาตรฐานกลุ่ม | "ตรวจ diff ด้วย carabao-item-master" | รายการที่ขัดมาตรฐาน พร้อม file:line |
-| 6. ตัดสิน | Peter อ่าน diff แล้ว merge | — |
+| 6. ตัดสิน | `[IT-OWNER]` อ่าน diff และผล CI แล้ว merge | — |
 
-ทำบน branch `story/NNN-short-name` เสมอ **Peter เป็นคนตัดสิน merge ทุกครั้ง**
+ทำบน branch `story/NNN-short-name` เสมอ **`[IT-OWNER]` เป็นคนตัดสิน merge ทุกครั้ง**
+(ลำดับปิด branch เต็มอยู่ใน `CLAUDE.md` "Working rules")
 
 ไม่แน่ใจว่าควรใช้ skill ไหน → พิมพ์ `/ask-matt`
 
@@ -101,5 +117,5 @@ git worktree add ..\irp-story-004 -b story/004-item-attributes
 
 ## 7. เริ่ม session ใหม่ทุกครั้ง
 
-พิมพ์: `อ่าน docs/HANDOFF.md แล้วสรุปสถานะ 3 บรรทัด`
+พิมพ์: `อ่าน docs/IT-HANDOVER.md, docs/HANDOFF.md และ docs/decisions.md แล้วสรุปสถานะ 3 บรรทัด`
 ถ้าข้อมูลในแชทขัดกับไฟล์ ให้เชื่อไฟล์

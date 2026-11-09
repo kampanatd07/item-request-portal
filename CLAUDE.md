@@ -5,7 +5,11 @@ Web app where staff at 4 Carabao Group plants (CBD, APM, APG, ACM) request new
 non-stock and service purchase items. It checks duplicates, suggests the category,
 composes the standard name, issues a central 11-digit code from the group's
 running register, and exports AX/D365 import files per plant.
-Users: factory requesters + procurement (Peter, 1–2 people)
+Users: factory requesters + procurement (1–2 people)
+
+**Owner: the IT team** since Peter's handover (he leaves 2026-11-13). Roles
+`[IT-OWNER]`, `[IT-DEVELOPER]`, `[BUSINESS-OWNER]`: `docs/IT-HANDOVER.md` C1.
+"The user" below is whoever from the IT team is working with you.
 
 **Read `docs/HANDOFF.md` first** — status, how to run, and traps already hit.
 Domain language: `CONTEXT.md` — use its terms in code, tests and chat.
@@ -43,18 +47,45 @@ FastAPI + SQLAlchemy + Alembic | SQLite (dev) / PostgreSQL (prod) | HTMX + Jinja
 ## Conventions
 - Code, comments, commits: English. UI text: Thai. Chat with user: Thai.
 - Type hints on all functions; commit messages explain why
-- Branch per story (`story/NNN-short-name`); Peter approves every merge
+- Branch per story (`story/NNN-short-name`); `[IT-OWNER]` approves every merge
+  (unless granted under the Branch end exception below)
 
-## Working with me (the user)
-- I'm building engineering skills — briefly explain significant decisions (2–3 sentences)
-- Propose a plan before writing features; wait for my confirmation
+## Working with the user
+- Briefly explain significant decisions (2–3 sentences)
+- Propose a plan before writing features; wait for confirmation
 - Short and direct; give a recommendation with the reason
 - Report problems plainly with numbers
-- Push back when I drift from the out-of-scope list
+- Push back on drift from the out-of-scope list
+- Ask decisions as plain text in chat (numbered, options ก/ข/ค, with a
+  recommendation), not with a picker
+- Business rules (taxonomy, codes, register, naming, UoM) are
+  `[BUSINESS-OWNER]`'s call: ask, never decide them in code
+
+## Working rules (moved from Peter's local Claude memory, 2026-11-03)
+- **Branch end:** push → tell the user the exact `passed` count CI must show
+  → the user reads CI from the run's own numbers (never a summary, never an
+  expected count) → `/code-review` on that round's diff only → sort findings:
+  (ก) wrong data, someone acting who should not, data lost, or an acceptance
+  criterion not met = stop and ask; (ข) = backlog note. Merge only when
+  approved: `git merge --no-ff` → pytest → push → the user reads master's CI.
+  Delete a branch or backup only when told. Exception: `[IT-OWNER]` may
+  grant "no (ก) → merge without asking" for one named branch at a time; the
+  grant must be `[IT-OWNER]`'s own message in the current conversation
+  naming that branch (if unsure who is typing, ask before merging), and it
+  never carries over to another branch.
+- **Never close on expectations:** tick a checklist item or set a ticket to
+  `done` only after the user reports the real result (CI, browser check).
+- **Existing tests:** ask before changing any existing test's expectation,
+  setup, or deleting it; record the reason in the ticket. New tests need no
+  approval.
+- **Thai and markdown files:** edit only with the Edit tool or Python with
+  `encoding="utf-8"`; never `sed`.
+- **User-invoked skills:** `/grill-with-docs`, `/to-spec`, `/to-tickets` are
+  typed by the user; Claude cannot call them. When one is next, say so.
 
 ## Session start
-Read docs/HANDOFF.md and docs/decisions.md, check git status, summarize project
-state in 2–3 lines first.
+Read docs/IT-HANDOVER.md, docs/HANDOFF.md and docs/decisions.md, check git
+status, summarize project state in 2–3 lines first.
 
 ## Out of scope for v1
 - Direct write to AX/D365 (API/DB) — export files only
