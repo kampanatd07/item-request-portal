@@ -276,7 +276,10 @@ function pickCategory(groupId, subId, btn) {
             { target: '#subgroup-slot', swap: 'innerHTML' })
     .then(function () {
       var subSel = document.querySelector('[name="subgroup_id"]');
-      if (subSel) { subSel.disabled = false; subSel.value = subId; }
+      // A group without sub-categories keeps its select disabled (nothing to
+      // pick, and the checklist then does not ask for one).
+      var hasOptions = subSel && Array.prototype.some.call(subSel.options, function (o) { return o.value; });
+      if (hasOptions) { subSel.disabled = false; subSel.value = subId; }
       updateChecklist();
     });
   if (btn) {
