@@ -43,8 +43,8 @@
     </tr>
   </table>
   <form hx-post="/admin/snapshots/labeled" hx-target="#labeled-result" hx-swap="innerHTML" enctype="multipart/form-data">
-    <label>ไฟล์ (.xlsx ที่มีคอลัมน์ Category Code / Sub-Category Code)</label>
-    <input type="file" name="file" accept=".xlsx" required>
+    <label for="labeled-file">ไฟล์ (.xlsx ที่มีคอลัมน์ Category Code / Sub-Category Code)</label>
+    <input id="labeled-file" type="file" name="file" accept=".xlsx" required>
     <button type="submit">อัปโหลด</button>
   </form>
   <div id="labeled-result"></div>
@@ -53,13 +53,13 @@
 <div class="card">
   <h3>อัปโหลด snapshot ใหม่</h3>
   <form hx-post="/admin/snapshots" hx-target="#upload-result" hx-swap="innerHTML" enctype="multipart/form-data">
-    <label>แหล่งข้อมูล</label>
-    <select name="source" required>
+    <label for="snap-source">แหล่งข้อมูล</label>
+    <select id="snap-source" name="source" required>
       <option value="CBD">CBD (AX)</option>
       <option value="D365">D365 (APM/APG/ACM)</option>
     </select>
-    <label>ไฟล์</label>
-    <input type="file" name="file" accept=".xlsx,.csv" required>
+    <label for="snap-file">ไฟล์</label>
+    <input id="snap-file" type="file" name="file" accept=".xlsx,.csv" required>
     <button type="submit">อัปโหลด</button>
   </form>
   <div id="upload-result"></div>

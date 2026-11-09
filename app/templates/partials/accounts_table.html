@@ -6,7 +6,7 @@
     <td>{{ a.display_name }}</td>
     <td>
       <form hx-post="/admin/accounts/{{ a.id }}/access" hx-target="#accounts-table" hx-swap="innerHTML"
-            style="display:flex; gap:6px; align-items:center; margin:0;">
+            class="inline-form">
         <select name="role" aria-label="Role">
           {% for r in roles %}<option value="{{ r }}" {{ "selected" if r == a.role }}>{{ role_labels[r] }}</option>{% endfor %}
         </select>
@@ -14,25 +14,25 @@
           <option value="">-</option>
           {% for f in factories %}<option value="{{ f.id }}" {{ "selected" if f.id == a.factory_id }}>{{ f.code }}</option>{% endfor %}
         </select>
-        <button type="submit" class="secondary" style="margin:0; padding:6px 10px;">บันทึก</button>
+        <button type="submit" class="secondary sm">บันทึก</button>
       </form>
     </td>
-    <td>{{ "ใช้งาน" if a.active else "ปิดใช้งาน" }}{% if a.must_change_password %}<br><span class="muted">ต้องเปลี่ยนรหัส</span>{% endif %}
+    <td>{% if a.active %}<span class="badge approved">ใช้งาน</span>{% else %}<span class="badge rejected">ปิดใช้งาน</span>{% endif %}{% if a.must_change_password %}<br><span class="muted">ต้องเปลี่ยนรหัส</span>{% endif %}
       {%- if a.locked_until and a.locked_until > request.state.now %}<br><span class="badge rejected">ล็อกถึง {{ a.locked_until | thai_time }} น.</span>{% endif %}</td>
-    <td style="white-space:nowrap;">
+    <td class="nowrap">
       <form hx-post="/admin/accounts/{{ a.id }}/reset-password" hx-target="#account-result" hx-swap="innerHTML"
-            hx-confirm="รีเซ็ตรหัสผ่านของ {{ a.email }}? session ที่เปิดอยู่จะหลุดทันที" style="display:inline; margin:0;">
-        <button type="submit" class="secondary" style="margin:0; padding:6px 10px;">รีเซ็ตรหัส</button>
+            hx-confirm="รีเซ็ตรหัสผ่านของ {{ a.email }}? session ที่เปิดอยู่จะหลุดทันที" class="inline-form">
+        <button type="submit" class="secondary sm">รีเซ็ตรหัส</button>
       </form>
       {% if a.active and a.id != acting.id %}
       <form hx-post="/admin/accounts/{{ a.id }}/deactivate" hx-target="#accounts-table" hx-swap="innerHTML"
-            hx-confirm="ปิดใช้งาน {{ a.email }}?" style="display:inline; margin:0;">
-        <button type="submit" class="danger" style="margin:0; padding:6px 10px;">ปิดใช้งาน</button>
+            hx-confirm="ปิดใช้งาน {{ a.email }}?" class="inline-form">
+        <button type="submit" class="danger sm">ปิดใช้งาน</button>
       </form>
       {% elif not a.active %}
       <form hx-post="/admin/accounts/{{ a.id }}/reactivate" hx-target="#accounts-table" hx-swap="innerHTML"
-            style="display:inline; margin:0;">
-        <button type="submit" style="margin:0; padding:6px 10px;">เปิดใช้งาน</button>
+            class="inline-form">
+        <button type="submit" class="sm">เปิดใช้งาน</button>
       </form>
       {% endif %}
     </td>

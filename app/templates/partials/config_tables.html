@@ -11,9 +11,9 @@
     </tr>
     {% endfor %}
   </table>
-  <form hx-post="/admin/config/mail-domain" hx-target="#config-tables" hx-swap="innerHTML" class="row" style="align-items:end; gap:8px;">
-    <div><label>โดเมน</label><input name="domain" placeholder="เช่น carabao.co.th"></div>
-    <div style="flex:0"><button type="submit">เพิ่ม</button></div>
+  <form hx-post="/admin/config/mail-domain" hx-target="#config-tables" hx-swap="innerHTML" class="row inline-row">
+    <div><label for="cfg-domain">โดเมน</label><input id="cfg-domain" name="domain" placeholder="เช่น carabao.co.th"></div>
+    <div class="shrink"><button type="submit">เพิ่ม</button></div>
   </form>
 </div>
 
@@ -30,27 +30,27 @@
     </tr>
     {% endfor %}
   </table>
-  <form hx-post="/admin/config/uom" hx-target="#config-tables" hx-swap="innerHTML" class="row" style="align-items:end; gap:8px;">
-    <div><label>รหัส</label><input name="code" placeholder="เช่น Pcs"></div>
-    <div><label>ชื่อ</label><input name="name" placeholder="ชิ้น"></div>
-    <div style="flex:0"><button type="submit">เพิ่ม</button></div>
+  <form hx-post="/admin/config/uom" hx-target="#config-tables" hx-swap="innerHTML" class="row inline-row">
+    <div><label for="cfg-uom-code">รหัส</label><input id="cfg-uom-code" name="code" placeholder="เช่น Pcs"></div>
+    <div><label for="cfg-uom-name">ชื่อ</label><input id="cfg-uom-name" name="name" placeholder="ชิ้น"></div>
+    <div class="shrink"><button type="submit">เพิ่ม</button></div>
   </form>
   <form hx-post="/admin/config/uom/merge" hx-target="#config-tables" hx-swap="innerHTML"
         hx-confirm="ยืนยันรวมหน่วย? หน่วยต้นทางจะถูกปิดและกลายเป็นตัวสะกดของหน่วยปลายทาง คำขอเดิมจะถูกแก้ตาม"
-        class="row" style="align-items:end; gap:8px;">
+        class="row inline-row">
     <div>
-      <label>รวมหน่วย (ตัวสะกดซ้ำ)</label>
-      <select name="source_id">
+      <label for="cfg-merge-source">รวมหน่วย (ตัวสะกดซ้ำ)</label>
+      <select id="cfg-merge-source" name="source_id">
         {% for u in uoms if u.active %}<option value="{{ u.id }}">{{ u.code }}</option>{% endfor %}
       </select>
     </div>
     <div>
-      <label>เข้ากับหน่วยหลัก</label>
-      <select name="target_id">
+      <label for="cfg-merge-target">เข้ากับหน่วยหลัก</label>
+      <select id="cfg-merge-target" name="target_id">
         {% for u in uoms if u.active %}<option value="{{ u.id }}">{{ u.code }}</option>{% endfor %}
       </select>
     </div>
-    <div style="flex:0"><button type="submit" class="secondary">รวม</button></div>
+    <div class="shrink"><button type="submit" class="secondary">รวม</button></div>
   </form>
   <p class="muted">ระวัง: Job กับ JOB อาจเป็นค่าที่ AX คนละโรงต้องการจริง — รวมเฉพาะเมื่อแน่ใจว่าเป็นตัวสะกดซ้ำ</p>
 </div>
@@ -68,10 +68,10 @@
     {% else %}<tr><td colspan="4" class="muted">ยังไม่มี — เพิ่มด้านล่าง</td></tr>
     {% endfor %}
   </table>
-  <form hx-post="/admin/config/category" hx-target="#config-tables" hx-swap="innerHTML" class="row" style="align-items:end; gap:8px;">
-    <div style="flex:0"><label>แหล่ง</label><select name="source"><option value="D365">D365</option><option value="CBD">CBD</option></select></div>
-    <div><label>ชื่อ category</label><input name="label" placeholder="54050102 Computer expenses"></div>
-    <div style="flex:0"><button type="submit">เพิ่ม</button></div>
+  <form hx-post="/admin/config/category" hx-target="#config-tables" hx-swap="innerHTML" class="row inline-row">
+    <div class="shrink"><label for="cfg-cat-source">แหล่ง</label><select id="cfg-cat-source" name="source"><option value="D365">D365</option><option value="CBD">CBD</option></select></div>
+    <div><label for="cfg-cat-label">ชื่อ category</label><input id="cfg-cat-label" name="label" placeholder="54050102 Computer expenses"></div>
+    <div class="shrink"><button type="submit">เพิ่ม</button></div>
   </form>
 </div>
 
@@ -84,9 +84,9 @@
     <tr>
       <td><code>{{ g.code }}</code> {{ g.name[:22] }}</td>
       <form hx-post="/admin/config/groupmap/{{ g.id }}" hx-target="#config-tables" hx-swap="innerHTML">
-        <td><input name="item_group_id" value="{{ mp.item_group_id if mp else '' }}" style="width:90px"></td>
-        <td><input name="model_group_id" value="{{ mp.model_group_id if mp else '' }}" style="width:90px"></td>
-        <td><input name="group_type_code" value="{{ mp.group_type_code if mp else '' }}" style="width:70px"></td>
+        <td><input name="item_group_id" value="{{ mp.item_group_id if mp else '' }}" class="w-sm"></td>
+        <td><input name="model_group_id" value="{{ mp.model_group_id if mp else '' }}" class="w-sm"></td>
+        <td><input name="group_type_code" value="{{ mp.group_type_code if mp else '' }}" class="w-sm"></td>
         <td><button type="submit" class="secondary">บันทึก</button></td>
       </form>
     </tr>

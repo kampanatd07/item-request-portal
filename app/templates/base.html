@@ -192,6 +192,14 @@
     button.danger:hover { background: var(--danger-strong); border-color: var(--danger-strong); }
     td button, td a.button { margin-top: 0; }
     a.button { margin-top: var(--space-2); padding: 5px 12px; min-height: 32px; font-size: 14px; }
+    button.sm, a.button.sm { min-height: 32px; padding: 4px 12px; font-size: 14px; margin: 0; }
+    .inline-form { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; }
+    .row.inline-row { align-items: flex-end; gap: 0 var(--space-2); }
+    .row > div.shrink { flex: 0 0 auto; }
+    input.w-sm { width: 110px; }
+    ol.steps.steps-inline { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); margin: 0 0 var(--space-5); }
+    ol.steps.steps-inline li { margin: 0; font-size: 14px; color: var(--ink-2); }
+    ol.steps.steps-inline li strong { color: var(--ink); }
     /* Chips: pick-one suggestions (suggested categories, search names). */
     button.chip { margin: 0; min-height: 32px; padding: 4px 12px; font-size: 14px; font-weight: 500; background: var(--surface); color: var(--brand-ink); border: 1px solid var(--border-strong); border-radius: 999px; }
     button.chip:hover { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-ink); }
