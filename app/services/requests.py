@@ -1236,9 +1236,20 @@ def list_my_requests(db: Session, account: Account) -> list[ItemRequest]:
     ))
 
 
+# The queue's last tab: requests already in AX/D365 (exported or later),
+# folded into one view so the tabs Procurement works from stay short
+# (STORY-018, Peter 2026-11-09).
+DONE_GROUP = "done"
+DONE_STATUSES = ("exported", "created", "notified")
+
+
 def list_queue(db: Session, status: str | None = None) -> list[ItemRequest]:
+    """The queue, newest first; `status` is one status, or DONE_GROUP for all
+    of DONE_STATUSES."""
     stmt = select(ItemRequest).order_by(ItemRequest.created_at.desc())
-    if status:
+    if status == DONE_GROUP:
+        stmt = stmt.where(ItemRequest.status.in_(DONE_STATUSES))
+    elif status:
         stmt = stmt.where(ItemRequest.status == status)
     return list(db.scalars(stmt))
 

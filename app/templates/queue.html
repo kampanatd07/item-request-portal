@@ -14,7 +14,19 @@
   {% for s in ["submitted", "in_review", "needs_info", "approved", "rejected"] %}
   <a href="/queue?status={{ s }}"{% if current == s %} aria-current="page"{% endif %}><span class="dot {{ s }}" aria-hidden="true"></span>{{ status_labels[s] }} <span class="tab-count">{{ counts.get(s, 0) }}</span></a>
   {% endfor %}
+  {# Already in AX/D365: one tab, its statuses as sub-filters below. #}
+  {% set in_done = current == done_group or current in done_statuses %}
+  {% set done_total = namespace(n=0) %}{% for s in done_statuses %}{% set done_total.n = done_total.n + counts.get(s, 0) %}{% endfor %}
+  <a href="/queue?status={{ done_group }}"{% if in_done %} aria-current="page"{% endif %}><span class="dot done" aria-hidden="true"></span>ส่งเข้า AX แล้ว <span class="tab-count">{{ done_total.n }}</span></a>
 </nav>
+{% if in_done %}
+<nav class="subfilters" aria-label="กรองย่อย: ส่งเข้า AX แล้ว">
+  <a href="/queue?status={{ done_group }}"{% if current == done_group %} aria-current="page"{% endif %}>ทั้งหมด <span class="tab-count">{{ done_total.n }}</span></a>
+  {% for s in done_statuses %}
+  <a href="/queue?status={{ s }}"{% if current == s %} aria-current="page"{% endif %}>{{ status_labels[s] }} <span class="tab-count">{{ counts.get(s, 0) }}</span></a>
+  {% endfor %}
+</nav>
+{% endif %}
 <div class="card flush">
   <table class="queue">
     <thead>

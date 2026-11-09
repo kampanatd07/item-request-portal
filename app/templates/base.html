@@ -221,7 +221,11 @@
     .tab-count { min-width: 22px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); font-size: 12.5px; font-weight: 600; text-align: center; line-height: 20px; }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); }
     .dot.submitted { background: var(--info-ink); } .dot.in_review { background: #B7791F; } .dot.needs_info { background: var(--pink-ink); }
-    .dot.approved { background: var(--ok-ink); } .dot.rejected { background: var(--danger); }
+    .dot.approved { background: var(--ok-ink); } .dot.rejected { background: var(--danger); } .dot.done { background: var(--brand); }
+    .subfilters { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 var(--space-4); }
+    .subfilters a { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 12px; border: 1px solid var(--border); border-radius: 999px; color: var(--ink-2); font-size: 13.5px; font-weight: 500; text-decoration: none; }
+    .subfilters a:hover { border-color: var(--border-strong); color: var(--ink); }
+    .subfilters a[aria-current="page"] { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-ink); }
     /* Request detail: content left, actions right. */
     .back-link { display: inline-block; margin-bottom: var(--space-3); color: var(--muted); font-size: 14px; text-decoration: none; }
     .back-link:hover { color: var(--ink); }
