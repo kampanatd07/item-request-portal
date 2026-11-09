@@ -22,7 +22,7 @@ story file plus `docs/HANDOFF.md` alone, without chat history.
 | [015](STORY-015-login-limit-follow-ups.md) | Login limit follow-ups (review notes from STORY-006 ticket 08) | 006 ticket 08 | any |
 | [016](STORY-016-recheck-acting-role-under-lock.md) | Re-check the acting Administrator under the lock (approval first) — **first story after go-live** | 006 ticket 04 | any |
 | [017](STORY-017-audit-line-by-value.md) | Audit line: quote the `--by` value or allow only a set of characters | 006 reset-password CLI | any |
-| [018](STORY-018-ux-refresh.md) | UX/UI refresh: fewer input mistakes, status at a glance, a modern look (`PRODUCT.md`) | — | any |
+| [018](STORY-018-ux-refresh.md) | UX/UI refresh: fewer input mistakes, status at a glance, a modern look (`PRODUCT.md`) — in review | — | any |
 
 ## Status values
 `todo` → `planned` (spec + tickets written) → `in-progress` → `review` → `done`
