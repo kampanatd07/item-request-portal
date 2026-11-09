@@ -1,7 +1,8 @@
 # STORY-005: Re-sync the running register
 
 Status: todo — needed only if the delta runs through the pipeline (option B
-in `Handover 2026-11/04-pipeline-master-กลาง.md` on OneDrive); not needed if
+in `Rule of Item/Handover 2026-11/04-pipeline-master-กลาง.md`, location in
+`docs/IT-HANDOVER.md` C3); not needed if
 the delta goes through the portal (option A, the portal issues the numbers
 itself). Successor decides. The Decision Sheet (D1–D4) was filled and
 applied on 2026-08-06, so the story no longer waits for it (HANDOFF §2).

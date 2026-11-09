@@ -1,4 +1,4 @@
-<select name="code_system_id" required
+<select id="code_system_id" name="code_system_id" required
         hx-get="/fragments/groups" hx-target="#group-slot" hx-swap="innerHTML">
   <option value="" disabled{{ "" if selected else " selected" }}>-- เลือกระบบ --</option>
   {% for s in systems %}

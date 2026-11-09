@@ -10,11 +10,11 @@
 > อัปเดตล่าสุด: 3 ส.ค. 2026 · เจ้าของงานตอนนั้น / owner then: Peter — Procurement Strategy, Carabao Group
 >
 > **ตั้งแต่ 2026-11-13 ที่ไหนที่ Peter เป็นผู้ตัดสินใจหรืออนุมัติ ให้อ่านเป็น
-> `[BUSINESS-OWNER]`** (เช่น "ห้ามเปลี่ยนโดยไม่ถาม Peter") ส่วนที่พูดถึงไฟล์หรือ
-> OneDrive ของ Peter เป็นประวัติ ไฟล์ย้ายไปตาม `docs/IT-HANDOVER.md` C3 /
+> `[BUSINESS-OWNER]`** (เช่น "ห้ามเปลี่ยนโดยไม่ถาม Peter") ที่อยู่ไฟล์ปัจจุบัน
+> ดู `docs/IT-HANDOVER.md` C3 (OneDrive ของ Peter จนกว่าจะย้ายเสร็จ แล้วจึงเป็น PurchaseWFH) /
 > From 2026-11-13, where Peter decides or approves, read `[BUSINESS-OWNER]`
-> (`docs/IT-HANDOVER.md` C1). Mentions of Peter's files or OneDrive are
-> history; the files move per C3.
+> (`docs/IT-HANDOVER.md` C1). For where a file is now, see C3 (Peter's
+> OneDrive until the move is done, then the PurchaseWFH team site).
 
 ---
 

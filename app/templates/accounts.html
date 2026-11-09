@@ -1,9 +1,16 @@
 {% extends "base.html" %}
+{% block main_class %}wide{% endblock %}
 {% block title %}บัญชีผู้ใช้{% endblock %}
 {% block content %}
+<header class="page-head">
+  <div>
+    <h1>บัญชีผู้ใช้</h1>
+    <p>บัญชีลบไม่ได้และแก้อีเมลไม่ได้ เพราะประวัติคำขออ้างอิงด้วยอีเมล — ถ้าไม่ใช้แล้วให้ปิดใช้งาน</p>
+  </div>
+</header>
 <div class="card">
-  <h2 style="margin-top:0;">บัญชีผู้ใช้</h2>
-  <p class="muted">บัญชีลบไม่ได้และแก้อีเมลไม่ได้ เพราะประวัติคำขออ้างอิงด้วยอีเมล — ถ้าไม่ใช้แล้วให้ปิดใช้งาน</p>
+  <h3 style="margin-top:0;">เพิ่มบัญชี</h3>
+  <p class="muted">ระบบสร้างรหัสผ่านชั่วคราวให้ และบังคับให้เจ้าของบัญชีเปลี่ยนเมื่อเข้าสู่ระบบครั้งแรก</p>
   <form hx-post="/admin/accounts" hx-target="#account-result" hx-swap="innerHTML">
     <div class="row">
       <div><label for="email">อีเมล *</label><input id="email" name="email" type="email" required></div>

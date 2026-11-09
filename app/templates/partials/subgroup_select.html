@@ -1,4 +1,4 @@
-<select name="subgroup_id" {% if not subgroups %}disabled{% endif %}>
+<select id="subgroup_id" name="subgroup_id" {% if not subgroups %}disabled{% endif %}>
   {% if subgroups %}
   <option value="" disabled{{ "" if selected else " selected" }}>-- เลือกหมวดย่อย --</option>
   {% for g in subgroups %}

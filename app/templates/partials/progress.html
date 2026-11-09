@@ -1,0 +1,11 @@
+{#- The requester's progress bar (STORY-018). Context: status. Each step is
+    done, current (the next to happen) or still to come; needs_info marks the
+    current step as waiting for the requester. A rejected request has none. -#}
+{%- set done = status_steps_done.get(status) -%}
+{%- if done is not none %}
+<ol class="progress{{ ' waiting' if status == 'needs_info' }}" aria-label="ความคืบหน้า: เสร็จ {{ done }} จาก {{ progress_steps | length }} ขั้น">
+  {%- for step in progress_steps %}
+  <li class="{{ 'done' if loop.index <= done else ('current' if loop.index == done + 1 else '') }}" title="{{ step }}"><span>{{ step }}</span></li>
+  {%- endfor %}
+</ol>
+{%- endif %}

@@ -1,13 +1,79 @@
 {% extends "base.html" %}
+{% block main_class %}wide{% endblock %}
 {% block title %}ตั้งค่าระบบ{% endblock %}
 {% block content %}
-<div class="card">
-  <h2>ตั้งค่าข้อมูลอ้างอิง</h2>
-  <p class="muted">แก้รายการที่ระบบใช้ตอนสร้างคำขอและ export ไฟล์ —
-  หน่วยนับ, Procurement Category, คำ search name, และ mapping หมวด → รหัส D365</p>
-  <div id="form-msg"></div>
-</div>
-<div id="config-tables">
+<header class="page-head">
+  <div>
+    <h1>ตั้งค่าข้อมูลอ้างอิง</h1>
+    <p>รายการที่ระบบใช้ตอนสร้างคำขอและ export ไฟล์: หน่วยนับ, Procurement Category, คำ search name และ mapping หมวด → รหัส D365</p>
+  </div>
+</header>
+<div id="form-msg"></div>
+<div id="config-tables" class="config">
   {% include "partials/config_tables.html" %}
 </div>
+<script>
+// Tabs and filters for the reference-data panels (STORY-018). Every save
+// re-renders #config-tables, so the open tab (kept in the URL hash, which
+// also makes it linkable) and each filter's text and choice are kept here
+// and applied again after each swap.
+(function () {
+  var root = document.getElementById("config-tables");
+  var filters = {};  // panel id -> {q, state}
+
+  function openTab() {
+    var tabs = root.querySelectorAll("[data-tab]");
+    var want = (location.hash || "").slice(1);
+    var panels = Array.prototype.slice.call(root.querySelectorAll(".config-panel"));
+    // Compare ids; never build a selector from the hash (it may hold any text).
+    if (!panels.some(function (p) { return p.id === want; })) want = tabs.length ? tabs[0].dataset.tab : "";
+    tabs.forEach(function (a) {
+      var on = a.dataset.tab === want;
+      if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    });
+    root.querySelectorAll(".config-panel").forEach(function (p) { p.hidden = p.id !== want; });
+  }
+
+  function applyFilter(panel) {
+    var f = filters[panel.id] || {q: "", state: ""};
+    var input = panel.querySelector(".filter-input");
+    if (input && input.value !== f.q) input.value = f.q;
+    panel.querySelectorAll('.seg input[type="radio"]').forEach(function (r) { r.checked = r.value === f.state; });
+    var q = f.q.trim().toLowerCase(), shown = 0, rows = panel.querySelectorAll("tr[data-search]");
+    rows.forEach(function (tr) {
+      var ok = (!q || tr.dataset.search.indexOf(q) !== -1) && (!f.state || tr.dataset.state === f.state);
+      tr.hidden = !ok;
+      if (ok) shown++;
+    });
+    var empty = panel.querySelector(".filter-empty");
+    if (empty) empty.hidden = shown !== 0;
+    var count = panel.querySelector(".filter-count");
+    if (count) count.textContent = shown === rows.length ? "" : "แสดง " + shown + " จาก " + rows.length;
+  }
+
+  function setUp() {
+    root.classList.add("tabbed");
+    openTab();
+    root.querySelectorAll(".config-panel[data-filterable]").forEach(applyFilter);
+  }
+
+  root.addEventListener("click", function (e) {
+    var a = e.target.closest("[data-tab]");
+    if (!a) return;
+    e.preventDefault();
+    history.replaceState(null, "", "#" + a.dataset.tab);
+    openTab();
+  });
+  root.addEventListener("input", function (e) {
+    var panel = e.target.closest(".config-panel[data-filterable]");
+    if (!panel || !(e.target.matches(".filter-input") || e.target.matches('.seg input'))) return;
+    var f = filters[panel.id] || (filters[panel.id] = {q: "", state: ""});
+    if (e.target.matches(".filter-input")) f.q = e.target.value; else f.state = e.target.value;
+    applyFilter(panel);
+  });
+  window.addEventListener("hashchange", openTab);
+  document.body.addEventListener("htmx:afterSwap", function (e) { if (e.detail.target === root) setUp(); });
+  setUp();
+})();
+</script>
 {% endblock %}

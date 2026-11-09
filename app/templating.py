@@ -19,6 +19,28 @@ STATUS_LABELS = {
     "notified": "แจ้งผู้ขอแล้ว",
 }
 templates.env.globals["status_labels"] = STATUS_LABELS
+
+# What each status means and who acts next, in plain Thai (STORY-018). The
+# one source for the status legend, badge tooltips and the help page; Peter
+# reviews the wording in the browser (2026-11-09).
+STATUS_HELP: dict[str, tuple[str, str]] = {
+    "submitted": ("ส่งถึงจัดซื้อแล้ว รอจัดซื้อตรวจ", "จัดซื้อ"),
+    "in_review": ("จัดซื้อตรวจแล้ว รอผู้ดูแลระบบอนุมัติและออกรหัส", "ผู้ดูแลระบบ"),
+    "needs_info": ("จัดซื้อต้องการข้อมูลเพิ่ม อ่านหมายเหตุจากจัดซื้อ แล้วกด “แก้ไขและส่งกลับ”", "ผู้ขอ"),
+    "approved": ("อนุมัติและได้รหัสแล้ว แต่ยังไม่อยู่ใน AX/D365 จึงยังสั่งซื้อไม่ได้", "จัดซื้อ (export ไฟล์)"),
+    "rejected": ("ไม่อนุมัติ อ่านเหตุผลในหมายเหตุจากจัดซื้อ", "-"),
+    "exported": ("ออกไฟล์ import แล้ว รอจัดซื้อนำเข้า AX/D365", "จัดซื้อ"),
+    "created": ("สร้างใน AX/D365 แล้ว สั่งซื้อได้", "-"),
+    "notified": ("สร้างใน AX/D365 แล้ว และส่งอีเมลแจ้งผู้ขอแล้ว สั่งซื้อได้", "-"),
+}
+templates.env.globals["status_help"] = STATUS_HELP
+# The requester's progress bar: steps, and how many each status has finished.
+# A rejected request has no position on it.
+PROGRESS_STEPS = ("ส่งคำขอ", "จัดซื้อตรวจ", "อนุมัติ ได้รหัส", "สร้างใน AX")
+STATUS_STEPS_DONE = {"submitted": 1, "needs_info": 1, "in_review": 2, "approved": 3,
+                     "exported": 3, "created": 4, "notified": 4}
+templates.env.globals["progress_steps"] = PROGRESS_STEPS
+templates.env.globals["status_steps_done"] = STATUS_STEPS_DONE
 # Request-history rows that are not status changes (STORY-002).
 templates.env.globals["event_labels"] = {
     "notify_not_applicable": "ไม่ต้องแจ้งทางอีเมล",

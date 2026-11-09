@@ -1,4 +1,4 @@
-<select name="group_id" required
+<select id="group_id" name="group_id" required
         hx-get="/fragments/subgroups" hx-target="#subgroup-slot" hx-swap="innerHTML">
   <option value="" disabled{{ "" if selected else " selected" }}>-- เลือกหมวด --</option>
   {% for g in groups %}

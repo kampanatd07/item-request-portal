@@ -1236,8 +1236,45 @@ def list_my_requests(db: Session, account: Account) -> list[ItemRequest]:
     ))
 
 
+# The queue's last tab: requests already in AX/D365 (exported or later),
+# folded into one view so the tabs Procurement works from stay short
+# (STORY-018, Peter 2026-11-09).
+DONE_GROUP = "done"
+DONE_STATUSES = ("exported", "created", "notified")
+
+
 def list_queue(db: Session, status: str | None = None) -> list[ItemRequest]:
+    """The queue, newest first; `status` is one status, or DONE_GROUP for all
+    of DONE_STATUSES."""
     stmt = select(ItemRequest).order_by(ItemRequest.created_at.desc())
-    if status:
+    if status == DONE_GROUP:
+        stmt = stmt.where(ItemRequest.status.in_(DONE_STATUSES))
+    elif status:
         stmt = stmt.where(ItemRequest.status == status)
     return list(db.scalars(stmt))
+
+
+# The queue's working tabs, in order; the rest fold into the DONE_GROUP tab.
+WORK_STATUSES = ("submitted", "in_review", "needs_info", "approved", "rejected")
+
+
+@dataclass(frozen=True)
+class QueueCounts:
+    """Counts for the queue's tabs: per status, the folded group, and all."""
+    by_status: dict[str, int]
+    done: int
+    total: int
+
+
+def queue_counts(db: Session) -> QueueCounts:
+    by_status = count_by_status(db)
+    return QueueCounts(by_status=by_status,
+                       done=sum(by_status.get(s, 0) for s in DONE_STATUSES),
+                       total=sum(by_status.values()))
+
+
+def count_by_status(db: Session) -> dict[str, int]:
+    """How many requests each status holds, for the queue's filter tabs
+    (STORY-018). A status with no request is absent, not 0."""
+    rows = db.execute(select(ItemRequest.status, func.count()).group_by(ItemRequest.status))
+    return {status: n for status, n in rows}

@@ -1,4 +1,4 @@
-<select name="procurement_category">
+<select id="procurement_category" name="procurement_category">
   <option value="">-- ไม่ระบุ --</option>
   {% for c in categories %}
   <option value="{{ c.label }}"{{ " selected" if c.label == selected }}>{{ c.label }}</option>

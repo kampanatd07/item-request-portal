@@ -1,10 +1,20 @@
 {% extends "base.html" %}
+{% block main_class %}wide{% endblock %}
 {% block title %}Export ไฟล์ import{% endblock %}
 {% block content %}
+<header class="page-head">
+  <div>
+    <h1>Export ไฟล์ import AX/D365</h1>
+    <p>รวมคำขอที่อนุมัติแล้ว (ยังไม่ export) ของแต่ละโรงงานเป็นไฟล์เดียวตาม format ของโรงงานนั้น แล้วนำไป import ใน AX/D365</p>
+  </div>
+</header>
+<ol class="steps steps-inline">
+  <li><strong>สร้างไฟล์ export</strong>ของโรงงานที่มีคำขอรอ</li>
+  <li><strong>ดาวน์โหลด แล้ว import</strong>เข้า AX/D365 ของโรงงานนั้น</li>
+  <li><strong>กด “mark สร้างแล้ว”</strong>เมื่อ import สำเร็จ ระบบส่งอีเมลแจ้งผู้ขอ</li>
+</ol>
 <div class="card">
-  <h2>Export ไฟล์ import AX/D365</h2>
-  <p class="muted">รวมคำขอที่อนุมัติแล้ว (ยังไม่ export) ของแต่ละโรงงานเป็นไฟล์เดียว
-  ตาม format ของโรงนั้น แล้วนำไป import ใน AX/D365</p>
+  <h3 style="margin-top:0;">1. สร้างไฟล์ export</h3>
   <table>
     <tr><th>โรงงาน</th><th>มีคำขอรอ export</th><th></th></tr>
     {% for f in factories %}
@@ -45,7 +55,7 @@
 {% endif %}
 
 <div class="card">
-  <h3>ไฟล์ export ล่าสุด</h3>
+  <h3>2–3. ไฟล์ export ล่าสุด: ดาวน์โหลด แล้ว mark สร้างแล้ว</h3>
   <table>
     <tr><th>ไฟล์</th><th>โรงงาน</th><th>จำนวน</th><th>เวลา</th><th></th></tr>
     {% for b in batches %}
@@ -55,13 +65,13 @@
       <td>{{ b.item_count }}</td>
       <td class="muted">{{ b.at.strftime("%d/%m/%Y %H:%M") }}</td>
       <td>
-        <a href="/exports/{{ b.id }}/download"><button class="secondary">ดาวน์โหลด</button></a>
+        <a class="button secondary sm" href="/exports/{{ b.id }}/download">ดาวน์โหลด</a>
         <button hx-post="/exports/{{ b.id }}/mark-created" hx-target="#export-result" hx-swap="innerHTML"
-                hx-confirm="ยืนยันว่า import เข้า AX/D365 เรียบร้อยแล้ว?">mark สร้างแล้ว</button>
+                hx-confirm="ยืนยันว่า import เข้า AX/D365 เรียบร้อยแล้ว?" class="sm">mark สร้างแล้ว</button>
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="5" class="muted">ยังไม่มีไฟล์ export</td></tr>
+    <tr><td colspan="5"><div class="empty"><strong>ยังไม่มีไฟล์ export</strong>สร้างไฟล์จากตารางด้านบนเมื่อมีคำขอที่อนุมัติแล้ว</div></td></tr>
     {% endfor %}
   </table>
 </div>

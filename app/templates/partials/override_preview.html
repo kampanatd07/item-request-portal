@@ -1,6 +1,6 @@
 {# Override, step 1 result: what saving would do. Read-only; the confirm form
    carries a signed token of exactly this preview (STORY-010 ticket 04). #}
-<div class="card" style="margin-top:12px; background:#fafaf8;">
+<div class="callout" style="margin-top:12px;">
   {% if not check.ok %}
   <div class="error" role="alert">{{ check.errors[0] }}</div>
   {% else %}
@@ -23,7 +23,7 @@
     <tr><th>Running Register</th><td>ไม่เปลี่ยน (รหัสนี้ไม่เกินเลขล่าสุด {{ check.register_last }})</td></tr>
     {% endif %}
   </table>
-  {% for w in check.warnings %}<p class="muted" style="color:#633806;">⚠ {{ w }}</p>{% endfor %}
+  {% for w in check.warnings %}<p class="muted warn-text">⚠ {{ w }}</p>{% endfor %}
 
   <form hx-post="/queue/{{ req.id }}/code" hx-target="#status-panel" hx-swap="innerHTML">
     <input type="hidden" name="token" value="{{ token }}">

@@ -31,7 +31,7 @@ non-stock และ service ระบบตรวจรายการซ้ำ 
 รายละเอียดสถาปัตยกรรม: `docs/architecture.md`
 
 ### A2. สถานะวันนี้ (2026-11-03)
-- โค้ดก่อน deploy เสร็จครบ เทสต์ 953 ตัวผ่านบน CI (master `38ab22e`)
+- โค้ดก่อน deploy เสร็จครบ เทสต์ 953 ตัวผ่านบน CI (master `06286e4`)
 - **ยังไม่ได้ deploy และยังไม่เปิดให้โรงงานใช้** ตอนนี้รันอยู่บนเครื่องของ Peter เท่านั้น
 - ลำดับก่อนเปิดใช้ (HANDOFF §2):
   1. Cutover Plan เฟส 1: โหลด master กลาง `Central_v5_with_DCM` (13,400 รหัส) เข้า D365
@@ -112,7 +112,7 @@ email through Microsoft Graph, optional Anthropic API for search-name
 suggestions. Architecture: `docs/architecture.md`.
 
 ### B2. Status today (2026-11-03)
-- All code before deploy is done; 953 tests green on CI (master `38ab22e`).
+- All code before deploy is done; 953 tests green on CI (master `06286e4`).
 - **Not deployed and not open to the plants.** It runs on Peter's machine only.
 - Order before opening (HANDOFF §2):
   1. Cutover Plan phase 1: load the central master `Central_v5_with_DCM`

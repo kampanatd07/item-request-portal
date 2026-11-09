@@ -4,7 +4,7 @@
 > file, `CLAUDE.md`, `CONTEXT.md`, and `docs/decisions.md` before doing
 > anything. If chat history contradicts these files, the files win.
 >
-> Last updated: 2026-11-03 · Owner: Peter (Procurement Strategy, Carabao Group)
+> Last updated: 2026-11-09 · Owner: Peter (Procurement Strategy, Carabao Group)
 > until 2026-11-13, when Peter leaves; then the IT team (`docs/IT-HANDOVER.md`).
 > The goal now is handover, not go-live.
 
@@ -104,6 +104,12 @@ Open docs notes from the handover review (2026-11-09, `docs/it-handover`):
   the only location and drop the OneDrive wording.
 - GROUP_HANDOVER's "Peter → `[BUSINESS-OWNER]`" note only works once a name
   is in IT-HANDOVER C1 (part D checklist).
+- GROUP_HANDOVER's body still lists August tasks waiting on Peter (filling
+  the Decision Sheet, files to delete himself). They are history: D1–D4 were
+  applied on 2026-08-06; read them as such, do not act on them.
+- The CLAUDE.md no-ask merge exception names `[IT-OWNER]`, but C1 has no
+  name yet and Claude cannot verify who is typing; until C1 is filled, ask
+  before every merge.
 
 Open work after part A (none is a go-live condition):
 - STORY-015: login-limit and review follow-ups (items 1–42).
@@ -159,7 +165,9 @@ upgrade; check `.env` is still read.
 Tests: 916 passing locally, 37 PostgreSQL tests skipped without
 `TEST_POSTGRES_URL`; CI runs all 953 on PostgreSQL 16. Peter read 953
 passed, 0 skipped from the run logs on master `7325bc9` (2026-10-27) and on
-master `38ab22e` (the docs/handover-status merge; reported 2026-11-09).
+master `38ab22e` (the docs/handover-status merge; reported 2026-11-09), and
+953 passed with no skips on master `06286e4` (the docs/it-handover merge;
+reported 2026-11-09).
 Read CI numbers from the run's log itself, never from a summary: `f429488`
 was once recorded green and was red.
 

@@ -1,32 +1,67 @@
 {% extends "base.html" %}
+{% block main_class %}wide{% endblock %}
 {% block title %}คิวจัดซื้อ{% endblock %}
 {% block content %}
-<div class="card">
-  <h2>คิวคำขอสร้าง Item</h2>
-  <p>
-    {% for s in ["submitted", "in_review", "needs_info", "approved", "rejected"] %}
-      <a href="/queue?status={{ s }}" class="badge {{ s }}">{{ status_labels[s] }}</a>
-    {% endfor %}
-    <a href="/queue" class="badge">ทั้งหมด</a>
-  </p>
-  <table>
+<header class="page-head">
+  <div>
+    <h1>คิวจัดซื้อ</h1>
+    <p>คำขอสร้าง Item จากทุกโรงงาน เปิดรายการเพื่อตรวจ แก้ชื่อหรือหมวด แล้วอนุมัติ</p>
+  </div>
+</header>
+{# Filter tabs with counts (STORY-018); the current filter is marked. #}
+<nav class="tabs" aria-label="กรองตามสถานะ">
+  <a href="/queue"{% if not current %} aria-current="page"{% endif %}>ทั้งหมด <span class="tab-count">{{ counts.total }}</span></a>
+  {% for s in work_statuses %}
+  <a href="/queue?status={{ s }}"{% if current == s %} aria-current="page"{% endif %}><span class="dot {{ s }}" aria-hidden="true"></span>{{ status_labels[s] }} <span class="tab-count">{{ counts.by_status.get(s, 0) }}</span></a>
+  {% endfor %}
+  {# Exported or later: one tab, its statuses as sub-filters below. Not "in
+     AX": an exported request still waits for Procurement to import it. #}
+  {% set in_done = current == done_group or current in done_statuses %}
+  <a href="/queue?status={{ done_group }}"{% if in_done %} aria-current="page"{% endif %}><span class="dot done" aria-hidden="true"></span>export แล้ว <span class="tab-count">{{ counts.done }}</span></a>
+</nav>
+{% if in_done %}
+<nav class="subfilters" aria-label="กรองย่อย: export แล้ว">
+  <a href="/queue?status={{ done_group }}"{% if current == done_group %} aria-current="page"{% endif %}>ทั้งหมด <span class="tab-count">{{ counts.done }}</span></a>
+  {% for s in done_statuses %}
+  <a href="/queue?status={{ s }}"{% if current == s %} aria-current="page"{% endif %}>{% if s == "exported" %}<span class="dot needs_import" aria-hidden="true"></span>{% endif %}{{ status_labels[s] }}{% if s == "exported" %} · รอนำเข้า{% endif %} <span class="tab-count">{{ counts.by_status.get(s, 0) }}</span></a>
+  {% endfor %}
+</nav>
+{% endif %}
+{% include "partials/status_legend.html" %}
+<div class="card flush">
+  <table class="queue">
+    <thead>
     <tr><th>#</th><th>สินค้า</th><th>โรงงาน</th><th>ระบบ</th><th>Item code</th><th>ผู้ขอ</th><th>สถานะ</th><th>วันที่</th></tr>
+    </thead>
+    <tbody>
     {% for r in requests %}
     <tr>
       <td><a href="/queue/{{ r.id }}">{{ r.id }}</a></td>
-      <td><a href="/queue/{{ r.id }}">{{ r.item_name }}{% if r.brand %} {{ r.brand }}{% endif %}</a></td>
+      {# A click anywhere on the row follows this link (script below), unless
+         the user is selecting text, e.g. copying a code. #}
+      <td class="item-cell"><a class="row-link" href="/queue/{{ r.id }}">{{ r.item_name }}{% if r.brand %} {{ r.brand }}{% endif %}</a></td>
       <td>{{ r.factory.code }}</td>
-      <td>{{ r.code_system.name_th }}</td>
+      <td class="muted">{{ r.code_system.name_th }}</td>
       <td>{% with req=r, compact=true %}{% include "partials/item_code.html" %}{% endwith %}</td>
       <td>{{ r.requester_name }}</td>
-      <td><span class="badge {{ r.status }}">{{ status_labels[r.status] }}</span>
+      <td><span class="badge {{ r.status }}" title="{{ status_help[r.status][0] }}">{{ status_labels[r.status] }}</span>
         {# Came back from Needs Info: not a new request (STORY-009). #}
         {% if r.status == "submitted" and r.id in resubmitted %}<span class="badge resubmitted">ส่งกลับแล้ว</span>{% endif %}</td>
-      <td class="muted">{{ r.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+      <td class="muted nowrap">{{ r.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="8" class="muted">ยังไม่มีคำขอ</td></tr>
+    <tr><td colspan="8"><div class="empty"><strong>ยังไม่มีคำขอ{% if current %}ในสถานะนี้{% endif %}</strong>{% if current %}<a href="/queue">ดูคำขอทั้งหมด</a>{% else %}คำขอใหม่จากโรงงานจะแสดงที่นี่{% endif %}</div></td></tr>
     {% endfor %}
+    </tbody>
   </table>
 </div>
+<script>
+document.querySelector("table.queue").addEventListener("click", function (e) {
+  if (e.target.closest("a, button, input, select, textarea")) return;
+  if (String(window.getSelection())) return;  // selecting text, not opening
+  var row = e.target.closest("tr");
+  var link = row && row.querySelector("a.row-link");
+  if (link) window.location = link.href;
+});
+</script>
 {% endblock %}

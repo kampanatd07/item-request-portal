@@ -1,5 +1,20 @@
-<div class="card">
-  <h3>โดเมนอีเมลที่อนุญาต</h3>
+{#- Reference data, one tab per list (STORY-018, Peter 2026-11-09). Re-rendered
+    whole into #config-tables after every save; the tab and filter state live
+    in admin_config.html's script, which re-applies them after each swap.
+    Without JavaScript every panel shows, one after another. -#}
+{%- set n = namespace(mapped=0, terms_on=0) -%}
+{%- for g, mp in group_maps %}{% if mp and (mp.item_group_id or mp.model_group_id or mp.group_type_code) %}{% set n.mapped = n.mapped + 1 %}{% endif %}{% endfor -%}
+{%- for t in terms %}{% if t.active %}{% set n.terms_on = n.terms_on + 1 %}{% endif %}{% endfor %}
+<nav class="tabs config-tabs" aria-label="หมวดการตั้งค่า">
+  <a href="#domains" data-tab="domains">โดเมนอีเมล <span class="tab-count">{{ mail_domains | length }}</span></a>
+  <a href="#uom" data-tab="uom">หน่วยนับ <span class="tab-count">{{ uoms | length }}</span></a>
+  <a href="#categories" data-tab="categories">Procurement Category <span class="tab-count">{{ categories | length }}</span></a>
+  <a href="#mapping" data-tab="mapping">Mapping D365 <span class="tab-count">{{ n.mapped }}/{{ group_maps | length }}</span></a>
+  <a href="#terms" data-tab="terms">Search name <span class="tab-count">{{ terms | length }}</span></a>
+</nav>
+
+<section class="card config-panel" id="domains" aria-labelledby="h-domains">
+  <h3 id="h-domains" style="margin-top:0;">โดเมนอีเมลที่อนุญาต</h3>
   <p class="muted">อีเมลผู้ขอจริง (ตอนจัดซื้อส่งคำขอแทน) ต้องเป็นโดเมนที่เปิดใช้งานในรายการนี้ — ตรงตัวเท่านั้น โดเมนย่อยต้องเพิ่มแยก</p>
   <table>
     <tr><th>โดเมน</th><th>สถานะ</th><th></th></tr>
@@ -7,18 +22,18 @@
     <tr>
       <td><code>{{ d.domain }}</code></td>
       <td>{% if d.active %}<span class="badge approved">ใช้งาน</span>{% else %}<span class="badge rejected">ปิด</span>{% endif %}</td>
-      <td><button class="secondary" hx-post="/admin/config/mail-domain/{{ d.id }}/toggle" hx-target="#config-tables" hx-swap="innerHTML">สลับ</button></td>
+      <td><button class="secondary sm" hx-post="/admin/config/mail-domain/{{ d.id }}/toggle" hx-target="#config-tables" hx-swap="innerHTML">สลับ</button></td>
     </tr>
     {% endfor %}
   </table>
-  <form hx-post="/admin/config/mail-domain" hx-target="#config-tables" hx-swap="innerHTML" class="row" style="align-items:end; gap:8px;">
-    <div><label>โดเมน</label><input name="domain" placeholder="เช่น carabao.co.th"></div>
-    <div style="flex:0"><button type="submit">เพิ่ม</button></div>
+  <form hx-post="/admin/config/mail-domain" hx-target="#config-tables" hx-swap="innerHTML" class="row inline-row">
+    <div><label for="cfg-domain">เพิ่มโดเมน</label><input id="cfg-domain" name="domain" placeholder="เช่น carabao.co.th"></div>
+    <div class="shrink"><button type="submit">เพิ่ม</button></div>
   </form>
-</div>
+</section>
 
-<div class="card">
-  <h3>หน่วยนับ (UOM)</h3>
+<section class="card config-panel" id="uom" aria-labelledby="h-uom">
+  <h3 id="h-uom" style="margin-top:0;">หน่วยนับ (UOM)</h3>
   <table>
     <tr><th>รหัส</th><th>ชื่อ</th><th>ตัวสะกดอื่นที่รวมแล้ว</th><th>สถานะ</th><th></th></tr>
     {% for u in uoms %}
@@ -26,85 +41,110 @@
       <td><code>{{ u.code }}</code></td><td>{{ u.name }}</td>
       <td class="muted">{{ u.aliases | map(attribute="alias") | join(", ") }}</td>
       <td>{% if u.active %}<span class="badge approved">ใช้งาน</span>{% else %}<span class="badge rejected">ปิด</span>{% endif %}</td>
-      <td><button class="secondary" hx-post="/admin/config/uom/{{ u.id }}/toggle" hx-target="#config-tables" hx-swap="innerHTML">สลับ</button></td>
+      <td><button class="secondary sm" hx-post="/admin/config/uom/{{ u.id }}/toggle" hx-target="#config-tables" hx-swap="innerHTML">สลับ</button></td>
     </tr>
     {% endfor %}
   </table>
-  <form hx-post="/admin/config/uom" hx-target="#config-tables" hx-swap="innerHTML" class="row" style="align-items:end; gap:8px;">
-    <div><label>รหัส</label><input name="code" placeholder="เช่น Pcs"></div>
-    <div><label>ชื่อ</label><input name="name" placeholder="ชิ้น"></div>
-    <div style="flex:0"><button type="submit">เพิ่ม</button></div>
+  <form hx-post="/admin/config/uom" hx-target="#config-tables" hx-swap="innerHTML" class="row inline-row">
+    <div><label for="cfg-uom-code">รหัส</label><input id="cfg-uom-code" name="code" placeholder="เช่น Pcs"></div>
+    <div><label for="cfg-uom-name">ชื่อ</label><input id="cfg-uom-name" name="name" placeholder="ชิ้น"></div>
+    <div class="shrink"><button type="submit">เพิ่มหน่วย</button></div>
   </form>
   <form hx-post="/admin/config/uom/merge" hx-target="#config-tables" hx-swap="innerHTML"
         hx-confirm="ยืนยันรวมหน่วย? หน่วยต้นทางจะถูกปิดและกลายเป็นตัวสะกดของหน่วยปลายทาง คำขอเดิมจะถูกแก้ตาม"
-        class="row" style="align-items:end; gap:8px;">
+        class="row inline-row">
     <div>
-      <label>รวมหน่วย (ตัวสะกดซ้ำ)</label>
-      <select name="source_id">
+      <label for="cfg-merge-source">รวมหน่วย (ตัวสะกดซ้ำ)</label>
+      <select id="cfg-merge-source" name="source_id">
         {% for u in uoms if u.active %}<option value="{{ u.id }}">{{ u.code }}</option>{% endfor %}
       </select>
     </div>
     <div>
-      <label>เข้ากับหน่วยหลัก</label>
-      <select name="target_id">
+      <label for="cfg-merge-target">เข้ากับหน่วยหลัก</label>
+      <select id="cfg-merge-target" name="target_id">
         {% for u in uoms if u.active %}<option value="{{ u.id }}">{{ u.code }}</option>{% endfor %}
       </select>
     </div>
-    <div style="flex:0"><button type="submit" class="secondary">รวม</button></div>
+    <div class="shrink"><button type="submit" class="secondary">รวม</button></div>
   </form>
   <p class="muted">ระวัง: Job กับ JOB อาจเป็นค่าที่ AX คนละโรงต้องการจริง — รวมเฉพาะเมื่อแน่ใจว่าเป็นตัวสะกดซ้ำ</p>
-</div>
+</section>
 
-<div class="card">
-  <h3>Procurement Category</h3>
+<section class="card config-panel" id="categories" aria-labelledby="h-categories">
+  <h3 id="h-categories" style="margin-top:0;">Procurement Category</h3>
   <table>
     <tr><th>แหล่ง</th><th>ชื่อ category</th><th>สถานะ</th><th></th></tr>
     {% for c in categories %}
     <tr>
       <td>{{ c.source }}</td><td>{{ c.label }}</td>
       <td>{% if c.active %}<span class="badge approved">ใช้งาน</span>{% else %}<span class="badge rejected">ปิด</span>{% endif %}</td>
-      <td><button class="secondary" hx-post="/admin/config/category/{{ c.id }}/toggle" hx-target="#config-tables" hx-swap="innerHTML">สลับ</button></td>
+      <td><button class="secondary sm" hx-post="/admin/config/category/{{ c.id }}/toggle" hx-target="#config-tables" hx-swap="innerHTML">สลับ</button></td>
     </tr>
     {% else %}<tr><td colspan="4" class="muted">ยังไม่มี — เพิ่มด้านล่าง</td></tr>
     {% endfor %}
   </table>
-  <form hx-post="/admin/config/category" hx-target="#config-tables" hx-swap="innerHTML" class="row" style="align-items:end; gap:8px;">
-    <div style="flex:0"><label>แหล่ง</label><select name="source"><option value="D365">D365</option><option value="CBD">CBD</option></select></div>
-    <div><label>ชื่อ category</label><input name="label" placeholder="54050102 Computer expenses"></div>
-    <div style="flex:0"><button type="submit">เพิ่ม</button></div>
+  <form hx-post="/admin/config/category" hx-target="#config-tables" hx-swap="innerHTML" class="row inline-row">
+    <div class="shrink"><label for="cfg-cat-source">แหล่ง</label><select id="cfg-cat-source" name="source"><option value="D365">D365</option><option value="CBD">CBD</option></select></div>
+    <div><label for="cfg-cat-label">ชื่อ category</label><input id="cfg-cat-label" name="label" placeholder="54050102 Computer expenses"></div>
+    <div class="shrink"><button type="submit">เพิ่ม</button></div>
   </form>
-</div>
+</section>
 
-<div class="card">
-  <h3>Mapping หมวด → รหัส D365 (ItemGroupId / ModelGroup / GroupType)</h3>
-  <p class="muted">เว้นว่างได้ — ระบบจะใช้ค่า default ของ template จนกว่าจะกรอก</p>
+<section class="card config-panel" id="mapping" aria-labelledby="h-mapping" data-filterable>
+  <h3 id="h-mapping" style="margin-top:0;">Mapping หมวด → รหัส D365 (ItemGroupId / ModelGroup / GroupType)</h3>
+  <p class="muted">เว้นว่างได้ — ระบบจะใช้ค่า default ของ template จนกว่าจะกรอก กรอกแล้ว {{ n.mapped }} จาก {{ group_maps | length }} หมวด</p>
+  <div class="filter-bar">
+    <input type="search" class="filter-input" placeholder="ค้นหารหัสหรือชื่อหมวด" aria-label="ค้นหาหมวดใน Mapping">
+    <div class="seg" role="radiogroup" aria-label="กรองตามสถานะการกรอก">
+      <label><input type="radio" name="mapping-state" value="" checked>ทั้งหมด {{ group_maps | length }}</label>
+      <label><input type="radio" name="mapping-state" value="empty">ยังไม่กรอก {{ group_maps | length - n.mapped }}</label>
+      <label><input type="radio" name="mapping-state" value="filled">กรอกแล้ว {{ n.mapped }}</label>
+    </div>
+    <span class="filter-count muted" aria-live="polite"></span>
+  </div>
   <table>
-    <tr><th>หมวด</th><th>ItemGroupId</th><th>ModelGroupId</th><th>GroupType</th><th></th></tr>
+    <thead><tr><th>หมวด</th><th>ItemGroupId</th><th>ModelGroupId</th><th>GroupType</th><th></th></tr></thead>
+    <tbody>
     {% for g, mp in group_maps %}
-    <tr>
-      <td><code>{{ g.code }}</code> {{ g.name[:22] }}</td>
-      <form hx-post="/admin/config/groupmap/{{ g.id }}" hx-target="#config-tables" hx-swap="innerHTML">
-        <td><input name="item_group_id" value="{{ mp.item_group_id if mp else '' }}" style="width:90px"></td>
-        <td><input name="model_group_id" value="{{ mp.model_group_id if mp else '' }}" style="width:90px"></td>
-        <td><input name="group_type_code" value="{{ mp.group_type_code if mp else '' }}" style="width:70px"></td>
-        <td><button type="submit" class="secondary">บันทึก</button></td>
-      </form>
+    {% set filled = mp and (mp.item_group_id or mp.model_group_id or mp.group_type_code) %}
+    {# The form sits in the last cell; the inputs join it by form= (a form
+       may not wrap table cells). #}
+    <tr data-search="{{ (g.code ~ ' ' ~ g.name) | lower }}" data-state="{{ 'filled' if filled else 'empty' }}">
+      <td><code>{{ g.code }}</code> {{ g.name }}</td>
+      <td><input form="gm-{{ g.id }}" name="item_group_id" value="{{ mp.item_group_id if mp else '' }}" class="w-sm" aria-label="ItemGroupId ของ {{ g.code }}"></td>
+      <td><input form="gm-{{ g.id }}" name="model_group_id" value="{{ mp.model_group_id if mp else '' }}" class="w-sm" aria-label="ModelGroupId ของ {{ g.code }}"></td>
+      <td><input form="gm-{{ g.id }}" name="group_type_code" value="{{ mp.group_type_code if mp else '' }}" class="w-sm" aria-label="GroupType ของ {{ g.code }}"></td>
+      <td><form id="gm-{{ g.id }}" hx-post="/admin/config/groupmap/{{ g.id }}" hx-target="#config-tables" hx-swap="innerHTML" class="inline-form"><button type="submit" class="secondary sm">บันทึก</button></form></td>
     </tr>
     {% endfor %}
+    <tr class="filter-empty" hidden><td colspan="5"><div class="empty"><strong>ไม่พบหมวดที่ตรงกับการค้นหา</strong></div></td></tr>
+    </tbody>
   </table>
-</div>
+</section>
 
-<div class="card">
-  <h3>คำ Search name ({{ terms|length }})</h3>
+<section class="card config-panel" id="terms" aria-labelledby="h-terms" data-filterable>
+  <h3 id="h-terms" style="margin-top:0;">คำ Search name ({{ terms|length }})</h3>
   <p class="muted">คำมาตรฐานที่ระบบใช้แนะนำ search name — ปิดคำที่ไม่ใช้ได้</p>
+  <div class="filter-bar">
+    <input type="search" class="filter-input" placeholder="ค้นหาคำ" aria-label="ค้นหาคำ search name">
+    <div class="seg" role="radiogroup" aria-label="กรองตามสถานะ">
+      <label><input type="radio" name="terms-state" value="" checked>ทั้งหมด {{ terms | length }}</label>
+      <label><input type="radio" name="terms-state" value="on">ใช้งาน {{ n.terms_on }}</label>
+      <label><input type="radio" name="terms-state" value="off">ปิด {{ terms | length - n.terms_on }}</label>
+    </div>
+    <span class="filter-count muted" aria-live="polite"></span>
+  </div>
   <table>
-    <tr><th>คำ</th><th>ใช้ไป</th><th>สถานะ</th><th></th></tr>
+    <thead><tr><th>คำ</th><th>ใช้ไป</th><th>สถานะ</th><th></th></tr></thead>
+    <tbody>
     {% for t in terms %}
-    <tr>
+    <tr data-search="{{ t.term | lower }}" data-state="{{ 'on' if t.active else 'off' }}">
       <td>{{ t.term }}</td><td class="muted">{{ t.usage_count }}</td>
       <td>{% if t.active %}<span class="badge approved">ใช้งาน</span>{% else %}<span class="badge rejected">ปิด</span>{% endif %}</td>
-      <td><button class="secondary" hx-post="/admin/config/term/{{ t.id }}/toggle" hx-target="#config-tables" hx-swap="innerHTML">สลับ</button></td>
+      <td><button class="secondary sm" hx-post="/admin/config/term/{{ t.id }}/toggle" hx-target="#config-tables" hx-swap="innerHTML">สลับ</button></td>
     </tr>
     {% endfor %}
+    <tr class="filter-empty" hidden><td colspan="4"><div class="empty"><strong>ไม่พบคำที่ตรงกับการค้นหา</strong></div></td></tr>
+    </tbody>
   </table>
-</div>
+</section>
