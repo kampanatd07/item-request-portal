@@ -48,6 +48,7 @@ FastAPI + SQLAlchemy + Alembic | SQLite (dev) / PostgreSQL (prod) | HTMX + Jinja
 - Code, comments, commits: English. UI text: Thai. Chat with user: Thai.
 - Type hints on all functions; commit messages explain why
 - Branch per story (`story/NNN-short-name`); `[IT-OWNER]` approves every merge
+  (unless granted under the Branch end exception below)
 
 ## Working with the user
 - Briefly explain significant decisions (2–3 sentences)
@@ -68,8 +69,9 @@ FastAPI + SQLAlchemy + Alembic | SQLite (dev) / PostgreSQL (prod) | HTMX + Jinja
   criterion not met = stop and ask; (ข) = backlog note. Merge only when
   approved: `git merge --no-ff` → pytest → push → the user reads master's CI.
   Delete a branch or backup only when told. Exception: `[IT-OWNER]` may
-  grant "no (ก) → merge without asking" for one named branch at a time; it
-  never carries over to another branch.
+  grant "no (ก) → merge without asking" for one named branch at a time; the
+  grant must be the user's own message in the current conversation naming
+  that branch, and it never carries over to another branch.
 - **Never close on expectations:** tick a checklist item or set a ticket to
   `done` only after the user reports the real result (CI, browser check).
 - **Existing tests:** ask before changing any existing test's expectation,

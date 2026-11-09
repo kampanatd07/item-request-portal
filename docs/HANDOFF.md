@@ -37,8 +37,10 @@ the plants still open items in the old system. The portal may open only
 after phase 1 of the Cutover Plan. Items opened in the old system after
 2026-08-07 (after the v5 master was cut) need a delta before cutover. The
 successor picks the route (`Rule of Item/Handover 2026-11/04-pipeline-master-กลาง.md`
-on the PurchaseWFH team site, `docs/IT-HANDOVER.md` C3; Peter's OneDrive copy
-is deleted when his account closes):
+under the PurchaseWFH team-site folder whose full URL is in
+`docs/IT-HANDOVER.md` C3; until the move is ticked in IT-HANDOVER part D the
+file is still only in Peter's OneDrive, which is deleted when his account
+closes):
 option A, the delta goes through the portal, which issues the numbers
 itself; option B, the delta goes through the group pipeline and the
 register is then re-synced (STORY-005), otherwise the portal and the delta
@@ -150,7 +152,7 @@ upgrade; check `.env` is still read.
 Tests: 916 passing locally, 37 PostgreSQL tests skipped without
 `TEST_POSTGRES_URL`; CI runs all 953 on PostgreSQL 16 (confirmed by Peter
 from the run on master `7325bc9`, 2026-10-27, and again on master `38ab22e`
-after the docs/handover-status merge). Read CI numbers from the run's log
+after the docs/handover-status merge; Peter, 2026-11-09). Read CI numbers from the run's log
 itself, never from a summary: `f429488` was once recorded green and was red.
 
 The suite ran in ~13 s on 2026-10-21 but took ~61 s on 2026-10-26 (cause

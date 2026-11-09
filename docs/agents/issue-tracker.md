@@ -14,7 +14,7 @@ There is no GitHub Issues workflow (and no `gh` CLI on the dev machine).
   from `01`, never a single combined tickets file.
 - Comments and history go at the bottom of the file under `## Comments`;
   implementation notes go in `## Notes`.
-- Branch per story: `story/NNN-short-name`. Peter approves every merge.
+- Branch per story: `story/NNN-short-name`. `[IT-OWNER]` approves every merge (`CLAUDE.md`, Working rules).
 
 ## Status vs Triage
 

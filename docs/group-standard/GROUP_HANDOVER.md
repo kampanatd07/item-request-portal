@@ -8,6 +8,10 @@
 > source files it lists are outside this repo (`docs/IT-HANDOVER.md` C3).
 
 > อัปเดตล่าสุด: 3 ส.ค. 2026 · เจ้าของงานตอนนั้น / owner then: Peter — Procurement Strategy, Carabao Group
+>
+> **"Peter" ในเนื้อไฟล์ = `[BUSINESS-OWNER]` ตั้งแต่ 2026-11-13** (เช่น "ห้ามเปลี่ยนโดยไม่ถาม
+> Peter") / From 2026-11-13, read "Peter" in the body as `[BUSINESS-OWNER]`
+> (`docs/IT-HANDOVER.md` C1).
 
 ---
 
