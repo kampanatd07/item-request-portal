@@ -4,10 +4,16 @@
 {% block content %}
 <style>.request-row:target td { background: var(--attn-bg); } .request-row:target { outline: 2px solid var(--attn-line); }</style>
 {% set can_open_queue = has_role(request.state.account, "procurement") %}
+<header class="page-head">
+  <div>
+    <h1>คำขอของฉัน</h1>
+    <p>สถานะคำขอทั้งหมดที่คุณส่ง หรือที่มีคนส่งแทนคุณ</p>
+  </div>
+  <div class="page-actions"><a class="button" href="/">ส่งคำขอใหม่</a></div>
+</header>
 <div class="card">
-  <h2 style="margin-top:0;">คำขอของฉัน</h2>
   {% if not requests %}
-  <p>ยังไม่มีคำขอ — <a href="/">ส่งคำขอใหม่</a></p>
+  <div class="empty"><strong>ยังไม่มีคำขอ</strong>เมื่อส่งคำขอแล้ว สถานะจะแสดงที่นี่ — <a href="/">ส่งคำขอใหม่</a></div>
   {% else %}
   <table>
     <tr><th>วันที่ส่ง</th><th>ชื่อสินค้า</th><th>โรงงาน</th><th>สถานะ</th><th>หมายเหตุจากจัดซื้อ</th><th>รหัส</th></tr>

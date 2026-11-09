@@ -2,10 +2,13 @@
 {% block main_class %}wide{% endblock %}
 {% block title %}Export ไฟล์ import{% endblock %}
 {% block content %}
+<header class="page-head">
+  <div>
+    <h1>Export ไฟล์ import AX/D365</h1>
+    <p>รวมคำขอที่อนุมัติแล้ว (ยังไม่ export) ของแต่ละโรงงานเป็นไฟล์เดียวตาม format ของโรงงานนั้น แล้วนำไป import ใน AX/D365</p>
+  </div>
+</header>
 <div class="card">
-  <h2>Export ไฟล์ import AX/D365</h2>
-  <p class="muted">รวมคำขอที่อนุมัติแล้ว (ยังไม่ export) ของแต่ละโรงงานเป็นไฟล์เดียว
-  ตาม format ของโรงนั้น แล้วนำไป import ใน AX/D365</p>
   <table>
     <tr><th>โรงงาน</th><th>มีคำขอรอ export</th><th></th></tr>
     {% for f in factories %}

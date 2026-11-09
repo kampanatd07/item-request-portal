@@ -56,10 +56,12 @@
       --brand-soft: #E3F1EC;
       --brand-ring: rgba(15, 110, 86, 0.32);
       /* Neutrals, tinted a touch toward the brand green. */
-      --bg: #F3F5F4;
+      --bg: #FFFFFF;
+      --sidebar: #F7F8F7;
+      --hover: rgba(23, 32, 28, 0.05);
       --surface: #FFFFFF;
-      --surface-2: #EEF2F0;
-      --border: #D8DFDC;
+      --surface-2: #F1F3F2;
+      --border: #E2E7E4;
       --border-strong: #AEB9B4;
       --ink: #17201C;
       --ink-2: #3E4A45;
@@ -92,26 +94,44 @@
     code { font-family: var(--mono); font-size: 0.92em; background: var(--surface-2); padding: 1px 6px; border-radius: 4px; }
     :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
-    /* App bar */
-    .appbar { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
-    .appbar-inner { max-width: 1240px; margin: 0 auto; padding: 0 var(--space-5); min-height: 60px; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-5); }
-    .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 700; text-decoration: none; letter-spacing: -0.01em; }
-    .brand-mark { width: 28px; height: 28px; border-radius: 8px; background: var(--brand); display: grid; place-items: center; }
-    .brand-mark::after { content: ""; width: 10px; height: 10px; border: 2px solid #fff; border-radius: 3px; }
-    .nav { display: flex; flex-wrap: wrap; gap: 2px; }
-    .nav a { color: var(--ink-2); text-decoration: none; font-weight: 500; font-size: 14.5px; padding: 6px 12px; border-radius: var(--radius); }
-    .nav a:hover { background: var(--surface-2); color: var(--ink); }
-    .nav a[aria-current="page"] { background: var(--brand-soft); color: var(--brand-ink); font-weight: 600; }
-    .account { margin-left: auto; display: flex; align-items: center; gap: var(--space-3); color: var(--ink-2); font-size: 14px; }
-    .account a { color: var(--ink-2); text-decoration: none; }
-    .account a:hover, .account a[aria-current="page"] { color: var(--brand-ink); text-decoration: underline; }
-    .account form { margin: 0; }
-    .account button { margin: 0; padding: 5px 12px; font-size: 14px; }
+    /* App shell: a quiet sidebar and a white canvas, Notion-like. */
+    .shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh; }
+    .sidebar { background: var(--sidebar); border-right: 1px solid var(--border); padding: var(--space-3) var(--space-2); display: flex; flex-direction: column; gap: var(--space-1); position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 8px 10px 14px; color: var(--ink); font-weight: 700; font-size: 15px; text-decoration: none; letter-spacing: -0.01em; }
+    a.brand:hover { color: var(--ink); }
+    .brand-mark { flex: none; width: 26px; height: 26px; border-radius: 7px; background: var(--brand); display: grid; place-items: center; }
+    .brand-mark::after { content: ""; width: 9px; height: 9px; border: 2px solid #fff; border-radius: 3px; }
+    .nav-group { display: flex; flex-direction: column; gap: 1px; margin-bottom: var(--space-3); }
+    .nav-label { font-size: 12px; font-weight: 600; color: var(--muted); padding: 6px 10px 2px; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: var(--radius-sm); color: var(--ink-2); font-size: 14.5px; font-weight: 500; text-decoration: none; }
+    .nav-item:hover { background: var(--hover); color: var(--ink); }
+    .nav-item[aria-current="page"] { background: var(--brand-soft); color: var(--brand-ink); font-weight: 600; }
+    .nav-item svg { flex: none; width: 18px; height: 18px; color: var(--muted); }
+    .nav-item[aria-current="page"] svg { color: var(--brand); }
+    .sidebar-foot { margin-top: auto; border-top: 1px solid var(--border); padding-top: var(--space-3); display: flex; flex-direction: column; gap: 1px; }
+    .who { display: flex; align-items: center; gap: 10px; padding: 6px 10px 8px; font-size: 14px; color: var(--ink); min-width: 0; }
+    .who .avatar { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2); color: var(--ink-2); display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+    .who span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sidebar-foot form { margin: 0; }
+    .sidebar-foot button.nav-item { width: 100%; margin: 0; min-height: 0; background: none; border: 0; font: inherit; font-size: 14.5px; font-weight: 500; color: var(--ink-2); justify-content: flex-start; }
+    .sidebar-foot button.nav-item:hover { background: var(--hover); color: var(--ink); }
+    .canvas { min-width: 0; }
 
     /* Page */
-    main { max-width: 960px; margin: var(--space-6) auto; padding: 0 var(--space-4); }
+    main { max-width: 960px; margin: 0 auto; padding: 40px var(--space-6) 64px; }
     main.wide { max-width: 1240px; }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); margin-bottom: var(--space-4); box-shadow: var(--shadow-card); }
+    .page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-3) var(--space-5); margin-bottom: var(--space-5); }
+    .page-head h1 { font-size: 30px; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+    .page-head p { margin: 6px 0 0; color: var(--muted); max-width: 70ch; }
+    .page-actions { display: flex; gap: var(--space-2); }
+    .page-actions .button, .page-actions button { margin: 0; }
+    /* Signed-out pages (login): no sidebar, one centered panel. */
+    .solo { min-height: 100vh; display: grid; place-items: center; padding: var(--space-5) var(--space-4); background: var(--sidebar); }
+    .solo main { width: 100%; max-width: 420px; padding: 0; }
+    .solo .brand { justify-content: center; padding-bottom: var(--space-5); font-size: 17px; }
+    .empty { text-align: center; padding: 48px var(--space-4); color: var(--muted); }
+    .empty strong { display: block; color: var(--ink); font-size: 16px; margin-bottom: 4px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: var(--space-5); margin-bottom: var(--space-4); }
     /* A card inside a card reads as a callout, not a second panel. */
     .card .card { background: var(--surface-2); box-shadow: none; border-radius: var(--radius); padding: var(--space-4); }
     .callout { border: 1px solid var(--border); background: var(--surface-2); border-radius: var(--radius); padding: var(--space-3) var(--space-4); margin: var(--space-3) 0; }
@@ -151,10 +171,10 @@
 
     /* Tables */
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th { text-align: left; font-weight: 600; font-size: 13px; color: var(--ink-2); background: var(--surface-2); padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    th { text-align: left; font-weight: 500; font-size: 13px; color: var(--muted); padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
     td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
     tr:last-child td { border-bottom: 0; }
-    tbody tr:hover td, table tr:hover td { background: #F7F9F8; }
+    table tr:hover td { background: var(--sidebar); }
 
     /* Status badges: text always says the status; color only supports it. */
     .badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; line-height: 1.6; background: var(--surface-2); color: var(--ink-2); text-decoration: none; white-space: nowrap; }
@@ -181,10 +201,16 @@
     @media (prefers-reduced-motion: no-preference) {
       a, button, input, select, textarea, .nav a, .badge { transition: background-color 150ms var(--ease), border-color 150ms var(--ease), box-shadow 150ms var(--ease), color 150ms var(--ease); }
     }
-    @media (max-width: 720px) {
-      .appbar-inner { padding: var(--space-2) var(--space-4); }
-      .account { margin-left: 0; }
-      main { margin-top: var(--space-4); }
+    @media (max-width: 860px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; border-right: 0; border-bottom: 1px solid var(--border); }
+      .brand { padding: 6px 10px; }
+      .nav-group { flex-direction: row; flex-wrap: wrap; margin: 0; }
+      .nav-label { display: none; }
+      .sidebar-foot { margin: 0; border: 0; padding: 0; flex-direction: row; flex-wrap: wrap; }
+      .who { display: none; }
+      main { padding: var(--space-5) var(--space-4) 48px; }
+      .page-head h1 { font-size: 24px; }
       .card { padding: var(--space-4); }
     }
   </style>
@@ -193,40 +219,70 @@
 {% set account = request.state.account|default(none) %}
 {% set path = request.url.path if request.url is defined else "" %}
 {% set show_nav = account and not account.must_change_password %}
-<header class="appbar">
-  <div class="appbar-inner">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  {# Icons: Lucide (ISC licence), stroked, 24-unit grid. #}
+  <defs>
+    <symbol id="i-new" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M9 15h6"/><path d="M12 18v-6"/></symbol>
+    <symbol id="i-mine" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+    <symbol id="i-queue" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></symbol>
+    <symbol id="i-export" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></symbol>
+    <symbol id="i-data" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></symbol>
+  </defs>
+</svg>
+{% if account %}
+<div class="shell">
+  <aside class="sidebar">
     {# No link home while the password must change: that page shows no navigation. #}
     {% if show_nav %}<a class="brand" href="/">{% else %}<span class="brand">{% endif %}<span class="brand-mark" aria-hidden="true"></span>Item Request Portal{% if show_nav %}</a>{% else %}</span>{% endif %}
     {% if show_nav %}
-    <nav class="nav" aria-label="เมนูหลัก">
-      <a href="/"{% if path == "/" %} aria-current="page"{% endif %}>ส่งคำขอ</a>
-      <a href="/my-requests"{% if path.startswith("/my-requests") %} aria-current="page"{% endif %}>คำขอของฉัน</a>
-      {% if has_role(account, "procurement") %}
-      <a href="/queue"{% if path.startswith("/queue") %} aria-current="page"{% endif %}>คิวจัดซื้อ</a>
+    <nav class="nav-group" aria-label="งานของฉัน">
+      <div class="nav-label">งานของฉัน</div>
+      <a class="nav-item" href="/"{% if path == "/" %} aria-current="page"{% endif %}><svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-new"/></svg>ส่งคำขอ</a>
+      <a class="nav-item" href="/my-requests"{% if path.startswith("/my-requests") %} aria-current="page"{% endif %}><svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-mine"/></svg>คำขอของฉัน</a>
+    </nav>
+    {% if has_role(account, "procurement") %}
+    <nav class="nav-group" aria-label="จัดซื้อ">
+      <div class="nav-label">จัดซื้อ</div>
+      <a class="nav-item" href="/queue"{% if path.startswith("/queue") %} aria-current="page"{% endif %}><svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-queue"/></svg>คิวจัดซื้อ</a>
       {# counted by session_account while its DB session is open; absent → no counter #}
       {% set waiting = request.state.pending_mail_count|default(0) %}
-      <a href="/exports"{% if path.startswith("/exports") %} aria-current="page"{% endif %}>Export{% if waiting %} (อีเมลค้าง {{ waiting }}){% endif %}</a>
-      {% endif %}
-      {% if has_role(account, "administrator") %}
-      <a href="/admin/snapshots"{% if path.startswith("/admin/snapshots") %} aria-current="page"{% endif %}>Snapshot</a>
-      <a href="/admin/config"{% if path.startswith("/admin/config") %} aria-current="page"{% endif %}>ตั้งค่า</a>
-      <a href="/admin/accounts"{% if path.startswith("/admin/accounts") %} aria-current="page"{% endif %}>บัญชีผู้ใช้</a>
-      {% endif %}
+      <a class="nav-item" href="/exports"{% if path.startswith("/exports") %} aria-current="page"{% endif %}><svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-export"/></svg>Export{% if waiting %} (อีเมลค้าง {{ waiting }}){% endif %}</a>
     </nav>
     {% endif %}
-    {% if account %}
-    <div class="account">
-      <span>{{ account.display_name }}</span>
+    {% if has_role(account, "administrator") %}
+    <nav class="nav-group" aria-label="ผู้ดูแลระบบ">
+      <div class="nav-label">ผู้ดูแลระบบ</div>
+      <a class="nav-item" href="/admin/snapshots"{% if path.startswith("/admin/snapshots") %} aria-current="page"{% endif %}><svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-data"/></svg>Snapshot</a>
+      <a class="nav-item" href="/admin/config"{% if path.startswith("/admin/config") %} aria-current="page"{% endif %}><svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-settings"/></svg>ตั้งค่า</a>
+      <a class="nav-item" href="/admin/accounts"{% if path.startswith("/admin/accounts") %} aria-current="page"{% endif %}><svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-users"/></svg>บัญชีผู้ใช้</a>
+    </nav>
+    {% endif %}
+    {% endif %}
+    <div class="sidebar-foot">
+      <div class="who"><span class="avatar" aria-hidden="true">{{ account.display_name[:1] }}</span><span>{{ account.display_name }}</span></div>
       {% if show_nav %}
-      <a href="/account/password"{% if path.startswith("/account/password") %} aria-current="page"{% endif %}>เปลี่ยนรหัสผ่าน</a>
+      <a class="nav-item" href="/account/password"{% if path.startswith("/account/password") %} aria-current="page"{% endif %}><svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-key"/></svg>เปลี่ยนรหัสผ่าน</a>
       {% endif %}
       <form method="post" action="/logout">
-        <button type="submit" class="secondary">ออกจากระบบ</button>
+        <button type="submit" class="nav-item"><svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-logout"/></svg>ออกจากระบบ</button>
       </form>
     </div>
-    {% endif %}
+  </aside>
+  <div class="canvas">
+    <main class="{% block main_class %}{% endblock %}">{% block content %}{% endblock %}</main>
   </div>
-</header>
-<main class="{% block main_class %}{% endblock %}">{% block content %}{% endblock %}</main>
+</div>
+{% else %}
+<div class="solo">
+  <main>
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Item Request Portal</div>
+    {{ self.content() }}
+  </main>
+</div>
+{% endif %}
 </body>
 </html>

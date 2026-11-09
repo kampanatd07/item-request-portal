@@ -2,8 +2,13 @@
 {% block main_class %}wide{% endblock %}
 {% block title %}คิวจัดซื้อ{% endblock %}
 {% block content %}
+<header class="page-head">
+  <div>
+    <h1>คิวจัดซื้อ</h1>
+    <p>คำขอสร้าง Item จากทุกโรงงาน เปิดรายการเพื่อตรวจ แก้ชื่อหรือหมวด แล้วอนุมัติ</p>
+  </div>
+</header>
 <div class="card">
-  <h2>คิวคำขอสร้าง Item</h2>
   <p>
     {% for s in ["submitted", "in_review", "needs_info", "approved", "rejected"] %}
       <a href="/queue?status={{ s }}" class="badge {{ s }}">{{ status_labels[s] }}</a>

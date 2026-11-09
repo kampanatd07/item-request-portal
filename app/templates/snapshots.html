@@ -2,10 +2,13 @@
 {% block main_class %}wide{% endblock %}
 {% block title %}Item Master Snapshot{% endblock %}
 {% block content %}
+<header class="page-head">
+  <div>
+    <h1>Item Master Snapshot</h1>
+    <p>ไฟล์ item master (.xlsx / .csv ที่มีคอลัมน์ Item number, Product name) ที่ระบบใช้เช็คซ้ำและหาเลข running ล่าสุด อัปโหลดใหม่จะแทนที่ของเดิมทั้งชุด</p>
+  </div>
+</header>
 <div class="card">
-  <h2>Item Master Snapshot</h2>
-  <p class="muted">อัปโหลดไฟล์ item master (.xlsx / .csv ที่มีคอลัมน์ Item number, Product name)
-  ระบบใช้ข้อมูลนี้เช็คซ้ำและหาเลข running ล่าสุด — อัปโหลดใหม่จะแทนที่ของเดิมทั้งชุด</p>
   <table>
     <tr><th>แหล่ง</th><th>อัปโหลดล่าสุด</th><th>จำนวนรายการ</th><th>ไฟล์</th></tr>
     <tr>

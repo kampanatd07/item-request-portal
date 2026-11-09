@@ -3,8 +3,13 @@
    fixed and never posted, a required reply. Unset = a new request. #}
 {% block title %}{% if r %}แก้ไขและส่งกลับคำขอ #{{ r.id }}{% else %}ส่งคำขอสร้าง Item{% endif %}{% endblock %}
 {% block content %}
+<header class="page-head">
+  <div>
+    <h1>{% if r %}แก้ไขและส่งกลับคำขอ #{{ r.id }}{% else %}ส่งคำขอสร้าง Item{% endif %}</h1>
+    <p>{% if r %}แก้ตามที่จัดซื้อขอ แล้วตอบกลับด้านล่าง{% else %}ระบบตรวจรายการซ้ำและแนะนำหมวดให้ระหว่างพิมพ์ ช่องที่มี * ต้องกรอก{% endif %}</p>
+  </div>
+</header>
 <div class="card">
-  <h2>{% if r %}แก้ไขและส่งกลับคำขอ #{{ r.id }}{% else %}ส่งคำขอสร้าง Item{% endif %}</h2>
   {% if r %}
   <div class="callout attention">
     <strong>จัดซื้อต้องการ: {{ reason or "-" }}</strong>

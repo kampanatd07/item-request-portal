@@ -25,6 +25,10 @@ Modern, friendly, uncomplicated (ทันสมัย เป็นมิตร 
 Thai; tells the user what to do next. Carries the existing Carabao-group
 green as its one brand color.
 
+Reference: **Notion** (Peter, 2026-11-09): a quiet sidebar, a white canvas,
+large page titles, light dividers instead of heavy boxes, gray hover rows,
+small stroked icons. Borrow that calm and spacing, not Notion's own look.
+
 ## Anti-references
 - AX/D365 screens: dense grey grids, every field the same weight, no guidance.
 - The current portal: default-looking boxes, colors hardcoded per page,
