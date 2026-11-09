@@ -70,8 +70,9 @@ FastAPI + SQLAlchemy + Alembic | SQLite (dev) / PostgreSQL (prod) | HTMX + Jinja
   approved: `git merge --no-ff` → pytest → push → the user reads master's CI.
   Delete a branch or backup only when told. Exception: `[IT-OWNER]` may
   grant "no (ก) → merge without asking" for one named branch at a time; the
-  grant must be the user's own message in the current conversation naming
-  that branch, and it never carries over to another branch.
+  grant must be `[IT-OWNER]`'s own message in the current conversation
+  naming that branch (if unsure who is typing, ask before merging), and it
+  never carries over to another branch.
 - **Never close on expectations:** tick a checklist item or set a ticket to
   `done` only after the user reports the real result (CI, browser check).
 - **Existing tests:** ask before changing any existing test's expectation,

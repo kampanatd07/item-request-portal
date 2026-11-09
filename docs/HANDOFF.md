@@ -98,6 +98,13 @@ requests. It was migrated to head on 2026-10-26; the backup taken before
 was deleted after master's CI was green (Peter). `*.db.bak-*` is ignored
 by git for the next backup.
 
+Open docs notes from the handover review (2026-11-09, `docs/it-handover`):
+- §2's pointer to `04-pipeline-master-กลาง.md` depends on IT-HANDOVER part D
+  being ticked; once the C3 move is done and ticked, name the team site as
+  the only location and drop the OneDrive wording.
+- GROUP_HANDOVER's "Peter → `[BUSINESS-OWNER]`" note only works once a name
+  is in IT-HANDOVER C1 (part D checklist).
+
 Open work after part A (none is a go-live condition):
 - STORY-015: login-limit and review follow-ups (items 1–42).
 - STORY-017: quote the `--by` value in the CLI audit lines.
@@ -150,10 +157,11 @@ upgrade; check `.env` is still read.
 | Deployment | part A done (CI on PostgreSQL, race tests, login limits, one worker; merged `390e9a0`) — part B (deploy, backup, real email) waits for IT — STORY-006 |
 
 Tests: 916 passing locally, 37 PostgreSQL tests skipped without
-`TEST_POSTGRES_URL`; CI runs all 953 on PostgreSQL 16 (confirmed by Peter
-from the run on master `7325bc9`, 2026-10-27, and again on master `38ab22e`
-after the docs/handover-status merge; Peter, 2026-11-09). Read CI numbers from the run's log
-itself, never from a summary: `f429488` was once recorded green and was red.
+`TEST_POSTGRES_URL`; CI runs all 953 on PostgreSQL 16. Peter read 953
+passed, 0 skipped from the run logs on master `7325bc9` (2026-10-27) and on
+master `38ab22e` (the docs/handover-status merge; reported 2026-11-09).
+Read CI numbers from the run's log itself, never from a summary: `f429488`
+was once recorded green and was red.
 
 The suite ran in ~13 s on 2026-10-21 but took ~61 s on 2026-10-26 (cause
 not looked into; the 3 subprocess tests take 2–4 s each). The suite's setup:

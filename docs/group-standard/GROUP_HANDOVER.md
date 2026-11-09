@@ -9,9 +9,12 @@
 
 > อัปเดตล่าสุด: 3 ส.ค. 2026 · เจ้าของงานตอนนั้น / owner then: Peter — Procurement Strategy, Carabao Group
 >
-> **"Peter" ในเนื้อไฟล์ = `[BUSINESS-OWNER]` ตั้งแต่ 2026-11-13** (เช่น "ห้ามเปลี่ยนโดยไม่ถาม
-> Peter") / From 2026-11-13, read "Peter" in the body as `[BUSINESS-OWNER]`
-> (`docs/IT-HANDOVER.md` C1).
+> **ตั้งแต่ 2026-11-13 ที่ไหนที่ Peter เป็นผู้ตัดสินใจหรืออนุมัติ ให้อ่านเป็น
+> `[BUSINESS-OWNER]`** (เช่น "ห้ามเปลี่ยนโดยไม่ถาม Peter") ส่วนที่พูดถึงไฟล์หรือ
+> OneDrive ของ Peter เป็นประวัติ ไฟล์ย้ายไปตาม `docs/IT-HANDOVER.md` C3 /
+> From 2026-11-13, where Peter decides or approves, read `[BUSINESS-OWNER]`
+> (`docs/IT-HANDOVER.md` C1). Mentions of Peter's files or OneDrive are
+> history; the files move per C3.
 
 ---
 
