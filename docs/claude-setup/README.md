@@ -55,7 +55,8 @@ git push -u origin master
 |---|---|---|
 | Skills ของ Matt Pocock (วิธีทำงาน) | plugin `mattpocock-skills` ระดับเครื่อง | ทุกโปรเจกต์ |
 | `carabao-item-master` (มาตรฐาน item master กลุ่ม + กับดักภาษาไทย) | `%USERPROFILE%\.claude\skills\` — ต้นฉบับอยู่ที่ `docs/claude-setup/skills/` | ทุกงานที่แตะรหัส/ชื่อ/หมวด/UoM/ข้อความไทย |
-| ภาษาและสถานะของโปรเจกต์นี้ | `CONTEXT.md`, `CLAUDE.md`, `docs/HANDOFF.md` | โปรเจกต์นี้เท่านั้น |
+| `impeccable` (ออกแบบและตรวจหน้าเว็บ) | skill ระดับผู้ใช้ ติดตั้งจากผู้พัฒนา Impeccable — อ่าน `PRODUCT.md` ใน repo ก่อนทุกครั้ง | งานหน้าเว็บ (STORY-018) |
+| ภาษาและสถานะของโปรเจกต์นี้ | `CONTEXT.md`, `CLAUDE.md`, `docs/HANDOFF.md`, `PRODUCT.md` (บริบทงานหน้าเว็บ) | โปรเจกต์นี้เท่านั้น |
 
 ไม่แก้ skill ของ Matt — "สอน" โปรเจกต์ผ่านไฟล์ใน repo ที่ skill ของเขาอ่านเองอยู่แล้ว
 

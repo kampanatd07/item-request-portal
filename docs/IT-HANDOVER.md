@@ -31,7 +31,9 @@ non-stock และ service ระบบตรวจรายการซ้ำ 
 รายละเอียดสถาปัตยกรรม: `docs/architecture.md`
 
 ### A2. สถานะวันนี้ (2026-11-03)
-- โค้ดก่อน deploy เสร็จครบ เทสต์ 953 ตัวผ่านบน CI (master `06286e4`)
+- โค้ดก่อน deploy เสร็จครบ เทสต์ 990 ตัวบน CI (ตัวเลขที่อ่านแล้วล่าสุดอยู่ใน HANDOFF §2)
+- หน้าเว็บยกเครื่องใหม่ทั้งหมด (STORY-018, 2026-11-09): เมนูด้านซ้าย ฟอร์มแบบนำทาง
+  คิวแบบแท็บ คำอธิบายสถานะ และหน้า `/help` สำหรับผู้ใช้
 - **ยังไม่ได้ deploy และยังไม่เปิดให้โรงงานใช้** ตอนนี้รันอยู่บนเครื่องของ Peter เท่านั้น
 - ลำดับก่อนเปิดใช้ (HANDOFF §2):
   1. Cutover Plan เฟส 1: โหลด master กลาง `Central_v5_with_DCM` (13,400 รหัส) เข้า D365
@@ -65,7 +67,7 @@ non-stock และ service ระบบตรวจรายการซ้ำ 
   PostgreSQL 16, migrate + seed บนฐานว่าง, `alembic check`, รัน pytest ทั้งชุดโดยตั้ง
   `TEST_POSTGRES_URL`
 - **หลังโอนทั้งสองแบบ:** ยืนยันว่า `[IT-OWNER]` เป็น admin, รัน CI หนึ่งรอบต้องได้
-  **953 passed, 0 skipped**, ถอนสิทธิ์บัญชีส่วนตัวของ Peter, ตั้ง branch protection
+  **990 passed, 0 skipped**, ถอนสิทธิ์บัญชีส่วนตัวของ Peter, ตั้ง branch protection
   ถ้าแพลนรองรับ (ตอนนี้ไม่มี CI แดงจึงไม่บล็อกการ merge)
 
 ### A6. ทำงานต่อด้วย Claude Code
@@ -74,6 +76,8 @@ non-stock และ service ระบบตรวจรายการซ้ำ 
 - เปิด Claude Code ที่โฟลเดอร์ repo แล้ว `CLAUDE.md` จะโหลดเอง ในนั้นมีกติกาการทำงาน
   ทั้งหมด (ย้ายมาจาก memory บนเครื่อง Peter เมื่อ 2026-11-03)
 - คำสั่งแรกของ session: `อ่าน docs/IT-HANDOVER.md, docs/HANDOFF.md และ docs/decisions.md แล้วสรุปสถานะ 3 บรรทัด`
+- งานหน้าเว็บ: ใช้ skill `/impeccable` ซึ่งอ่าน `PRODUCT.md` ก่อนทุกครั้ง ระบบหน้าตาทั้งหมดอยู่ใน
+  `app/templates/base.html` ห้ามใส่สีหรือขนาดตรงๆ ในแต่ละหน้า
 - ห้ามทำงานใน OneDrive: SQLite และ git พัง (HANDOFF §6.6)
 
 ### A7. ความเสี่ยงที่รู้อยู่
@@ -112,7 +116,10 @@ email through Microsoft Graph, optional Anthropic API for search-name
 suggestions. Architecture: `docs/architecture.md`.
 
 ### B2. Status today (2026-11-03)
-- All code before deploy is done; 953 tests green on CI (master `06286e4`).
+- All code before deploy is done; 990 tests on CI (the last numbers read
+  are in HANDOFF §2).
+- The UI was overhauled (STORY-018, 2026-11-09): sidebar, guided form,
+  queue tabs, status explanations and a `/help` page for users.
 - **Not deployed and not open to the plants.** It runs on Peter's machine only.
 - Order before opening (HANDOFF §2):
   1. Cutover Plan phase 1: load the central master `Central_v5_with_DCM`
@@ -149,7 +156,7 @@ The code is on Peter's personal GitHub (`kampanatd07/item-request-portal`, priva
   since `.github/workflows/ci.yml` is GitHub-only. What CI must do:
   PostgreSQL 16, migrate + seed on an empty database, `alembic check`, the
   whole pytest suite with `TEST_POSTGRES_URL` set.
-- **After either:** confirm `[IT-OWNER]` is admin, run CI once: **953
+- **After either:** confirm `[IT-OWNER]` is admin, run CI once: **990
   passed, 0 skipped**; remove Peter's personal account; turn on branch
   protection if the plan allows (today a red CI does not block a merge).
 
@@ -160,6 +167,9 @@ The code is on Peter's personal GitHub (`kampanatd07/item-request-portal`, priva
   every working rule (moved from the memory on Peter's machine, 2026-11-03).
 - First prompt of a session: `อ่าน docs/IT-HANDOVER.md, docs/HANDOFF.md และ docs/decisions.md แล้วสรุปสถานะ 3 บรรทัด`
   ("read the three and summarise the status in 3 lines").
+- UI work: use the `/impeccable` skill, which reads `PRODUCT.md` first. The
+  whole design system is in `app/templates/base.html`: pages do not
+  hardcode colors or sizes.
 - Never work inside OneDrive: it breaks SQLite and git (HANDOFF §6.6).
 
 ### B7. Known risks
@@ -254,8 +264,8 @@ old and the new root. "(fill in)": path not found yet, Peter to confirm.
 
 ทีม IT ตอนรับมอบ / IT team on receipt:
 - [ ] clone และรันในเครื่องตาม HANDOFF §4 เปิด http://localhost:8000 ได้ / clone and run per HANDOFF §4
-- [ ] `pytest` ในเครื่อง: 916 passed, 37 skipped (ไม่มี PostgreSQL) / local pytest: 916 passed, 37 skipped (no PostgreSQL)
-- [ ] CI ที่ที่ใหม่: 953 passed, 0 skipped / CI at the new home: 953 passed, 0 skipped
+- [ ] `pytest` ในเครื่อง: 953 passed, 37 skipped (ไม่มี PostgreSQL) / local pytest: 953 passed, 37 skipped (no PostgreSQL)
+- [ ] CI ที่ที่ใหม่: 990 passed, 0 skipped / CI at the new home: 990 passed, 0 skipped
 - [ ] ติดตั้ง Claude Code; สรุปสถานะ session แรกตรงกับ HANDOFF §2 / Claude Code set up; its first summary matches HANDOFF §2
 - [ ] อ่านความเสี่ยง A7/B7 แล้ว / risks A7/B7 read
 

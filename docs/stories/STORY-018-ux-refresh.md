@@ -78,8 +78,9 @@ built in pieces, each tested and shown in the browser before the next:
 - Left for later (backlog, none blocks): about 35 layout-only inline styles
   in partials (margins, widths); the group-map form sits inside a `<tr>`
   (works because the parser ties its inputs to it, but is invalid HTML).
-- Review of `f0384b4..997dc0f` (2026-11-09): no (ก). Open (ข), for a
-  follow-up branch, most useful first:
+- Review of `f0384b4..997dc0f` (2026-11-09): no (ก). Items 1–8 below are
+  fixed on `story/018-ux-followups` (tests in `test_ux_followups.py`); kept
+  here as the record. Most useful first:
   1. Queue: double-clicking a code to select it opens the request (the first
      click navigates). Skip row navigation for clicks inside `code`, or wait
      for a second click.
