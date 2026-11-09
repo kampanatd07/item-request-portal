@@ -45,6 +45,12 @@ def request_form(
     )
 
 
+@router.get("/help", response_class=HTMLResponse)
+def help_page(request: Request) -> HTMLResponse:
+    """How the portal works, in plain Thai, for anyone signed in (STORY-018)."""
+    return templates.TemplateResponse(request, "help.html", {})
+
+
 @router.get("/my-requests", response_class=HTMLResponse)
 def my_requests(
     request: Request,

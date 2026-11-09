@@ -27,6 +27,7 @@
   {% endfor %}
 </nav>
 {% endif %}
+{% include "partials/status_legend.html" %}
 <div class="card flush">
   <table class="queue">
     <thead>
@@ -42,7 +43,7 @@
       <td class="muted">{{ r.code_system.name_th }}</td>
       <td>{% with req=r, compact=true %}{% include "partials/item_code.html" %}{% endwith %}</td>
       <td>{{ r.requester_name }}</td>
-      <td><span class="badge {{ r.status }}">{{ status_labels[r.status] }}</span>
+      <td><span class="badge {{ r.status }}" title="{{ status_help[r.status][0] }}">{{ status_labels[r.status] }}</span>
         {# Came back from Needs Info: not a new request (STORY-009). #}
         {% if r.status == "submitted" and r.id in resubmitted %}<span class="badge resubmitted">ส่งกลับแล้ว</span>{% endif %}</td>
       <td class="muted nowrap">{{ r.created_at.strftime("%d/%m/%Y %H:%M") }}</td>

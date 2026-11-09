@@ -245,6 +245,33 @@
       .detail-aside { position: static; order: -1; }
     }
 
+    /* Explanations: status legend, progress bar, help page (STORY-018). */
+    details.legend { margin: 0 0 var(--space-4); }
+    details.legend summary { cursor: pointer; color: var(--brand-ink); font-size: 14px; font-weight: 500; width: max-content; }
+    details.legend summary:hover { text-decoration: underline; }
+    details.legend[open] summary { margin-bottom: var(--space-2); }
+    details.legend table { border: 1px solid var(--border); border-radius: 10px; border-collapse: separate; border-spacing: 0; overflow: hidden; }
+    .status-meaning { margin: 0 0 var(--space-2); font-size: 14px; }
+    ol.progress { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; list-style: none; padding: 0; margin: 8px 0 2px; width: 168px; }
+    ol.progress li { height: 5px; border-radius: 3px; background: var(--border); }
+    ol.progress li span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    ol.progress li.done { background: var(--brand); }
+    ol.progress li.current { background: #9FCDBD; }
+    ol.progress.waiting li.current { background: var(--attn-line); }
+    tr.needs-me td { background: #FFFBEB; }
+    table.mine td a.button { margin-top: var(--space-2); }
+    .prose { max-width: 760px; }
+    .prose h2 { font-size: 20px; margin: var(--space-6) 0 var(--space-2); }
+    .prose h2:first-child { margin-top: 0; }
+    .prose h3 { font-size: 16px; margin: var(--space-4) 0 4px; }
+    .prose ul, .prose ol { padding-left: 22px; }
+    .prose li { margin-bottom: 6px; }
+    ol.steps { list-style: none; padding: 0; counter-reset: step; }
+    ol.steps li { counter-increment: step; display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; margin-bottom: var(--space-3); }
+    ol.steps li::before { content: counter(step); width: 28px; height: 28px; border-radius: 50%; background: var(--brand-soft); color: var(--brand-ink); display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+    ol.steps li strong { display: block; }
+    table.legend-table td { vertical-align: middle; }
+
     /* Status badges: text always says the status; color only supports it. */
     .badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; line-height: 1.6; background: var(--surface-2); color: var(--ink-2); text-decoration: none; white-space: nowrap; }
     .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.8; }
@@ -299,6 +326,7 @@
     <symbol id="i-settings" viewBox="0 0 24 24"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></symbol>
     <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
     <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></symbol>
     <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></symbol>
   </defs>
 </svg>
@@ -334,6 +362,7 @@
     <div class="sidebar-foot">
       <div class="who"><span class="avatar" aria-hidden="true">{{ account.display_name[:1] }}</span><span>{{ account.display_name }}</span></div>
       {% if show_nav %}
+      <a class="nav-item" href="/help"{% if path.startswith("/help") %} aria-current="page"{% endif %}><svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-help"/></svg>วิธีใช้งาน</a>
       <a class="nav-item" href="/account/password"{% if path.startswith("/account/password") %} aria-current="page"{% endif %}><svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-key"/></svg>เปลี่ยนรหัสผ่าน</a>
       {% endif %}
       <form method="post" action="/logout">

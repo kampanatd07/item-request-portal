@@ -7,25 +7,42 @@
 <header class="page-head">
   <div>
     <h1>คำขอของฉัน</h1>
-    <p>สถานะคำขอทั้งหมดที่คุณส่ง หรือที่มีคนส่งแทนคุณ</p>
+    <p>สถานะคำขอทั้งหมดที่คุณส่ง หรือที่มีคนส่งแทนคุณ คำขอที่รอคุณแก้ไขอยู่บนสุด</p>
   </div>
   <div class="page-actions"><a class="button" href="/">ส่งคำขอใหม่</a></div>
 </header>
-<div class="card">
+{# Requests waiting for this person come first (STORY-018); each row still
+   appears once, so its email anchor stays unique. #}
+{% set waiting = [] %}{% set others = [] %}
+{% for r in requests %}{% set _ = (waiting if may_resubmit(r) else others).append(r) %}{% endfor %}
+{% if waiting %}
+<div class="callout attention" role="status">
+  <strong>จัดซื้อขอข้อมูลเพิ่ม {{ waiting | length }} คำขอ</strong> อ่านหมายเหตุจากจัดซื้อ แล้วกด “แก้ไขและส่งกลับ” ในแถวนั้น:
+  {% for r in waiting %}<a href="#request-{{ r.id }}">#{{ r.id }} {{ r.item_name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+</div>
+{% endif %}
+{% if requests %}{% include "partials/status_legend.html" %}{% endif %}
+<div class="card flush">
   {% if not requests %}
   <div class="empty"><strong>ยังไม่มีคำขอ</strong>เมื่อส่งคำขอแล้ว สถานะจะแสดงที่นี่ — <a href="/">ส่งคำขอใหม่</a></div>
   {% else %}
-  <table>
-    <tr><th>วันที่ส่ง</th><th>ชื่อสินค้า</th><th>โรงงาน</th><th>สถานะ</th><th>หมายเหตุจากจัดซื้อ</th><th>รหัส</th></tr>
-    {% for r in requests %}
+  <table class="mine">
+    <thead>
+    <tr><th>วันที่ส่ง</th><th>ชื่อสินค้า</th><th>โรงงาน</th><th>ความคืบหน้า</th><th>หมายเหตุจากจัดซื้อ</th><th>รหัส</th></tr>
+    </thead>
+    <tbody>
+    {% for r in waiting + others %}
     {# Anchor for the link in notification emails; :target highlights the row. #}
-    <tr id="request-{{ r.id }}" class="request-row">
-      <td class="muted" style="white-space:nowrap;">{{ r.created_at | thai_time("%d/%m/%Y %H:%M") }}</td>
+    <tr id="request-{{ r.id }}" class="request-row{{ ' needs-me' if r in waiting }}">
+      <td class="muted nowrap">{{ r.created_at | thai_time("%d/%m/%Y %H:%M") }}</td>
       <td>{% if can_open_queue %}<a href="/queue/{{ r.id }}">{{ r.item_name }}</a>{% else %}{{ r.item_name }}{% endif %}
         {% if is_originator(r) %}<br><span class="muted">ขอแทนโดย {{ r.requester_name }}</span>{% endif %}</td>
       <td>{{ r.factory.code }}</td>
-      <td><span class="badge {{ r.status }}">{{ status_labels[r.status] }}</span>
-        {% if may_resubmit(r) %}<br><a class="button" href="/my-requests/{{ r.id }}/resubmit">แก้ไขและส่งกลับ</a>{% endif %}</td>
+      <td>
+        <span class="badge {{ r.status }}" title="{{ status_help[r.status][0] }}">{{ status_labels[r.status] }}</span>
+        {% with status=r.status %}{% include "partials/progress.html" %}{% endwith %}
+        {% if may_resubmit(r) %}<a class="button" href="/my-requests/{{ r.id }}/resubmit">แก้ไขและส่งกลับ</a>{% endif %}
+      </td>
       <td>{{ r.review_note or "" }}</td>
       <td>
         {# The reason for a burned code is in the note column, so not repeated here. #}
@@ -37,6 +54,7 @@
       </td>
     </tr>
     {% endfor %}
+    </tbody>
   </table>
   {% endif %}
 </div>
