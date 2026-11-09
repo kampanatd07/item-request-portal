@@ -166,7 +166,7 @@
     .section-head h2 { font-size: 18px; margin: 0; line-height: 1.4; }
     .section-head p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
     .step { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--brand-soft); color: var(--brand-ink); display: grid; place-items: center; font-weight: 700; font-size: 14px; margin-top: 1px; }
-    .form-aside { position: sticky; top: var(--space-5); }
+    .form-aside { position: sticky; top: var(--space-5); max-height: calc(100vh - 2 * var(--space-5)); overflow-y: auto; }
     .summary { border: 1px solid var(--border); border-radius: 10px; padding: var(--space-5); background: var(--sidebar); }
     .summary-label { font-size: 13px; font-weight: 600; color: var(--muted); }
     .name-preview { font-size: 18px; font-weight: 650; line-height: 1.45; margin-top: 6px; min-height: 26px; overflow-wrap: anywhere; color: var(--ink); }
@@ -216,11 +216,9 @@
     .card.flush table th:first-child, .card.flush table td:first-child { padding-left: var(--space-5); }
     .nowrap { white-space: nowrap; }
     /* Queue: the item link covers its row, so the whole row opens the request. */
-    table.queue tbody tr { position: relative; }
+    table.queue tbody tr:has(a.row-link) { cursor: pointer; }
     table.queue a.row-link { color: var(--ink); font-weight: 500; text-decoration: none; }
-    table.queue a.row-link::after { content: ""; position: absolute; inset: 0; }
     table.queue tbody tr:hover a.row-link { color: var(--brand-ink); text-decoration: underline; }
-    table.queue td a:not(.row-link) { position: relative; z-index: 1; }
     /* Filter tabs */
     .tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: var(--space-4); }
     .tabs a { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--muted); font-size: 14.5px; font-weight: 500; text-decoration: none; }
@@ -229,7 +227,7 @@
     .tab-count { min-width: 22px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); font-size: 12.5px; font-weight: 600; text-align: center; line-height: 20px; }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); }
     .dot.submitted { background: var(--info-ink); } .dot.in_review { background: #B7791F; } .dot.needs_info { background: var(--pink-ink); }
-    .dot.approved { background: var(--ok-ink); } .dot.rejected { background: var(--danger); } .dot.done { background: var(--brand); }
+    .dot.approved { background: var(--ok-ink); } .dot.rejected { background: var(--danger); } .dot.done { background: var(--brand); } .dot.needs_import { background: #B7791F; }
     .subfilters { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 var(--space-4); }
     .subfilters a { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 12px; border: 1px solid var(--border); border-radius: 999px; color: var(--ink-2); font-size: 13.5px; font-weight: 500; text-decoration: none; }
     .subfilters a:hover { border-color: var(--border-strong); color: var(--ink); }
@@ -239,7 +237,7 @@
     .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: var(--space-3) 0; }
     .filter-bar .filter-input { width: 260px; min-height: 36px; padding: 6px 12px; }
     .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; }
-    .seg label { display: inline-flex; align-items: center; margin: 0; padding: 6px 12px; font-size: 14px; font-weight: 500; color: var(--ink-2); cursor: pointer; border-left: 1px solid var(--border); }
+    .seg label { position: relative; display: inline-flex; align-items: center; margin: 0; padding: 6px 12px; font-size: 14px; font-weight: 500; color: var(--ink-2); cursor: pointer; border-left: 1px solid var(--border); }
     .seg label:first-child { border-left: 0; }
     .seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
     .seg label:has(input:checked) { background: var(--brand-soft); color: var(--brand-ink); font-weight: 600; }
@@ -250,7 +248,7 @@
     .back-link { display: inline-block; margin-bottom: var(--space-3); color: var(--muted); font-size: 14px; text-decoration: none; }
     .back-link:hover { color: var(--ink); }
     .detail { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--space-5); align-items: start; }
-    .detail-aside { position: sticky; top: var(--space-5); }
+    .detail-aside { position: sticky; top: var(--space-5); max-height: calc(100vh - 2 * var(--space-5)); overflow-y: auto; }
     .detail-aside .card form { max-width: none !important; }
     .detail-aside .card button { margin-top: var(--space-3); margin-right: 4px; }
     .detail-head { margin-bottom: var(--space-5); }

@@ -1,0 +1,10 @@
+{# What each status means and who acts next; text from STATUS_HELP (STORY-018).
+   Shared by the status legend and the help page. #}
+<table class="legend-table">
+  <thead><tr><th>สถานะ</th><th>ความหมาย</th><th>ใครทำต่อ</th></tr></thead>
+  <tbody>
+  {% for s, (meaning, who) in status_help.items() %}
+  <tr><td class="nowrap"><span class="badge {{ s }}">{{ status_labels[s] }}</span></td><td>{{ meaning }}</td><td class="nowrap">{{ who }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>

@@ -72,7 +72,7 @@ def test_done_tab_counts_and_sub_filters(client_as, app_db) -> None:
 
     page = c.get("/queue").text
     done_tab = _tabs(page).split('href="/queue?status=done"', 1)[1].split("</a>", 1)[0]
-    assert "ส่งเข้า AX แล้ว" in done_tab and '<span class="tab-count">3</span>' in done_tab
+    assert "export แล้ว" in done_tab and '<span class="tab-count">3</span>' in done_tab
     assert 'class="subfilters"' not in page  # sub-filters only inside the tab
 
     page = c.get("/queue?status=notified").text
@@ -92,3 +92,32 @@ def test_every_status_is_reachable_and_the_tabs_add_up(client_as, app_db) -> Non
     tabs = _tabs(client_as("procurement").get("/queue").text)
     counts = [int(x.split("</span>", 1)[0]) for x in tabs.split('<span class="tab-count">')[1:]]
     assert counts[0] == len(STATUS_LABELS) and sum(counts[1:]) == counts[0]
+
+
+# --- Review fixes (2026-11-09) ------------------------------------------------------------------
+
+def test_queue_counts_totals_come_from_the_service(app_db) -> None:
+    from app.services.requests import queue_counts
+
+    _submit(app_db, "Open")
+    for name, status in (("A", "exported"), ("B", "notified")):
+        _set_status(app_db, _submit(app_db, name), status)
+    counts = queue_counts(app_db)
+    assert counts.total == 3 and counts.done == 2
+    assert counts.by_status == {"submitted": 1, "exported": 1, "notified": 1}
+
+
+def test_the_folded_tab_does_not_claim_exported_requests_are_in_ax(client_as, app_db) -> None:
+    _set_status(app_db, _submit(app_db, "A"), "exported")
+    page = client_as("procurement").get("/queue?status=done").text
+    assert "ส่งเข้า AX แล้ว" not in page
+    subs = page.split('class="subfilters"', 1)[1].split("</nav>", 1)[0]
+    exported = subs.split('href="/queue?status=exported"', 1)[1].split("</a>", 1)[0]
+    assert "รอนำเข้า" in exported
+
+
+def test_queue_rows_have_no_overlay_so_codes_can_be_selected(client_as, app_db) -> None:
+    _submit(app_db)
+    page = client_as("procurement").get("/queue").text
+    assert "a.row-link::after" not in page
+    assert "window.getSelection()" in page  # a row click skips while text is selected

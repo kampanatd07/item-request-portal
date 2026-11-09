@@ -98,3 +98,23 @@ def test_help_page_for_anyone_signed_in(client_as) -> None:
 def test_help_page_needs_a_login(anon_client) -> None:
     r = anon_client.get("/help", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"].startswith("/login")
+
+
+def test_form_summary_calls_the_name_a_preview_not_the_saved_name(client_as) -> None:
+    page = client_as("requester", plant="APM").get("/").text
+    assert "ชื่อสินค้าที่ระบบจะบันทึก" not in page
+    assert "ชื่อสินค้า (ตัวอย่าง)" in page and "ระบบจะเติมหมวดนำหน้า" in page
+    help_page = client_as("requester", plant="APM").get("/help").text
+    assert "แสดงชื่อที่จะบันทึก" not in help_page
+
+
+def test_checklist_lists_the_sub_category_when_it_is_required(client_as) -> None:
+    page = client_as("requester", plant="APM").get("/").text
+    assert '<li data-field="subgroup_id" data-when-enabled hidden>' in page
+
+
+def test_legend_and_help_share_one_status_table(client_as, app_db) -> None:
+    page = client_as("requester", plant="APM").get("/help").text
+    assert page.count('class="legend-table"') == 1
+    for status in STATUS_HELP:
+        assert f'<span class="badge {status}">' in page

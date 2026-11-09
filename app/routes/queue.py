@@ -27,7 +27,8 @@ from app.services.requests import (
     edit_name,
     DONE_GROUP,
     DONE_STATUSES,
-    count_by_status,
+    WORK_STATUSES,
+    queue_counts,
     list_queue,
     originator_of,
     override_code,
@@ -53,7 +54,8 @@ def queue_page(request: Request, status: str | None = None,
     requests = list_queue(db, status)
     return templates.TemplateResponse(
         request, "queue.html",
-        {"requests": requests, "current": status, "counts": count_by_status(db),
+        {"requests": requests, "current": status, "counts": queue_counts(db),
+         "work_statuses": WORK_STATUSES,
          "done_group": DONE_GROUP, "done_statuses": DONE_STATUSES,
          "resubmitted": resubmitted_ids(db, [r.id for r in requests])},
     )

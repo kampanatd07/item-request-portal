@@ -2,12 +2,5 @@
    so it costs one line until someone needs it. Text: STATUS_HELP. #}
 <details class="legend">
   <summary>สถานะหมายถึงอะไร?</summary>
-  <table>
-    <thead><tr><th>สถานะ</th><th>ความหมาย</th><th>ใครทำต่อ</th></tr></thead>
-    <tbody>
-    {% for s, (meaning, who) in status_help.items() %}
-    <tr><td><span class="badge {{ s }}">{{ status_labels[s] }}</span></td><td>{{ meaning }}</td><td class="nowrap">{{ who }}</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
+  {% include "partials/status_table.html" %}
 </details>

@@ -10,20 +10,20 @@
 </header>
 {# Filter tabs with counts (STORY-018); the current filter is marked. #}
 <nav class="tabs" aria-label="กรองตามสถานะ">
-  <a href="/queue"{% if not current %} aria-current="page"{% endif %}>ทั้งหมด <span class="tab-count">{{ counts.values() | sum }}</span></a>
-  {% for s in ["submitted", "in_review", "needs_info", "approved", "rejected"] %}
-  <a href="/queue?status={{ s }}"{% if current == s %} aria-current="page"{% endif %}><span class="dot {{ s }}" aria-hidden="true"></span>{{ status_labels[s] }} <span class="tab-count">{{ counts.get(s, 0) }}</span></a>
+  <a href="/queue"{% if not current %} aria-current="page"{% endif %}>ทั้งหมด <span class="tab-count">{{ counts.total }}</span></a>
+  {% for s in work_statuses %}
+  <a href="/queue?status={{ s }}"{% if current == s %} aria-current="page"{% endif %}><span class="dot {{ s }}" aria-hidden="true"></span>{{ status_labels[s] }} <span class="tab-count">{{ counts.by_status.get(s, 0) }}</span></a>
   {% endfor %}
-  {# Already in AX/D365: one tab, its statuses as sub-filters below. #}
+  {# Exported or later: one tab, its statuses as sub-filters below. Not "in
+     AX": an exported request still waits for Procurement to import it. #}
   {% set in_done = current == done_group or current in done_statuses %}
-  {% set done_total = namespace(n=0) %}{% for s in done_statuses %}{% set done_total.n = done_total.n + counts.get(s, 0) %}{% endfor %}
-  <a href="/queue?status={{ done_group }}"{% if in_done %} aria-current="page"{% endif %}><span class="dot done" aria-hidden="true"></span>ส่งเข้า AX แล้ว <span class="tab-count">{{ done_total.n }}</span></a>
+  <a href="/queue?status={{ done_group }}"{% if in_done %} aria-current="page"{% endif %}><span class="dot done" aria-hidden="true"></span>export แล้ว <span class="tab-count">{{ counts.done }}</span></a>
 </nav>
 {% if in_done %}
-<nav class="subfilters" aria-label="กรองย่อย: ส่งเข้า AX แล้ว">
-  <a href="/queue?status={{ done_group }}"{% if current == done_group %} aria-current="page"{% endif %}>ทั้งหมด <span class="tab-count">{{ done_total.n }}</span></a>
+<nav class="subfilters" aria-label="กรองย่อย: export แล้ว">
+  <a href="/queue?status={{ done_group }}"{% if current == done_group %} aria-current="page"{% endif %}>ทั้งหมด <span class="tab-count">{{ counts.done }}</span></a>
   {% for s in done_statuses %}
-  <a href="/queue?status={{ s }}"{% if current == s %} aria-current="page"{% endif %}>{{ status_labels[s] }} <span class="tab-count">{{ counts.get(s, 0) }}</span></a>
+  <a href="/queue?status={{ s }}"{% if current == s %} aria-current="page"{% endif %}>{% if s == "exported" %}<span class="dot needs_import" aria-hidden="true"></span>{% endif %}{{ status_labels[s] }}{% if s == "exported" %} · รอนำเข้า{% endif %} <span class="tab-count">{{ counts.by_status.get(s, 0) }}</span></a>
   {% endfor %}
 </nav>
 {% endif %}
@@ -37,7 +37,8 @@
     {% for r in requests %}
     <tr>
       <td><a href="/queue/{{ r.id }}">{{ r.id }}</a></td>
-      {# The name link stretches over the row, so the whole row opens the request. #}
+      {# A click anywhere on the row follows this link (script below), unless
+         the user is selecting text, e.g. copying a code. #}
       <td class="item-cell"><a class="row-link" href="/queue/{{ r.id }}">{{ r.item_name }}{% if r.brand %} {{ r.brand }}{% endif %}</a></td>
       <td>{{ r.factory.code }}</td>
       <td class="muted">{{ r.code_system.name_th }}</td>
@@ -54,4 +55,13 @@
     </tbody>
   </table>
 </div>
+<script>
+document.querySelector("table.queue").addEventListener("click", function (e) {
+  if (e.target.closest("a, button, input, select, textarea")) return;
+  if (String(window.getSelection())) return;  // selecting text, not opening
+  var row = e.target.closest("tr");
+  var link = row && row.querySelector("a.row-link");
+  if (link) window.location = link.href;
+});
+</script>
 {% endblock %}

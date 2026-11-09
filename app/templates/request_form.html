@@ -243,15 +243,17 @@
 
   <aside class="form-aside">
     <div class="summary">
-      <div class="summary-label">ชื่อสินค้าที่ระบบจะบันทึก</div>
+      <div class="summary-label">ชื่อสินค้า (ตัวอย่าง)</div>
       {# Resubmit: the stored name until a field changes (no edit keeps it, even one Procurement typed). #}
       <div id="name-preview" class="name-preview">{{ r.item_name if r else "—" }}</div>
-      <p class="hint">ประกอบอัตโนมัติจาก ชื่อ แบรนด์ รุ่น ขนาด และชนิด/สี</p>
+      <p class="hint">ต่อจาก ชื่อ แบรนด์ รุ่น ขนาด และชนิด/สี ตอนบันทึก ระบบจะเติมหมวดนำหน้าและจัดรูปแบบตามมาตรฐาน</p>
       <ul class="checklist" aria-label="ช่องที่ต้องกรอก">
         {% if not r %}<li data-field="factory_id">โรงงาน</li>{% endif %}
         <li data-field="code_system_id">ประเภท / ระบบรหัส</li>
         <li data-field="item_name">ชื่อเรียกสินค้า</li>
         <li data-field="group_id">หมวดสินค้า</li>
+        {# Required only when the chosen group has sub-categories (the select is then enabled). #}
+        <li data-field="subgroup_id" data-when-enabled hidden>หมวดย่อย</li>
         {% if r %}<li data-field="reply">ข้อความตอบจัดซื้อ</li>{% endif %}
       </ul>
       {% if r %}
@@ -290,6 +292,7 @@ function pickCategory(groupId, subId, btn) {
 function updateChecklist() {
   document.querySelectorAll('.checklist li[data-field]').forEach(function (li) {
     var el = document.querySelector('[name="' + li.dataset.field + '"]');
+    if ('whenEnabled' in li.dataset) li.hidden = !el || el.disabled;
     var done = !!(el && !el.disabled && el.value && el.value.trim());
     li.classList.toggle('done', done);
   });

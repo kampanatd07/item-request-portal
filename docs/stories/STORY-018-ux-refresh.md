@@ -59,8 +59,10 @@ built in pieces, each tested and shown in the browser before the next:
 - B: request form in numbered sections + sticky summary (name preview,
   required-field checklist, submit).
 - C: queue tabs with counts (`count_by_status`); two-column detail page.
-  Post-export statuses folded into one "ส่งเข้า AX แล้ว" tab with
-  sub-filters (`DONE_GROUP`), Peter's choice 2026-11-09.
+  Post-export statuses folded into one "export แล้ว" tab with
+  sub-filters (`DONE_GROUP`), Peter's choice 2026-11-09. First named
+  "ส่งเข้า AX แล้ว"; renamed after review, because an exported request is
+  not in AX yet (its sub-filter is marked "รอนำเข้า").
 - D + explanations (Peter asked 2026-11-09): progress bar on My requests,
   waiting-for-you first, status legend, badge tooltips, `/help` page.
 - E: accounts, reference data, snapshots, exports on the shared system.
