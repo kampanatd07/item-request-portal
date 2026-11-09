@@ -28,18 +28,21 @@ Agreed 2026-11-09, before Peter leaves on 2026-11-13:
 - Email templates (`app/templates/email/`).
 
 ## Acceptance criteria
-- [ ] The whole test suite stays green on CI; no existing test's expectation
+- [x] The whole test suite stays green on CI (985 passed, 0 skipped on
+  `997dc0f`, Peter from the run, 2026-11-09); no existing test's expectation
   changed (none was: every failure on the way was fixed in the templates).
-- [ ] One design system in `base.html`; only one page color left hardcoded
+- [x] One design system in `base.html`; only one page color left hardcoded
   (`partials/item_code.html`, pinned by `test_register_guard`, see Notes).
 - [ ] Text contrast ≥ 4.5:1, visible keyboard focus, every form input on
   the request form, queue, admin and snapshot pages has a label.
-- [ ] Every status can be filtered in the queue and the tab counts add up
+  (Labels and focus done; contrast was computed from the token values, not
+  yet measured on the rendered pages with a tool: open.)
+- [x] Every status can be filtered in the queue and the tab counts add up
   to "all" (`tests/test_queue_tabs.py`).
-- [ ] Each status says what it means and who acts next, from one source
+- [x] Each status says what it means and who acts next, from one source
   (`STATUS_HELP`), on the queue, My requests, detail page and `/help`.
-- [ ] Peter's browser check of every page (pieces A–E) passes.
-- [ ] Peter confirms the status wording (`app/templating.py` STATUS_HELP).
+- [x] Peter's browser check of every page (pieces A–E) passes (2026-11-09).
+- [x] Peter confirms the status wording (`app/templating.py` STATUS_HELP), 2026-11-09.
 
 ## Files likely touched
 `app/templates/base.html`, `app/templates/*.html`, `app/templates/partials/*.html`.
@@ -75,6 +78,25 @@ built in pieces, each tested and shown in the browser before the next:
 - Left for later (backlog, none blocks): about 35 layout-only inline styles
   in partials (margins, widths); the group-map form sits inside a `<tr>`
   (works because the parser ties its inputs to it, but is invalid HTML).
+- Review of `f0384b4..997dc0f` (2026-11-09): no (ก). Open (ข), for a
+  follow-up branch, most useful first:
+  1. Queue: double-clicking a code to select it opens the request (the first
+     click navigates). Skip row navigation for clicks inside `code`, or wait
+     for a second click.
+  2. Queue: Ctrl/Cmd/Shift/middle-click on a row does not open a new tab.
+  3. Form: `pickCategory` enables the sub-category select even when the
+     group has none, so the checklist shows "หมวดย่อย" as required when it
+     is not. Enable it only when it has options.
+  4. `requests.py` DONE_GROUP comment still says "already in AX/D365".
+  5. `WORK_STATUSES` + `DONE_STATUSES` must cover every status by hand;
+     `test_every_status_is_reachable_and_the_tabs_add_up` guards it, but an
+     import-time check would be firmer.
+  6. `.dot.needs_import` and `.dot.in_review` repeat `#B7791F`: make a token.
+  7. The sticky asides' `overflow-y: auto` clips focus rings at their edges.
+  8. `test_legend_and_help_share_one_status_table` checks only /help, not
+     the queue legend.
+  Test note: `test_queue_tabs.py` (new in this branch) had its tab label
+  changed with the rename; it was never on master.
 - `PRODUCT.md` written 2026-11-09 from Peter's answers (desktop users;
   frequent requests, frequent mistakes; modern, friendly, uncomplicated;
   keep the green; WCAG AA).
