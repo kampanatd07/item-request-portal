@@ -204,6 +204,43 @@
     tr:last-child td { border-bottom: 0; }
     table tr:hover td { background: var(--sidebar); }
 
+    .card.flush { padding: 0; overflow: hidden; }
+    .card.flush table th:first-child, .card.flush table td:first-child { padding-left: var(--space-5); }
+    .nowrap { white-space: nowrap; }
+    /* Queue: the item link covers its row, so the whole row opens the request. */
+    table.queue tbody tr { position: relative; }
+    table.queue a.row-link { color: var(--ink); font-weight: 500; text-decoration: none; }
+    table.queue a.row-link::after { content: ""; position: absolute; inset: 0; }
+    table.queue tbody tr:hover a.row-link { color: var(--brand-ink); text-decoration: underline; }
+    table.queue td a:not(.row-link) { position: relative; z-index: 1; }
+    /* Filter tabs */
+    .tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: var(--space-4); }
+    .tabs a { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--muted); font-size: 14.5px; font-weight: 500; text-decoration: none; }
+    .tabs a:hover { color: var(--ink); }
+    .tabs a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--brand); font-weight: 600; }
+    .tab-count { min-width: 22px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); font-size: 12.5px; font-weight: 600; text-align: center; line-height: 20px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); }
+    .dot.submitted { background: var(--info-ink); } .dot.in_review { background: #B7791F; } .dot.needs_info { background: var(--pink-ink); }
+    .dot.approved { background: var(--ok-ink); } .dot.rejected { background: var(--danger); }
+    /* Request detail: content left, actions right. */
+    .back-link { display: inline-block; margin-bottom: var(--space-3); color: var(--muted); font-size: 14px; text-decoration: none; }
+    .back-link:hover { color: var(--ink); }
+    .detail { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--space-5); align-items: start; }
+    .detail-aside { position: sticky; top: var(--space-5); }
+    .detail-aside .card form { max-width: none !important; }
+    .detail-aside .card button { margin-top: var(--space-3); margin-right: 4px; }
+    .detail-head { margin-bottom: var(--space-5); }
+    .detail-head h2 { font-size: 26px; line-height: 1.35; letter-spacing: -0.01em; margin-bottom: var(--space-4); overflow-wrap: anywhere; }
+    table.props th { width: 170px; color: var(--muted); font-weight: 500; font-size: 14px; white-space: normal; vertical-align: top; }
+    table.props th, table.props td { border-bottom: 0; padding: 6px 12px 6px 0; }
+    table.props tr:hover td { background: none; }
+    table.history td { font-size: 14px; }
+    table.history td:first-child { white-space: nowrap; width: 1%; }
+    @media (max-width: 1100px) {
+      .detail { grid-template-columns: 1fr; }
+      .detail-aside { position: static; order: -1; }
+    }
+
     /* Status badges: text always says the status; color only supports it. */
     .badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; line-height: 1.6; background: var(--surface-2); color: var(--ink-2); text-decoration: none; white-space: nowrap; }
     .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.8; }

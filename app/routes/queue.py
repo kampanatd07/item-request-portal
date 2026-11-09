@@ -25,6 +25,7 @@ from app.services.requests import (
     change_category,
     change_status,
     edit_name,
+    count_by_status,
     list_queue,
     originator_of,
     override_code,
@@ -50,7 +51,7 @@ def queue_page(request: Request, status: str | None = None,
     requests = list_queue(db, status)
     return templates.TemplateResponse(
         request, "queue.html",
-        {"requests": requests, "current": status,
+        {"requests": requests, "current": status, "counts": count_by_status(db),
          "resubmitted": resubmitted_ids(db, [r.id for r in requests])},
     )
 

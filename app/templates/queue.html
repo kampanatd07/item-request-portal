@@ -8,31 +8,37 @@
     <p>คำขอสร้าง Item จากทุกโรงงาน เปิดรายการเพื่อตรวจ แก้ชื่อหรือหมวด แล้วอนุมัติ</p>
   </div>
 </header>
-<div class="card">
-  <p>
-    {% for s in ["submitted", "in_review", "needs_info", "approved", "rejected"] %}
-      <a href="/queue?status={{ s }}" class="badge {{ s }}">{{ status_labels[s] }}</a>
-    {% endfor %}
-    <a href="/queue" class="badge">ทั้งหมด</a>
-  </p>
-  <table>
+{# Filter tabs with counts (STORY-018); the current filter is marked. #}
+<nav class="tabs" aria-label="กรองตามสถานะ">
+  <a href="/queue"{% if not current %} aria-current="page"{% endif %}>ทั้งหมด <span class="tab-count">{{ counts.values() | sum }}</span></a>
+  {% for s in ["submitted", "in_review", "needs_info", "approved", "rejected"] %}
+  <a href="/queue?status={{ s }}"{% if current == s %} aria-current="page"{% endif %}><span class="dot {{ s }}" aria-hidden="true"></span>{{ status_labels[s] }} <span class="tab-count">{{ counts.get(s, 0) }}</span></a>
+  {% endfor %}
+</nav>
+<div class="card flush">
+  <table class="queue">
+    <thead>
     <tr><th>#</th><th>สินค้า</th><th>โรงงาน</th><th>ระบบ</th><th>Item code</th><th>ผู้ขอ</th><th>สถานะ</th><th>วันที่</th></tr>
+    </thead>
+    <tbody>
     {% for r in requests %}
     <tr>
       <td><a href="/queue/{{ r.id }}">{{ r.id }}</a></td>
-      <td><a href="/queue/{{ r.id }}">{{ r.item_name }}{% if r.brand %} {{ r.brand }}{% endif %}</a></td>
+      {# The name link stretches over the row, so the whole row opens the request. #}
+      <td class="item-cell"><a class="row-link" href="/queue/{{ r.id }}">{{ r.item_name }}{% if r.brand %} {{ r.brand }}{% endif %}</a></td>
       <td>{{ r.factory.code }}</td>
-      <td>{{ r.code_system.name_th }}</td>
+      <td class="muted">{{ r.code_system.name_th }}</td>
       <td>{% with req=r, compact=true %}{% include "partials/item_code.html" %}{% endwith %}</td>
       <td>{{ r.requester_name }}</td>
       <td><span class="badge {{ r.status }}">{{ status_labels[r.status] }}</span>
         {# Came back from Needs Info: not a new request (STORY-009). #}
         {% if r.status == "submitted" and r.id in resubmitted %}<span class="badge resubmitted">ส่งกลับแล้ว</span>{% endif %}</td>
-      <td class="muted">{{ r.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+      <td class="muted nowrap">{{ r.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="8" class="muted">ยังไม่มีคำขอ</td></tr>
+    <tr><td colspan="8"><div class="empty"><strong>ยังไม่มีคำขอ{% if current %}ในสถานะนี้{% endif %}</strong>{% if current %}<a href="/queue">ดูคำขอทั้งหมด</a>{% else %}คำขอใหม่จากโรงงานจะแสดงที่นี่{% endif %}</div></td></tr>
     {% endfor %}
+    </tbody>
   </table>
 </div>
 {% endblock %}

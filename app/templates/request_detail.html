@@ -3,9 +3,14 @@
 {% block title %}คำขอ #{{ req.id }}{% endblock %}
 {% block content %}
 {% if req is none %}
-<div class="card"><p class="error">ไม่พบคำขอนี้</p></div>
+<div class="card"><div class="empty"><strong>ไม่พบคำขอนี้</strong><a href="/queue">กลับไปคิวจัดซื้อ</a></div></div>
 {% else %}
-<div class="card" id="request-summary">
+<a class="back-link" href="/queue">← คิวจัดซื้อ</a>
+{# Two columns (STORY-018): what the request is on the left, what Procurement
+   does with it on the right. Panel ids are HTMX swap targets: keep them. #}
+<div class="detail">
+<div class="detail-main">
+<div class="detail-head" id="request-summary">
 {% include "partials/request_summary.html" %}
 </div>
 
@@ -42,15 +47,9 @@
   <div><p class="muted">กำลังตรวจสอบ...</p></div>
 </div>
 
-{% include "partials/mail_panel.html" %}
-
-<div class="card" id="status-panel">
-  {% include "partials/status_panel.html" %}
-</div>
-
 <div class="card">
   <h3>ประวัติ</h3>
-  <table>
+  <table class="history">
     {% for e in req.events %}
     <tr>
       <td class="muted">{{ e.at | thai_time("%d/%m/%Y %H:%M") }}</td>
@@ -60,6 +59,14 @@
     </tr>
     {% endfor %}
   </table>
+</div>
+</div>
+<aside class="detail-aside">
+<div class="card" id="status-panel">
+  {% include "partials/status_panel.html" %}
+</div>
+{% include "partials/mail_panel.html" %}
+</aside>
 </div>
 {% endif %}
 {% endblock %}

@@ -1,5 +1,5 @@
   <h2>คำขอ #{{ req.id }} — {{ req.item_name }}</h2>
-  <table>
+  <table class="props">
     <tr><th>ผู้ขอ</th><td>{{ req.requester_name }} ({{ req.requester_email }})</td></tr>
     {% if originator %}<tr><th>ขอแทน</th><td>{{ originator }}{% if req.originator_email %} ({{ req.originator_email }}){% endif %}</td></tr>{% endif %}
     <tr><th>โรงงาน</th><td>{{ req.factory.code }} — {{ req.factory.name }}</td></tr>

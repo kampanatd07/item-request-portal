@@ -1241,3 +1241,10 @@ def list_queue(db: Session, status: str | None = None) -> list[ItemRequest]:
     if status:
         stmt = stmt.where(ItemRequest.status == status)
     return list(db.scalars(stmt))
+
+
+def count_by_status(db: Session) -> dict[str, int]:
+    """How many requests each status holds, for the queue's filter tabs
+    (STORY-018). A status with no request is absent, not 0."""
+    rows = db.execute(select(ItemRequest.status, func.count()).group_by(ItemRequest.status))
+    return {status: n for status, n in rows}
