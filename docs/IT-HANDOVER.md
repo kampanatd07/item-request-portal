@@ -73,7 +73,7 @@ non-stock และ service ระบบตรวจรายการซ้ำ 
   skill `carabao-item-master`)
 - เปิด Claude Code ที่โฟลเดอร์ repo แล้ว `CLAUDE.md` จะโหลดเอง ในนั้นมีกติกาการทำงาน
   ทั้งหมด (ย้ายมาจาก memory บนเครื่อง Peter เมื่อ 2026-11-03)
-- คำสั่งแรกของ session: `อ่าน docs/IT-HANDOVER.md และ docs/HANDOFF.md แล้วสรุปสถานะ 3 บรรทัด`
+- คำสั่งแรกของ session: `อ่าน docs/IT-HANDOVER.md, docs/HANDOFF.md และ docs/decisions.md แล้วสรุปสถานะ 3 บรรทัด`
 - ห้ามทำงานใน OneDrive: SQLite และ git พัง (HANDOFF §6.6)
 
 ### A7. ความเสี่ยงที่รู้อยู่
@@ -158,8 +158,8 @@ The code is on Peter's personal GitHub (`kampanatd07/item-request-portal`, priva
   skill `carabao-item-master`).
 - Open Claude Code in the repo folder: `CLAUDE.md` loads by itself and holds
   every working rule (moved from the memory on Peter's machine, 2026-11-03).
-- First prompt of a session: `อ่าน docs/IT-HANDOVER.md และ docs/HANDOFF.md แล้วสรุปสถานะ 3 บรรทัด`
-  ("read both and summarise the status in 3 lines").
+- First prompt of a session: `อ่าน docs/IT-HANDOVER.md, docs/HANDOFF.md และ docs/decisions.md แล้วสรุปสถานะ 3 บรรทัด`
+  ("read the three and summarise the status in 3 lines").
 - Never work inside OneDrive: it breaks SQLite and git (HANDOFF §6.6).
 
 ### B7. Known risks

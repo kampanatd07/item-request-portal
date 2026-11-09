@@ -67,7 +67,9 @@ FastAPI + SQLAlchemy + Alembic | SQLite (dev) / PostgreSQL (prod) | HTMX + Jinja
   (ก) wrong data, someone acting who should not, data lost, or an acceptance
   criterion not met = stop and ask; (ข) = backlog note. Merge only when
   approved: `git merge --no-ff` → pytest → push → the user reads master's CI.
-  Delete a branch or backup only when told.
+  Delete a branch or backup only when told. Exception: `[IT-OWNER]` may
+  grant "no (ก) → merge without asking" for one named branch at a time; it
+  never carries over to another branch.
 - **Never close on expectations:** tick a checklist item or set a ticket to
   `done` only after the user reports the real result (CI, browser check).
 - **Existing tests:** ask before changing any existing test's expectation,

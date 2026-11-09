@@ -117,5 +117,5 @@ git worktree add ..\irp-story-004 -b story/004-item-attributes
 
 ## 7. เริ่ม session ใหม่ทุกครั้ง
 
-พิมพ์: `อ่าน docs/IT-HANDOVER.md และ docs/HANDOFF.md แล้วสรุปสถานะ 3 บรรทัด`
+พิมพ์: `อ่าน docs/IT-HANDOVER.md, docs/HANDOFF.md และ docs/decisions.md แล้วสรุปสถานะ 3 บรรทัด`
 ถ้าข้อมูลในแชทขัดกับไฟล์ ให้เชื่อไฟล์

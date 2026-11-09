@@ -36,7 +36,9 @@ up from these files alone; opening it to the plants is the next owner's.
 the plants still open items in the old system. The portal may open only
 after phase 1 of the Cutover Plan. Items opened in the old system after
 2026-08-07 (after the v5 master was cut) need a delta before cutover. The
-successor picks the route (OneDrive `Handover 2026-11/04-pipeline-master-กลาง.md`):
+successor picks the route (`Rule of Item/Handover 2026-11/04-pipeline-master-กลาง.md`
+on the PurchaseWFH team site, `docs/IT-HANDOVER.md` C3; Peter's OneDrive copy
+is deleted when his account closes):
 option A, the delta goes through the portal, which issues the numbers
 itself; option B, the delta goes through the group pipeline and the
 register is then re-synced (STORY-005), otherwise the portal and the delta
@@ -44,8 +46,8 @@ issue the same numbers.
 
 **Never re-run the whole group pipeline once v5 codes are in use.** The
 pipeline issues every code afresh, so existing codes may shift. A delta
-must keep every v5 code as it is (details: OneDrive
-`Handover 2026-11/04-pipeline-master-กลาง.md`).
+must keep every v5 code as it is (details: the same
+`04-pipeline-master-กลาง.md` on the team site).
 
 Besides the cutover, it still has to be deployed (STORY-006). **All code
 prerequisites of the deploy are done**; left:
@@ -147,7 +149,8 @@ upgrade; check `.env` is still read.
 
 Tests: 916 passing locally, 37 PostgreSQL tests skipped without
 `TEST_POSTGRES_URL`; CI runs all 953 on PostgreSQL 16 (confirmed by Peter
-from the run on master `7325bc9`, 2026-10-27). Read CI numbers from the run's log
+from the run on master `7325bc9`, 2026-10-27, and again on master `38ab22e`
+after the docs/handover-status merge). Read CI numbers from the run's log
 itself, never from a summary: `f429488` was once recorded green and was red.
 
 The suite ran in ~13 s on 2026-10-21 but took ~61 s on 2026-10-26 (cause
@@ -187,7 +190,8 @@ python -m app.create_admin              # first time only: your own Administrato
 uvicorn app.main:app --port 8000
 ```
 
-First-time setup: `python -m venv .venv` then `pip install -r requirements.txt`.
+First-time setup: `python -m venv .venv` then `pip install -r requirements-dev.txt`
+(it includes `requirements.txt`, plus pytest-timeout for `pytest.ini`).
 Peter's machine has Python 3.13 from python.org on PATH (Sep 2026). If `python`
 prints nothing, it is the Microsoft Store stub — check with `where.exe python`.
 
