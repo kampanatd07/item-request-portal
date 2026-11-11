@@ -93,7 +93,8 @@ def test_the_detail_page_shows_the_thai_name(client_as, app_db) -> None:
     _label_seal(app_db)
     page = client_as("procurement").get(f"/queue/{req.id}").text
     assert f"02 — Seal, O-Ring &amp; Gasket ({SEAL_TH})" in page  # request summary
-    assert f"Seal, O-Ring &amp; Gasket · {SEAL_TH}" in page  # category panel
+    assert f"Seal, O-Ring &amp; Gasket ({SEAL_TH})" in page  # category panel
+    assert f"(Spare Parts &amp; Mechanical Parts · {GROUP_TH})" in page
 
 
 # --- Administrator edits --------------------------------------------------------
@@ -166,19 +167,45 @@ def _seed_with(db, monkeypatch, labels: dict) -> None:
     seed_module.seed(db)
 
 
-def test_seed_fills_empty_labels_but_keeps_an_administrators_edit(db_session, monkeypatch) -> None:
+def test_seed_makes_untouched_rows_follow_the_file(db_session, monkeypatch) -> None:
     group, seal = central_ids(db_session, "APM", "900", "02")[2:]
-    seal.name_th = "แก้โดยผู้ดูแลระบบ"
-    db_session.commit()
     _seed_with(db_session, monkeypatch, {
-        "900": {"name_th": GROUP_TH},
+        "900": {"name_th": "ร่างเดิม"},
         "900-02": {"name_th": SEAL_TH, "hint_th": SEAL_HINT},
     })
     db_session.refresh(group)
     db_session.refresh(seal)
-    assert group.name_th == GROUP_TH and group.hint_th is None
-    assert seal.name_th == "แก้โดยผู้ดูแลระบบ"  # the Administrator's edit wins
-    assert seal.hint_th == SEAL_HINT  # the empty field is filled
+    assert (group.name_th, seal.name_th, seal.hint_th) == ("ร่างเดิม", SEAL_TH, SEAL_HINT)
+    # A corrected wording reaches the row; a key taken out of the file clears it.
+    _seed_with(db_session, monkeypatch, {"900": {"name_th": GROUP_TH}})
+    db_session.refresh(group)
+    db_session.refresh(seal)
+    assert group.name_th == GROUP_TH
+    assert (seal.name_th, seal.hint_th) == (None, None)
+
+
+def test_seed_never_touches_a_row_an_administrator_saved(client_as, app_db, monkeypatch) -> None:
+    group, seal = central_ids(app_db, "APM", "900", "02")[2:]
+    c = client_as("administrator")
+    c.post(f"/admin/config/thai/{group.id}", data={"name_th": "แก้โดยผู้ดูแลระบบ", "hint_th": ""})
+    c.post(f"/admin/config/thai/{seal.id}", data={"name_th": "", "hint_th": ""})  # cleared
+    _seed_with(app_db, monkeypatch, {
+        "900": {"name_th": GROUP_TH},
+        "900-02": {"name_th": SEAL_TH, "hint_th": SEAL_HINT},
+    })
+    app_db.refresh(group)
+    app_db.refresh(seal)
+    assert group.name_th == "แก้โดยผู้ดูแลระบบ" and group.th_edited
+    assert (seal.name_th, seal.hint_th) == (None, None) and seal.th_edited  # stays cleared
+
+
+def test_a_hint_only_row_counts_as_filled(client_as, app_db) -> None:
+    seal = central_ids(app_db, "APM", "900", "02")[3]
+    c = client_as("administrator")
+    c.post(f"/admin/config/thai/{seal.id}", data={"name_th": "", "hint_th": SEAL_HINT})
+    page = c.get("/admin/config").text
+    row = page.split('data-search="900-02 ', 1)[1].split("</tr>", 1)[0]
+    assert 'data-state="filled"' in row
 
 
 @pytest.mark.parametrize("labels, message", [

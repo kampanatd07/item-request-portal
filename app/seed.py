@@ -376,14 +376,13 @@ def seed(db: Session) -> None:
         central_by_key[row["group"]] = grp
         central_by_key[f"{row['group']}-{row['sub']}"] = sub
 
-    # Thai names and hints (STORY-019): fill only what is empty, so a label
-    # an Administrator edited on the reference data page is never overwritten.
-    for key, (name_th, hint_th) in thai_labels.items():
-        g = central_by_key[key]
-        if g.name_th is None and name_th:
-            g.name_th = name_th
-        if g.hint_th is None and hint_th:
-            g.hint_th = hint_th
+    # Thai names and hints (STORY-019). A row an Administrator saved on the
+    # reference data page (th_edited, even to clear it) is never touched;
+    # every other row follows app/data/taxonomy_th.json, so a corrected
+    # wording reaches it and a key removed from the file clears it.
+    for key, g in central_by_key.items():
+        if not g.th_edited:
+            g.name_th, g.hint_th = thai_labels.get(key, (None, None))
 
     # --- Central running register ------------------------------------------
     # Seeded with the last number already issued per Category+Sub so the portal

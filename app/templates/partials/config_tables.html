@@ -3,7 +3,7 @@
     in admin_config.html's script, which re-applies them after each swap.
     Without JavaScript every panel shows, one after another. -#}
 {%- set n = namespace(mapped=0, terms_on=0, thai=0) -%}
-{%- for g in thai_labels %}{% if g.name_th %}{% set n.thai = n.thai + 1 %}{% endif %}{% endfor -%}
+{%- for _k, g in thai_labels %}{% if g.name_th or g.hint_th %}{% set n.thai = n.thai + 1 %}{% endif %}{% endfor -%}
 {%- for g, mp in group_maps %}{% if mp and (mp.item_group_id or mp.model_group_id or mp.group_type_code) %}{% set n.mapped = n.mapped + 1 %}{% endif %}{% endfor -%}
 {%- for t in terms %}{% if t.active %}{% set n.terms_on = n.terms_on + 1 %}{% endif %}{% endfor %}
 <nav class="tabs config-tabs" aria-label="หมวดการตั้งค่า">
@@ -139,12 +139,11 @@
   <table>
     <thead><tr><th>หมวด</th><th>ชื่อไทย</th><th>ตัวอย่าง</th><th></th></tr></thead>
     <tbody>
-    {% for g in thai_labels %}
-    {% set key = (g.parent.code ~ '-' ~ g.code) if g.parent else g.code %}
-    <tr data-search="{{ (key ~ ' ' ~ g.name ~ ' ' ~ (g.name_th or '')) | lower }}" data-state="{{ 'filled' if g.name_th else 'empty' }}">
-      <td>{% if g.parent %}<code>{{ key }}</code> {{ g.name }}{% else %}<strong><code>{{ key }}</code> {{ g.name }}</strong>{% endif %}</td>
-      <td><input form="th-{{ g.id }}" name="name_th" value="{{ g.name_th or '' }}" maxlength="100" aria-label="ชื่อไทยของ {{ key }}"></td>
-      <td><input form="th-{{ g.id }}" name="hint_th" value="{{ g.hint_th or '' }}" maxlength="300" aria-label="ตัวอย่างของ {{ key }}"></td>
+    {% for key, g in thai_labels %}
+    <tr data-search="{{ (key ~ ' ' ~ g.name ~ ' ' ~ (g.name_th or '') ~ ' ' ~ (g.hint_th or '')) | lower }}" data-state="{{ 'filled' if g.name_th or g.hint_th else 'empty' }}">
+      <td>{% if g.parent_id %}<code>{{ key }}</code> {{ g.name }}{% else %}<strong><code>{{ key }}</code> {{ g.name }}</strong>{% endif %}</td>
+      <td><input form="th-{{ g.id }}" name="name_th" value="{{ g.name_th or '' }}" maxlength="{{ NAME_TH_MAX }}" aria-label="ชื่อไทยของ {{ key }}"></td>
+      <td><input form="th-{{ g.id }}" name="hint_th" value="{{ g.hint_th or '' }}" maxlength="{{ HINT_TH_MAX }}" aria-label="ตัวอย่างของ {{ key }}"></td>
       <td><form id="th-{{ g.id }}" hx-post="/admin/config/thai/{{ g.id }}" hx-target="#config-tables" hx-swap="innerHTML" class="inline-form"><button type="submit" class="secondary sm">บันทึก</button></form></td>
     </tr>
     {% endfor %}

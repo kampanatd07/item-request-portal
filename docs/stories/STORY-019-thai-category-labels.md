@@ -65,10 +65,14 @@ Confirmed by the user 2026-11-11 (all recommendations taken):
 1. `app/data/taxonomy_th.json` (keys `"900"` / `"900-02"`, values
    `{name_th, hint_th}`), kept apart from the group-standard
    `taxonomy.json`; empty until the wording is approved.
-2. `CodeGroup.name_th` (100) and `hint_th` (300), nullable; migration
+2. `CodeGroup.name_th` (100), `hint_th` (300), nullable, and
+   `th_edited` (bool, default false); migration
    `3239ab2cf664` (read; up/down/up on a fresh DB; `alembic check` clean).
-3. Seed fills only empty fields: an Administrator's edit wins over the
-   file. A key not in the taxonomy, or text too long, stops the seed
+3. An Administrator's save wins over the file: it sets `th_edited`
+   (even when clearing), and the seed never touches such a row. Every
+   other row follows the file on each seed, so a corrected wording reaches
+   it and a key removed from the file clears it (changed after review,
+   see Notes). A key not in the taxonomy, or text too long, stops the seed
    before any write.
 4. Shown via `category_label()` (`app/templating.py`) in the selects and
    request summary; chips and the category panel append the Thai name;
@@ -92,4 +96,21 @@ Confirmed by the user 2026-11-11 (all recommendations taken):
   It still checks that every tab has a panel, in the same order.
 - `dev.db` migrated to `3239ab2cf664` on 2026-11-11 for the browser check,
   backup `dev.db.bak-2026-11-11` (keep until told). Sample Thai labels
-  put on 900, 900-01, 900-02 and 905 in `dev.db` only.
+  put on 900, 900-01, 900-02 and 905 in `dev.db` only, marked `th_edited`
+  so a seed run keeps them.
+- Review of `08ac556..53445ea` (2026-11-11; CI on `53445ea`: 1010 passed,
+  0 skipped, and the browser check passed, both from the user). One (ก):
+  the Dockerfile and `start.bat` run the seed on every start, and the seed
+  filled every empty field, so a label an Administrator cleared came back
+  from the file on the next start (AC "can clear", and the user's choice
+  "the Administrator's edit wins"). Fixed with `th_edited` (user's choice
+  2026-11-11, option ก); the unmerged migration `3239ab2cf664` was edited
+  and `dev.db` downgraded and upgraded again. The same fix lets a
+  corrected wording in the file reach rows nobody edited.
+  (ข) fixed in the same round (user's choice): the save checks the central
+  system directly instead of listing every group; the Thai tab no longer
+  loads each row's parent (one query instead of ~150); one format
+  `English (ไทย)` everywhere, and the group's Thai name in the category
+  panel and the recode optgroups; `maxlength` from `NAME_TH_MAX` /
+  `HINT_TH_MAX`; module-level imports; a row with only a hint counts as
+  filled. Branch-only tests changed with it (never on master).

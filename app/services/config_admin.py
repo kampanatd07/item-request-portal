@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     CodeGroup,
+    CodeSystem,
     GroupExportMap,
     ItemRequest,
     MailDomain,
@@ -20,6 +21,9 @@ from app.models import (
     Uom,
     UomAlias,
 )
+
+
+from app.services.thai_labels import HINT_TH_MAX, NAME_TH_MAX, LabelError, clean_label
 
 
 class ConfigError(Exception):
@@ -211,36 +215,38 @@ def set_group_map(
 
 # --- Thai names and hints of the central categories (STORY-019) -------------
 
-def list_thai_labels(db: Session) -> list[CodeGroup]:
-    """Central groups, each followed by its sub-categories, in code order."""
-    from app.models import CodeSystem
+def _central_id(db: Session) -> int | None:
+    return db.scalar(select(CodeSystem.id).where(CodeSystem.code == "CENTRAL"))
 
-    central = db.scalar(select(CodeSystem).where(CodeSystem.code == "CENTRAL"))
-    if central is None:
-        return []
+
+def list_thai_labels(db: Session) -> list[tuple[str, CodeGroup]]:
+    """(key, group) for central groups, each followed by its sub-categories,
+    in code order. key is "900" or "900-02", as in taxonomy_th.json."""
     rows = db.scalars(
-        select(CodeGroup).where(CodeGroup.code_system_id == central.id)
+        select(CodeGroup).where(CodeGroup.code_system_id == _central_id(db))
     ).all()
     groups = sorted((g for g in rows if g.parent_id is None), key=lambda g: g.code)
-    out: list[CodeGroup] = []
+    out: list[tuple[str, CodeGroup]] = []
     for g in groups:
-        out.append(g)
-        out.extend(sorted((s for s in rows if s.parent_id == g.id), key=lambda s: s.code))
+        out.append((g.code, g))
+        out.extend((f"{g.code}-{s.code}", s) for s in
+                   sorted((s for s in rows if s.parent_id == g.id), key=lambda s: s.code))
     return out
 
 
 def set_thai_label(db: Session, group_id: int, *, name_th: str, hint_th: str) -> CodeGroup:
-    """Set or clear (empty) a category's Thai name and hint. Display only."""
-    from app.services.thai_labels import HINT_TH_MAX, NAME_TH_MAX, LabelError, clean_label
+    """Set or clear (empty) a category's Thai name and hint. Display only.
 
+    Marks the row as edited, so the seed never puts the file's text back.
+    """
     group = db.get(CodeGroup, group_id)
-    if group is None or group not in list_thai_labels(db):
+    if group is None or group.code_system_id != _central_id(db):
         raise ConfigError("ไม่พบหมวด")
     try:
         name = clean_label(name_th, NAME_TH_MAX, "ชื่อไทย")
         hint = clean_label(hint_th, HINT_TH_MAX, "ตัวอย่าง")
     except LabelError as e:
         raise ConfigError(str(e)) from e
-    group.name_th, group.hint_th = name, hint
+    group.name_th, group.hint_th, group.th_edited = name, hint, True
     db.commit()
     return group
