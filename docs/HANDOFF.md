@@ -167,9 +167,10 @@ upgrade; check `.env` is still read.
 
 Tests: 955 passing locally, 37 PostgreSQL tests skipped without
 `TEST_POSTGRES_URL`; CI runs all 992 on PostgreSQL 16 (STORY-018 and its
-follow-ups added 39). Last read: 990 passed, 0 skipped on `b7a8352`
-(`story/018-ux-followups`, before the auto-pick fix added 2; user, from the
-run, 2026-11-10); 985 passed, 0 skipped on `1ea3a97`
+follow-ups added 39). Last read: 992 passed, 0 skipped on `68939a9`
+(`story/018-ux-followups`; user, from the run, 2026-11-11); 990 passed,
+0 skipped on `b7a8352` (same branch, before the auto-pick fix added 2;
+user, from the run, 2026-11-10); 985 passed, 0 skipped on `1ea3a97`
 (`story/018-ux-refresh`; Peter, 2026-11-09). Peter read 953
 passed, 0 skipped from the run logs on master `7325bc9` (2026-10-27) and on
 master `38ab22e` (the docs/handover-status merge; reported 2026-11-09), and

@@ -264,7 +264,7 @@ old and the new root. "(fill in)": path not found yet, Peter to confirm.
 
 ทีม IT ตอนรับมอบ / IT team on receipt:
 - [ ] clone และรันในเครื่องตาม HANDOFF §4 เปิด http://localhost:8000 ได้ / clone and run per HANDOFF §4
-- [ ] `pytest` ในเครื่อง: 953 passed, 37 skipped (ไม่มี PostgreSQL) / local pytest: 953 passed, 37 skipped (no PostgreSQL)
+- [ ] `pytest` ในเครื่อง: 955 passed, 37 skipped (ไม่มี PostgreSQL) / local pytest: 955 passed, 37 skipped (no PostgreSQL)
 - [ ] CI ที่ที่ใหม่: 992 passed, 0 skipped / CI at the new home: 992 passed, 0 skipped
 - [ ] ติดตั้ง Claude Code; สรุปสถานะ session แรกตรงกับ HANDOFF §2 / Claude Code set up; its first summary matches HANDOFF §2
 - [ ] อ่านความเสี่ยง A7/B7 แล้ว / risks A7/B7 read

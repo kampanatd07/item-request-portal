@@ -80,8 +80,8 @@ built in pieces, each tested and shown in the browser before the next:
   (works because the parser ties its inputs to it, but is invalid HTML).
 - Review of `f0384b4..997dc0f` (2026-11-09): no (ก). Items 1–8 below are
   changed in code on `story/018-ux-followups` (tests in
-  `test_ux_followups.py`). Items 1, 2 and 7 are browser behaviour: not
-  closed until the browser check passes. Kept here as the record. Most
+  `test_ux_followups.py`). Items 1, 2 and 7 are browser behaviour: the
+  user's browser check passed (2026-11-11). Kept here as the record. Most
   useful first:
   1. Queue: double-clicking a code to select it opens the request (the first
      click navigates). Skip row navigation for clicks inside `code`, or wait
@@ -110,8 +110,8 @@ built in pieces, each tested and shown in the browser before the next:
     `a02ede2`. Now the automatic pick stops once the Requester changed a
     select or clicked a chip, and the chip and the "เลือกอันดับ 1 ให้
     อัตโนมัติแล้ว" note are then shown as not picked. Two new tests in
-    `test_ux_followups.py`; no existing test changed. Not closed until the
-    browser check passes.
+    `test_ux_followups.py`; no existing test changed. CI on `68939a9`: 992
+    passed, 0 skipped; the user's browser check passed (2026-11-11).
   (ข) backlog, none blocks:
   1. `requests.py` checks "one tab per status" with module-level `assert`s,
      which `python -O` strips; raise `RuntimeError` instead.
@@ -124,6 +124,28 @@ built in pieces, each tested and shown in the browser before the next:
   5. `base.html`: the asides' inset and `max-height` also apply below
      1100 px, where they are no longer sticky (nested scroll box).
   6. IT-HANDOVER status headers were dated 2026-11-03 (fixed with the (ก)).
+- Review of `b7a8352..68939a9` (2026-11-11): no (ก). The server still checks
+  that the sub-category belongs to the group (`requests.py`), so none of
+  these can save a wrong category. (ข) backlog:
+  1. A manual select change after an automatic pick leaves the chip marked
+     and the "เลือกอันดับ 1" note shown until the next Duplicate Check.
+  2. An automatic pick's sub-category load still in flight when the
+     Requester picks another group can land last and show the old group's
+     sub-categories (submit is then refused by the server check).
+  3. `categoryChosenByUser` is not reset when the group select is reloaded
+     (code system or Plant change).
+  4. Simpler: skip the auto-pick on the server when the posted form already
+     has a `group_id` (as `no_autopick` does for resubmits); removes 1–3 and
+     the client-side flag. Behaviour change (no re-pick after the first),
+     so ask before doing it.
+  5. When the guard holds, it clears every chip, even one equal to the
+     Requester's current choice.
+  6. `_pick_category_script` splits on `"
+}
+"`, which a CRLF checkout on
+     Windows does not have, so locally the test looks at the rest of the
+     page; and it checks spelling, not behaviour (as (ข) 4 above).
+  7. IT-HANDOVER receipt checklist said 953 local passes (fixed: 955).
 - `PRODUCT.md` written 2026-11-09 from Peter's answers (desktop users;
   frequent requests, frequent mistakes; modern, friendly, uncomplicated;
   keep the green; WCAG AA).
