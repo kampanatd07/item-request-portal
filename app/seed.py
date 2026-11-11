@@ -34,7 +34,7 @@ from app.models import (
     Uom,
 )
 from app.services.naming import MAX_CATEGORY_LEN, clean_part
-from app.services.thai_labels import HINT_TH_MAX, NAME_TH_MAX, LabelError, clean_label
+from app.services.thai_labels import LabelError, parse_label_file
 
 
 class SeedError(Exception):
@@ -268,26 +268,11 @@ SEARCH_TERMS = [
 def load_thai_labels(
     raw: dict, taxonomy: list[dict],
 ) -> dict[str, tuple[str | None, str | None]]:
-    """Check app/data/taxonomy_th.json against the taxonomy before any write.
-
-    Every key must be a group ("900") or group-sub ("900-02") of the
-    taxonomy; values are {"name_th": ..., "hint_th": ...}, both optional.
-    """
-    keys = {r["group"] for r in taxonomy} | {f"{r['group']}-{r['sub']}" for r in taxonomy}
-    out: dict[str, tuple[str | None, str | None]] = {}
-    for key, value in raw.items():
-        if key not in keys:
-            raise SeedError(f"app/data/taxonomy_th.json: ไม่มีหมวด '{key}' ใน taxonomy.json")
-        if not isinstance(value, dict):
-            raise SeedError(f"app/data/taxonomy_th.json: '{key}' ต้องเป็น {{\"name_th\": ..., \"hint_th\": ...}}")
-        try:
-            out[key] = (
-                clean_label(value.get("name_th"), NAME_TH_MAX, f"ชื่อไทยของ {key} "),
-                clean_label(value.get("hint_th"), HINT_TH_MAX, f"ตัวอย่างของ {key} "),
-            )
-        except LabelError as e:
-            raise SeedError(f"app/data/taxonomy_th.json: {e}") from e
-    return out
+    """Check app/data/taxonomy_th.json against the taxonomy before any write."""
+    try:
+        return parse_label_file(raw, taxonomy)
+    except LabelError as e:
+        raise SeedError(str(e)) from e
 
 
 def seed(db: Session) -> None:

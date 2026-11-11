@@ -68,8 +68,11 @@ Confirmed by the user 2026-11-11 (all recommendations taken):
 2. `CodeGroup.name_th` (100), `hint_th` (300), nullable, and
    `th_edited` (bool, default false); migration
    `3239ab2cf664` (read; up/down/up on a fresh DB; `alembic check` clean).
-3. An Administrator's save wins over the file: it sets `th_edited`
-   (even when clearing), and the seed never touches such a row. Every
+3. An Administrator's save that changes the text wins over the file: it
+   sets `th_edited` (also when clearing), and the seed never touches such
+   a row. A save with nothing changed marks nothing. The tab shows
+   "แก้เองแล้ว" on such rows, with "ใช้คำจากไฟล์" to give one back to
+   the file (unmarks it and takes the file's text at once). Every
    other row follows the file on each seed, so a corrected wording reaches
    it and a key removed from the file clears it (changed after review,
    see Notes). A key not in the taxonomy, or text too long, stops the seed
@@ -114,3 +117,24 @@ Confirmed by the user 2026-11-11 (all recommendations taken):
   panel and the recode optgroups; `maxlength` from `NAME_TH_MAX` /
   `HINT_TH_MAX`; module-level imports; a row with only a hint counts as
   filled. Branch-only tests changed with it (never on master).
+  Correction: the group name inside the panel's existing brackets reads
+  `(English · ไทย)`, not `English (ไทย)`.
+- Review of `53445ea..21fedb1` (2026-11-11; CI on `21fedb1`: 1012 passed,
+  0 skipped; browser check passed; both from the user). One (ก): every
+  save set `th_edited`, even with nothing changed, and nothing unset it,
+  so an idle click kept approved wording out of that row for good, with
+  no sign on screen. Fixed (user's choice ก): only a real change marks
+  the row; marked rows show "แก้เองแล้ว" and a "ใช้คำจากไฟล์" button.
+  Also fixed (user's choice): a request without a sub-category showed its
+  group twice in the category panel; the counter and the
+  "ยังไม่กรอก/กรอกแล้ว" filter count only rows with a Thai name (a hint
+  alone leaves the selects in English; this reverses the previous round);
+  one import block; children grouped once in `list_thai_labels`. The
+  file checks moved from `seed.py` to `thai_labels.parse_label_file`, so
+  the reset uses the same checks. Branch-only tests changed with it.
+  (ข) backlog, by design or theoretical:
+  1. The seed makes every unmarked row follow the file, so a Thai label
+     set by SQL or a data fix (not through the admin page) is cleared on
+     the next start. Set labels through the admin page or the file.
+  2. The save accepts any CENTRAL row, also one deeper than group/sub that
+     the tab does not list; the taxonomy has only two levels today.

@@ -186,6 +186,8 @@ def test_seed_makes_untouched_rows_follow_the_file(db_session, monkeypatch) -> N
 
 def test_seed_never_touches_a_row_an_administrator_saved(client_as, app_db, monkeypatch) -> None:
     group, seal = central_ids(app_db, "APM", "900", "02")[2:]
+    seal.name_th = "ร่างจากไฟล์"  # came from the file, not edited yet
+    app_db.commit()
     c = client_as("administrator")
     c.post(f"/admin/config/thai/{group.id}", data={"name_th": "แก้โดยผู้ดูแลระบบ", "hint_th": ""})
     c.post(f"/admin/config/thai/{seal.id}", data={"name_th": "", "hint_th": ""})  # cleared
@@ -199,13 +201,79 @@ def test_seed_never_touches_a_row_an_administrator_saved(client_as, app_db, monk
     assert (seal.name_th, seal.hint_th) == (None, None) and seal.th_edited  # stays cleared
 
 
-def test_a_hint_only_row_counts_as_filled(client_as, app_db) -> None:
+def test_a_row_without_a_thai_name_counts_as_empty(client_as, app_db) -> None:
+    # The tab is about Thai names: a hint alone leaves the selects in English.
     seal = central_ids(app_db, "APM", "900", "02")[3]
     c = client_as("administrator")
     c.post(f"/admin/config/thai/{seal.id}", data={"name_th": "", "hint_th": SEAL_HINT})
     page = c.get("/admin/config").text
     row = page.split('data-search="900-02 ', 1)[1].split("</tr>", 1)[0]
-    assert 'data-state="filled"' in row
+    assert 'data-state="empty"' in row
+
+
+def test_a_save_with_nothing_changed_does_not_pin_the_row(client_as, app_db) -> None:
+    seal = central_ids(app_db, "APM", "900", "02")[3]
+    seal.name_th = SEAL_TH  # from the file
+    app_db.commit()
+    c = client_as("administrator")
+    c.post(f"/admin/config/thai/{seal.id}", data={"name_th": f" {SEAL_TH} ", "hint_th": ""})
+    app_db.refresh(seal)
+    assert not seal.th_edited  # approved wording can still reach it
+    assert "แก้เองแล้ว" not in c.get("/admin/config").text.split('data-search="900-02 ', 1)[1].split("</tr>", 1)[0]
+    c.post(f"/admin/config/thai/{seal.id}", data={"name_th": "อื่น", "hint_th": ""})
+    app_db.refresh(seal)
+    assert seal.th_edited
+    row = c.get("/admin/config").text.split('data-search="900-02 ', 1)[1].split("</tr>", 1)[0]
+    assert "แก้เองแล้ว" in row and f"/admin/config/thai/{seal.id}/reset" in row
+
+
+def test_reset_gives_the_row_back_to_the_file(client_as, app_db, monkeypatch) -> None:
+    from app.services import config_admin
+
+    group, seal = central_ids(app_db, "APM", "900", "02")[2:]
+    monkeypatch.setattr(config_admin, "file_labels",
+                        lambda: {"900-02": (SEAL_TH, SEAL_HINT)})
+    c = client_as("administrator")
+    c.post(f"/admin/config/thai/{seal.id}", data={"name_th": "แก้เอง", "hint_th": ""})
+    c.post(f"/admin/config/thai/{group.id}", data={"name_th": "แก้เอง", "hint_th": ""})
+    assert c.post(f"/admin/config/thai/{seal.id}/reset").status_code == 200
+    assert c.post(f"/admin/config/thai/{group.id}/reset").status_code == 200
+    app_db.refresh(seal)
+    app_db.refresh(group)
+    assert (seal.name_th, seal.hint_th, seal.th_edited) == (SEAL_TH, SEAL_HINT, False)
+    assert (group.name_th, group.hint_th, group.th_edited) == (None, None, False)  # not in file
+
+
+def test_reset_reads_the_shipped_file(client_as, app_db) -> None:
+    seal = central_ids(app_db, "APM", "900", "02")[3]
+    c = client_as("administrator")
+    c.post(f"/admin/config/thai/{seal.id}", data={"name_th": "แก้เอง", "hint_th": ""})
+    assert c.post(f"/admin/config/thai/{seal.id}/reset").status_code == 200
+    app_db.refresh(seal)
+    assert not seal.th_edited
+
+
+@pytest.mark.parametrize("role", ["procurement", "requester"])
+def test_only_an_administrator_may_reset(client_as, app_db, role) -> None:
+    seal = central_ids(app_db, "APM", "900", "02")[3]
+    seal.name_th, seal.th_edited = "แก้เอง", True
+    app_db.commit()
+    c = client_as(role, plant="APM" if role == "requester" else None)
+    assert c.post(f"/admin/config/thai/{seal.id}/reset").status_code == 403
+    app_db.refresh(seal)
+    assert (seal.name_th, seal.th_edited) == ("แก้เอง", True)
+
+
+def test_a_request_without_a_sub_category_shows_its_group_once(client_as, app_db) -> None:
+    # Central groups always need a sub-category; groups of other code
+    # systems may have none, so the panel must cope with it.
+    req = _submit_seal(app_db)
+    _label_seal(app_db)
+    req.subgroup_id = None
+    app_db.commit()
+    page = client_as("procurement").get(f"/queue/{req.id}").text
+    panel = page.split("<h3>หมวดสินค้า</h3>", 1)[1].split("</p>", 1)[0]
+    assert panel.count(GROUP_TH) == 1
 
 
 @pytest.mark.parametrize("labels, message", [

@@ -136,6 +136,19 @@ def set_thai_label(
     return templates.TemplateResponse(request, "partials/config_tables.html", _config_ctx(db))
 
 
+@router.post("/config/thai/{group_id}/reset", response_class=HTMLResponse)
+def reset_thai_label(
+    request: Request, group_id: int, db: Session = Depends(get_db),
+) -> HTMLResponse:
+    try:
+        config_admin.reset_thai_label(db, group_id)
+    except ConfigError as e:
+        return templates.TemplateResponse(
+            request, "partials/form_error.html", {"message": str(e)}, status_code=422
+        )
+    return templates.TemplateResponse(request, "partials/config_tables.html", _config_ctx(db))
+
+
 @router.get("/snapshots", response_class=HTMLResponse)
 def snapshots_page(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(

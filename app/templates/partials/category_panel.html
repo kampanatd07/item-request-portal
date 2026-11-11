@@ -3,7 +3,7 @@
   <code>{{ req.group.code }}{% if req.subgroup %}-{{ req.subgroup.code }}{% endif %}</code>
   {% set shown = req.subgroup or req.group %}
   {{ shown.name }}{% if shown.name_th %} ({{ shown.name_th }}){% endif %}
-  <span class="muted">({{ req.group.name }}{% if req.group.name_th %} · {{ req.group.name_th }}{% endif %})</span>
+  {% if req.subgroup %}<span class="muted">({{ req.group.name }}{% if req.group.name_th %} · {{ req.group.name_th }}{% endif %})</span>{% endif %}
 </p>
 {% set can_recode = req.status == "approved" and has_role(request.state.account, "administrator") %}
 {% if not req.generated_code or can_recode %}
