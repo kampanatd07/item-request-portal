@@ -1,6 +1,8 @@
 # STORY-018: UX/UI refresh: fewer input mistakes, status at a glance, a modern look
 
 Status: review · Branch: `story/018-ux-refresh` · Not a go-live condition (Peter, 2026-11-09)
+Merged 2026-11-09 (`3888c5a`), follow-ups 2026-11-11 (`08ac556`); left
+open: contrast measured on the rendered pages (acceptance criteria).
 Triage: needs-triage
 
 ## Why

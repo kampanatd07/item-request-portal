@@ -20,8 +20,9 @@ the `carabao-item-master` skill (source in `docs/claude-setup/skills/`).
 Status: login and roles (STORY-001), validated code override (STORY-010),
 email notification (STORY-002), requester resubmit (STORY-009) and Name
 Prefix on category moves (STORY-013) done: all code before deploy is done.
-Since then: UX/UI overhaul (STORY-018, merged) and Thai category names
-(STORY-019, code merged; the Thai wording waits for business review).
+Since then: UX/UI overhaul (STORY-018, merged; contrast measurement still
+open) and Thai category names (STORY-019, code merged; the Thai wording
+waits for Peter's review, or `[BUSINESS-OWNER]`'s if he does not finish).
 Goal now: handover, not go-live — Peter leaves on 2026-11-13. Not yet open
 to plants: go-live comes only after Cutover Plan phase 1 (the central master
 is not in D365 yet and plants still open items in the old system), then

@@ -24,6 +24,7 @@ story file plus `docs/HANDOFF.md` alone, without chat history.
 | [017](STORY-017-audit-line-by-value.md) | Audit line: quote the `--by` value or allow only a set of characters | 006 reset-password CLI | any |
 | [018](STORY-018-ux-refresh.md) | UX/UI refresh: fewer input mistakes, status at a glance, a modern look (`PRODUCT.md`) — in review (follow-ups merged 2026-11-11; contrast measurement open) | — | any |
 | [019](STORY-019-thai-category-labels.md) | Thai names and examples for categories — code merged 2026-11-11; wording in review (Peter, then `[BUSINESS-OWNER]`) | 018 | any |
+| [020](STORY-020-thai-labels-converter.md) | Converter: reviewed Thai-label xlsx → `app/data/taxonomy_th.json` | 019 | any |
 
 ## Status values
 `todo` → `planned` (spec + tickets written) → `in-progress` → `review` → `done`

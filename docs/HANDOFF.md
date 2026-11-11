@@ -120,16 +120,31 @@ Open work after part A (none is a go-live condition):
   2026-11-13. If he does not finish, the wording waits for the
   `[BUSINESS-OWNER]` named in IT-HANDOVER C1: the wording is a taxonomy
   rule, so IT must not fill `taxonomy_th.json` or the admin tab without
-  that sign-off. The approved rows go into `app/data/taxonomy_th.json`
-  (ships empty, so the screens show English only until then); the tool
-  to turn the reviewed xlsx into that file is the next piece of work
-  (until it exists, do not hand-write the file: a bad key or an
-  over-long text stops the seed, and with it the container start). After
-  the file changes, the seed must run (it runs on every container start
-  and in `start.bat`). Before loading it, look for rows marked
-  "แก้เองแล้ว" on the "ชื่อไทยของหมวด" tab: the seed keeps those as they
-  are, so press "ใช้คำจากไฟล์" on any that should take the approved
-  wording. How the file and the tab work together: STORY-019 Plan item 3.
+  that sign-off. The approved rows go into `app/data/taxonomy_th.json`,
+  which ships empty, so the screens show English only until then (except
+  rows an Administrator typed on the tab). How the file and the tab work
+  together: STORY-019 Plan item 3.
+  **Loading the approved wording, in this order:**
+  1. Make the file. Use the converter (STORY-020) once it exists. Until
+     then a hand-written file is allowed only if `python -m app.seed`
+     passes with it on the dev machine first (a bad key or an over-long
+     text stops the seed, and in the container the seed runs before the
+     app starts, so the app would not start).
+  2. Commit the file and rebuild/redeploy the image. A restart alone is
+     not enough: the Dockerfile copies `app/data` into the image
+     (`COPY . .`), so a restarted container still reads the old file. On
+     the dev machine, run `start.bat` (it runs the seed).
+  3. Only then, on the "ชื่อไทยของหมวด" tab, look at rows marked
+     "แก้เองแล้ว": the seed leaves those as they are. For each, the
+     `[BUSINESS-OWNER]` decides: keep it, or press "ใช้คำจากไฟล์" to take
+     the approved wording. That button takes the file the running app has
+     at that moment, so pressing it before step 2 blanks the row and the
+     typed text is lost.
+  **Before go-live** (even if no wording was approved): check the same
+  tab for "แก้เองแล้ว" rows. They show on screen and survive every seed,
+  so each needs `[BUSINESS-OWNER]` approval or "ใช้คำจากไฟล์".
+- STORY-020: a converter from the reviewed xlsx to `taxonomy_th.json`
+  (todo; plan not yet confirmed).
 - STORY-015: login-limit and review follow-ups (items 1–42).
 - STORY-017: quote the `--by` value in the CLI audit lines.
 - STORY-016: re-check the acting Administrator under the lock: **first
@@ -185,9 +200,11 @@ upgrade; check `.env` is still read.
 Tests: 981 passing locally, 37 PostgreSQL tests skipped without
 `TEST_POSTGRES_URL`; CI runs all 1018 on PostgreSQL 16 (STORY-018 and its
 follow-ups added 39, STORY-019 added 26). Last read: 1018 passed, 0
-skipped on master `6e11ffd` (the story/019 merge, which holds the
-branch tip `87d810d`, a docs commit; user, from the run, 2026-11-11) and
-on `e1fe1b8` (the branch's last code commit); 992 passed, 0 skipped on master `08ac556`
+skipped on master `6e11ffd` (the story/019 merge; user, from the run,
+2026-11-11) and on `e1fe1b8` (the branch). The branch tip `87d810d` (a
+docs-only commit) was merged without its own CI read, against the
+branch-end rule (Claude's slip, 2026-11-11); master's green run includes
+it. Read CI on the branch tip before every merge, docs commits too; 992 passed, 0 skipped on master `08ac556`
 (the story/018-ux-followups merge; user, from the run, 2026-11-11) and on
 `68939a9` (the branch); 990 passed,
 0 skipped on `b7a8352` (same branch, before the auto-pick fix added 2;
