@@ -26,7 +26,9 @@ It replaces: Microsoft Forms → Peter checks manually → types into AX → ema
 notification (STORY-002, done 2026-10-14), requester resubmit (STORY-009,
 done 2026-10-19), the Name Prefix on category moves (STORY-013, done
 2026-10-21) and a UX/UI overhaul (STORY-018, merged 2026-11-09 as
-`3888c5a`, follow-ups merged 2026-11-11 as `08ac556`). Not yet open to the
+`3888c5a`, follow-ups merged 2026-11-11 as `08ac556`) and Thai names
+for categories (STORY-019, merged 2026-11-11 as `6e11ffd`; the wording
+waits for Peter's review, see below). Not yet open to the
 plants.**
 
 **Goal now: handover, not go-live (Peter, 2026-10-27).** Peter leaves on
@@ -114,6 +116,12 @@ Open docs notes from the handover review (2026-11-09, `docs/it-handover`):
   before every merge.
 
 Open work after part A (none is a go-live condition):
+- STORY-019: the Thai category wording. Claude's draft of all 150 rows is
+  `docs/stories/STORY-019/thai-labels-draft.xlsx`; Peter reviews it before
+  2026-11-13, afterwards `[BUSINESS-OWNER]`. The approved rows go into
+  `app/data/taxonomy_th.json` (ships empty, so the screens show English
+  only until then). How the file and the admin tab work together:
+  STORY-019 Plan item 3.
 - STORY-015: login-limit and review follow-ups (items 1–42).
 - STORY-017: quote the `--by` value in the CLI audit lines.
 - STORY-016: re-check the acting Administrator under the lock: **first
@@ -158,16 +166,19 @@ upgrade; check `.env` is still read.
 | Code override / Retired Codes | done — STORY-010: two-step override checked against the group master, register moves up, thrown-away numbers kept in `retired_codes` (never reused) |
 | Naming standard `[CATEGORY] - [name] - [detail]` | done — STORY-013: one Name Prefix rule (`naming.starts_with_prefix` / `searchable_part`), a category move swaps the prefix, the queue warns when a name does not fit its category, Name Override ≤ 110, seed refuses a bad prefix |
 | Export to 4 plant import templates | done — **never tested against real AX** |
-| Admin config pages | done — in tabs, with search and filters on the long lists (STORY-018) |
+| Admin config pages | done — in tabs, with search and filters on the long lists (STORY-018); tab "ชื่อไทยของหมวด" for Thai category names (STORY-019) |
+| Thai category names | done in code — STORY-019: optional Thai name + examples per category, display only (never in codes, names or exports); `app/data/taxonomy_th.json` (empty until the wording is approved) + admin tab; a row an Administrator changed is kept out of the seed ("แก้เองแล้ว", undo with "ใช้คำจากไฟล์") |
 | Login / roles | done — STORY-001: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry, lockout, My requests |
 | Email notification | done — STORY-002 tickets 01–06 (Graph sender tested with a fake transport only; first real send waits for IT, see §7) |
 | Requester resubmit | done — STORY-009: Requester or Originator edits and resubmits a Needs Info request (conditional claim, one 409 for the loser), queue badge + reply card + replaced-name warning, best-effort email to Procurement; the code system must now fit the request's Plant (fix also for new requests) |
 | UX / design system | done — STORY-018: one design system in `app/templates/base.html` (tokens + components), Notion-like sidebar shell, guided request form with a live summary, queue tabs with counts, two-column detail page, progress bar on My requests, status meanings (`STATUS_HELP`), `/help` page; Thai font self-hosted under `/static`. Strategy: `PRODUCT.md`. Open: contrast measured on the rendered pages (STORY-018 Notes) |
 | Deployment | part A done (CI on PostgreSQL, race tests, login limits, one worker; merged `390e9a0`) — part B (deploy, backup, real email) waits for IT — STORY-006 |
 
-Tests: 955 passing locally, 37 PostgreSQL tests skipped without
-`TEST_POSTGRES_URL`; CI runs all 992 on PostgreSQL 16 (STORY-018 and its
-follow-ups added 39). Last read: 992 passed, 0 skipped on master `08ac556`
+Tests: 981 passing locally, 37 PostgreSQL tests skipped without
+`TEST_POSTGRES_URL`; CI runs all 1018 on PostgreSQL 16 (STORY-018 and its
+follow-ups added 39, STORY-019 added 26). Last read: 1018 passed, 0
+skipped on master `6e11ffd` (the story/019 merge; user, from the run,
+2026-11-11) and on `e1fe1b8` (the branch); 992 passed, 0 skipped on master `08ac556`
 (the story/018-ux-followups merge; user, from the run, 2026-11-11) and on
 `68939a9` (the branch); 990 passed,
 0 skipped on `b7a8352` (same branch, before the auto-pick fix added 2;
