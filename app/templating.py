@@ -20,6 +20,16 @@ STATUS_LABELS = {
 }
 templates.env.globals["status_labels"] = STATUS_LABELS
 
+
+def category_label(group) -> str:
+    """'900 — Spare Parts & Mechanical Parts (อะไหล่…)': the Thai name, when
+    set, follows the English one (STORY-019). Display only."""
+    label = f"{group.code} — {group.name}"
+    return f"{label} ({group.name_th})" if group.name_th else label
+
+
+templates.env.globals["category_label"] = category_label
+
 # What each status means and who acts next, in plain Thai (STORY-018). The
 # one source for the status legend, badge tooltips and the help page; Peter
 # reviews the wording in the browser (2026-11-09).

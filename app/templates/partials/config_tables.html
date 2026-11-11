@@ -2,7 +2,8 @@
     whole into #config-tables after every save; the tab and filter state live
     in admin_config.html's script, which re-applies them after each swap.
     Without JavaScript every panel shows, one after another. -#}
-{%- set n = namespace(mapped=0, terms_on=0) -%}
+{%- set n = namespace(mapped=0, terms_on=0, thai=0) -%}
+{%- for g in thai_labels %}{% if g.name_th %}{% set n.thai = n.thai + 1 %}{% endif %}{% endfor -%}
 {%- for g, mp in group_maps %}{% if mp and (mp.item_group_id or mp.model_group_id or mp.group_type_code) %}{% set n.mapped = n.mapped + 1 %}{% endif %}{% endfor -%}
 {%- for t in terms %}{% if t.active %}{% set n.terms_on = n.terms_on + 1 %}{% endif %}{% endfor %}
 <nav class="tabs config-tabs" aria-label="หมวดการตั้งค่า">
@@ -10,6 +11,7 @@
   <a href="#uom" data-tab="uom">หน่วยนับ <span class="tab-count">{{ uoms | length }}</span></a>
   <a href="#categories" data-tab="categories">Procurement Category <span class="tab-count">{{ categories | length }}</span></a>
   <a href="#mapping" data-tab="mapping">Mapping D365 <span class="tab-count">{{ n.mapped }}/{{ group_maps | length }}</span></a>
+  <a href="#thai" data-tab="thai">ชื่อไทยของหมวด <span class="tab-count">{{ n.thai }}/{{ thai_labels | length }}</span></a>
   <a href="#terms" data-tab="terms">Search name <span class="tab-count">{{ terms | length }}</span></a>
 </nav>
 
@@ -118,6 +120,35 @@
     </tr>
     {% endfor %}
     <tr class="filter-empty" hidden><td colspan="5"><div class="empty"><strong>ไม่พบหมวดที่ตรงกับการค้นหา</strong></div></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="card config-panel" id="thai" aria-labelledby="h-thai" data-filterable>
+  <h3 id="h-thai" style="margin-top:0;">ชื่อไทยและตัวอย่างของหมวด</h3>
+  <p class="muted">ใช้แสดงให้ผู้ขอเข้าใจหมวดเท่านั้น ไม่เปลี่ยนรหัส ชื่อสินค้า หรือไฟล์ export · เว้นว่างได้ — หมวดที่ไม่มีชื่อไทยจะแสดงเป็นภาษาอังกฤษอย่างเดียว · คำแปลต้องผ่านการตรวจของเจ้าของมาตรฐานหมวดก่อน</p>
+  <div class="filter-bar">
+    <input type="search" class="filter-input" placeholder="ค้นหารหัส ชื่ออังกฤษ หรือชื่อไทย" aria-label="ค้นหาหมวดในชื่อไทย">
+    <div class="seg" role="radiogroup" aria-label="กรองตามการกรอกชื่อไทย">
+      <label><input type="radio" name="thai-state" value="" checked>ทั้งหมด {{ thai_labels | length }}</label>
+      <label><input type="radio" name="thai-state" value="empty">ยังไม่กรอก {{ thai_labels | length - n.thai }}</label>
+      <label><input type="radio" name="thai-state" value="filled">กรอกแล้ว {{ n.thai }}</label>
+    </div>
+    <span class="filter-count muted" aria-live="polite"></span>
+  </div>
+  <table>
+    <thead><tr><th>หมวด</th><th>ชื่อไทย</th><th>ตัวอย่าง</th><th></th></tr></thead>
+    <tbody>
+    {% for g in thai_labels %}
+    {% set key = (g.parent.code ~ '-' ~ g.code) if g.parent else g.code %}
+    <tr data-search="{{ (key ~ ' ' ~ g.name ~ ' ' ~ (g.name_th or '')) | lower }}" data-state="{{ 'filled' if g.name_th else 'empty' }}">
+      <td>{% if g.parent %}<code>{{ key }}</code> {{ g.name }}{% else %}<strong><code>{{ key }}</code> {{ g.name }}</strong>{% endif %}</td>
+      <td><input form="th-{{ g.id }}" name="name_th" value="{{ g.name_th or '' }}" maxlength="100" aria-label="ชื่อไทยของ {{ key }}"></td>
+      <td><input form="th-{{ g.id }}" name="hint_th" value="{{ g.hint_th or '' }}" maxlength="300" aria-label="ตัวอย่างของ {{ key }}"></td>
+      <td><form id="th-{{ g.id }}" hx-post="/admin/config/thai/{{ g.id }}" hx-target="#config-tables" hx-swap="innerHTML" class="inline-form"><button type="submit" class="secondary sm">บันทึก</button></form></td>
+    </tr>
+    {% endfor %}
+    <tr class="filter-empty" hidden><td colspan="4"><div class="empty"><strong>ไม่พบหมวดที่ตรงกับการค้นหา</strong></div></td></tr>
     </tbody>
   </table>
 </section>

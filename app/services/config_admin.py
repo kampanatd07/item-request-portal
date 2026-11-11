@@ -207,3 +207,40 @@ def set_group_map(
     mp.group_type_code = group_type_code.strip() or None
     db.commit()
     return mp
+
+
+# --- Thai names and hints of the central categories (STORY-019) -------------
+
+def list_thai_labels(db: Session) -> list[CodeGroup]:
+    """Central groups, each followed by its sub-categories, in code order."""
+    from app.models import CodeSystem
+
+    central = db.scalar(select(CodeSystem).where(CodeSystem.code == "CENTRAL"))
+    if central is None:
+        return []
+    rows = db.scalars(
+        select(CodeGroup).where(CodeGroup.code_system_id == central.id)
+    ).all()
+    groups = sorted((g for g in rows if g.parent_id is None), key=lambda g: g.code)
+    out: list[CodeGroup] = []
+    for g in groups:
+        out.append(g)
+        out.extend(sorted((s for s in rows if s.parent_id == g.id), key=lambda s: s.code))
+    return out
+
+
+def set_thai_label(db: Session, group_id: int, *, name_th: str, hint_th: str) -> CodeGroup:
+    """Set or clear (empty) a category's Thai name and hint. Display only."""
+    from app.services.thai_labels import HINT_TH_MAX, NAME_TH_MAX, LabelError, clean_label
+
+    group = db.get(CodeGroup, group_id)
+    if group is None or group not in list_thai_labels(db):
+        raise ConfigError("ไม่พบหมวด")
+    try:
+        name = clean_label(name_th, NAME_TH_MAX, "ชื่อไทย")
+        hint = clean_label(hint_th, HINT_TH_MAX, "ตัวอย่าง")
+    except LabelError as e:
+        raise ConfigError(str(e)) from e
+    group.name_th, group.hint_th = name, hint
+    db.commit()
+    return group

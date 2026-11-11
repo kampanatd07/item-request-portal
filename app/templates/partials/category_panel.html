@@ -1,7 +1,8 @@
 <h3>หมวดสินค้า</h3>
 <p style="font-size:16px;">
   <code>{{ req.group.code }}{% if req.subgroup %}-{{ req.subgroup.code }}{% endif %}</code>
-  {{ req.subgroup.name if req.subgroup else req.group.name }}
+  {% set shown = req.subgroup or req.group %}
+  {{ shown.name }}{% if shown.name_th %} · {{ shown.name_th }}{% endif %}
   <span class="muted">({{ req.group.name }})</span>
 </p>
 {% set can_recode = req.status == "approved" and has_role(request.state.account, "administrator") %}
@@ -20,7 +21,7 @@
     <optgroup label="{{ grp.code }} {{ grp.name }}">
       {% for s in subs %}
       <option value="{{ s.id }}" {% if req.subgroup and s.id == req.subgroup.id %}selected{% endif %}>
-        {{ grp.code }}-{{ s.code }} {{ s.name }}
+        {{ grp.code }}-{{ s.code }} {{ s.name }}{% if s.name_th %} ({{ s.name_th }}){% endif %}
       </option>
       {% endfor %}
     </optgroup>

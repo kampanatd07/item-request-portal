@@ -20,6 +20,7 @@ def _config_ctx(db: Session) -> dict:
         "terms": config_admin.list_terms(db),
         "group_maps": config_admin.list_group_maps(db),
         "mail_domains": config_admin.list_mail_domains(db),
+        "thai_labels": config_admin.list_thai_labels(db),
     }
 
 
@@ -114,6 +115,20 @@ def set_group_map(
             db, group_id, item_group_id=item_group_id,
             model_group_id=model_group_id, group_type_code=group_type_code,
         )
+    except ConfigError as e:
+        return templates.TemplateResponse(
+            request, "partials/form_error.html", {"message": str(e)}, status_code=422
+        )
+    return templates.TemplateResponse(request, "partials/config_tables.html", _config_ctx(db))
+
+
+@router.post("/config/thai/{group_id}", response_class=HTMLResponse)
+def set_thai_label(
+    request: Request, group_id: int,
+    name_th: str = Form(""), hint_th: str = Form(""), db: Session = Depends(get_db),
+) -> HTMLResponse:
+    try:
+        config_admin.set_thai_label(db, group_id, name_th=name_th, hint_th=hint_th)
     except ConfigError as e:
         return templates.TemplateResponse(
             request, "partials/form_error.html", {"message": str(e)}, status_code=422

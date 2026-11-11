@@ -2,9 +2,12 @@
   {% if subgroups %}
   <option value="" disabled{{ "" if selected else " selected" }}>-- เลือกหมวดย่อย --</option>
   {% for g in subgroups %}
-  <option value="{{ g.id }}"{{ " selected" if g.id == selected }}>{{ g.code }} — {{ g.name }}</option>
+  <option value="{{ g.id }}"{{ " selected" if g.id == selected }}{% if g.hint_th %} data-hint="{{ g.hint_th }}"{% endif %}>{{ category_label(g) }}</option>
   {% endfor %}
   {% else %}
   <option value="">-- ไม่มี --</option>
   {% endif %}
 </select>
+{# The chosen sub-category's Thai examples (STORY-019), filled by
+   showSubgroupHint() in request_form.html. #}
+<p class="hint" id="subgroup-hint" aria-live="polite" hidden></p>

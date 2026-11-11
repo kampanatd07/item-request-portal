@@ -18,7 +18,7 @@ def test_one_tab_per_panel(client, db_session) -> None:
     page = _page(client)
     tabs = re.findall(r'data-tab="([a-z]+)"', page)
     panels = re.findall(r'<section class="card config-panel" id="([a-z]+)"', page)
-    assert tabs == panels == ["domains", "uom", "categories", "mapping", "terms"]
+    assert tabs == panels == ["domains", "uom", "categories", "mapping", "thai", "terms"]
 
 
 def test_mapping_tab_counts_filled_groups(client, db_session) -> None:

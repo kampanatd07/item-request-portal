@@ -34,6 +34,7 @@ from app.models import (
     Uom,
 )
 from app.services.naming import MAX_CATEGORY_LEN, clean_part
+from app.services.thai_labels import HINT_TH_MAX, NAME_TH_MAX, LabelError, clean_label
 
 
 class SeedError(Exception):
@@ -264,9 +265,35 @@ SEARCH_TERMS = [
 ]
 
 
+def load_thai_labels(
+    raw: dict, taxonomy: list[dict],
+) -> dict[str, tuple[str | None, str | None]]:
+    """Check app/data/taxonomy_th.json against the taxonomy before any write.
+
+    Every key must be a group ("900") or group-sub ("900-02") of the
+    taxonomy; values are {"name_th": ..., "hint_th": ...}, both optional.
+    """
+    keys = {r["group"] for r in taxonomy} | {f"{r['group']}-{r['sub']}" for r in taxonomy}
+    out: dict[str, tuple[str | None, str | None]] = {}
+    for key, value in raw.items():
+        if key not in keys:
+            raise SeedError(f"app/data/taxonomy_th.json: ไม่มีหมวด '{key}' ใน taxonomy.json")
+        if not isinstance(value, dict):
+            raise SeedError(f"app/data/taxonomy_th.json: '{key}' ต้องเป็น {{\"name_th\": ..., \"hint_th\": ...}}")
+        try:
+            out[key] = (
+                clean_label(value.get("name_th"), NAME_TH_MAX, f"ชื่อไทยของ {key} "),
+                clean_label(value.get("hint_th"), HINT_TH_MAX, f"ตัวอย่างของ {key} "),
+            )
+        except LabelError as e:
+            raise SeedError(f"app/data/taxonomy_th.json: {e}") from e
+    return out
+
+
 def seed(db: Session) -> None:
     taxonomy = _load_json("taxonomy.json")
     check_taxonomy(taxonomy)  # before the first write
+    thai_labels = load_thai_labels(_load_json("taxonomy_th.json"), taxonomy)
     factories: dict[str, Factory] = {}
     for code, name, item_source in FACTORIES:
         f = db.scalar(select(Factory).where(Factory.code == code))
@@ -337,6 +364,7 @@ def seed(db: Session) -> None:
     # Source of truth is app/data/taxonomy.json, extracted from the approved
     # 'Taxonomy' sheet of Carabao_Group_Item_Master_Central.
     central = systems["CENTRAL"]
+    central_by_key: dict[str, CodeGroup] = {}
     for row in taxonomy:
         grp = ensure_group(central, row["group"], row["group_name"])
         sub = ensure_group(
@@ -345,6 +373,17 @@ def seed(db: Session) -> None:
         )
         sub.name_prefix = row["prefix"]
         sub.product_type = row["product_type"]
+        central_by_key[row["group"]] = grp
+        central_by_key[f"{row['group']}-{row['sub']}"] = sub
+
+    # Thai names and hints (STORY-019): fill only what is empty, so a label
+    # an Administrator edited on the reference data page is never overwritten.
+    for key, (name_th, hint_th) in thai_labels.items():
+        g = central_by_key[key]
+        if g.name_th is None and name_th:
+            g.name_th = name_th
+        if g.hint_th is None and hint_th:
+            g.hint_th = hint_th
 
     # --- Central running register ------------------------------------------
     # Seeded with the last number already issued per Category+Sub so the portal
