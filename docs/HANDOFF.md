@@ -4,7 +4,7 @@
 > file, `CLAUDE.md`, `CONTEXT.md`, and `docs/decisions.md` before doing
 > anything. If chat history contradicts these files, the files win.
 >
-> Last updated: 2026-11-09 · Owner: Peter (Procurement Strategy, Carabao Group)
+> Last updated: 2026-11-09 (UX overhaul) · Owner: Peter (Procurement Strategy, Carabao Group)
 > until 2026-11-13, when Peter leaves; then the IT team (`docs/IT-HANDOVER.md`).
 > The goal now is handover, not go-live.
 
@@ -24,8 +24,10 @@ It replaces: Microsoft Forms → Peter checks manually → types into AX → ema
 **Built and running on Peter's machine, with login and roles (STORY-001, done
 2026-09-30), validated code override (STORY-010, done 2026-10-01), email
 notification (STORY-002, done 2026-10-14), requester resubmit (STORY-009,
-done 2026-10-19) and the Name Prefix on category moves (STORY-013, done
-2026-10-21). Not yet open to the plants.**
+done 2026-10-19), the Name Prefix on category moves (STORY-013, done
+2026-10-21) and a UX/UI overhaul (STORY-018, merged 2026-11-09 as
+`3888c5a`, follow-ups on `story/018-ux-followups`). Not yet open to the
+plants.**
 
 **Goal now: handover, not go-live (Peter, 2026-10-27).** Peter leaves on
 2026-11-13. The aim until then is that the next owner can pick the portal
@@ -156,14 +158,20 @@ upgrade; check `.env` is still read.
 | Code override / Retired Codes | done — STORY-010: two-step override checked against the group master, register moves up, thrown-away numbers kept in `retired_codes` (never reused) |
 | Naming standard `[CATEGORY] - [name] - [detail]` | done — STORY-013: one Name Prefix rule (`naming.starts_with_prefix` / `searchable_part`), a category move swaps the prefix, the queue warns when a name does not fit its category, Name Override ≤ 110, seed refuses a bad prefix |
 | Export to 4 plant import templates | done — **never tested against real AX** |
-| Admin config pages | done |
+| Admin config pages | done — in tabs, with search and filters on the long lists (STORY-018) |
 | Login / roles | done — STORY-001: login, role guards, Administrator-only register actions, Account admin, password change + 8 h expiry, lockout, My requests |
 | Email notification | done — STORY-002 tickets 01–06 (Graph sender tested with a fake transport only; first real send waits for IT, see §7) |
 | Requester resubmit | done — STORY-009: Requester or Originator edits and resubmits a Needs Info request (conditional claim, one 409 for the loser), queue badge + reply card + replaced-name warning, best-effort email to Procurement; the code system must now fit the request's Plant (fix also for new requests) |
+| UX / design system | done — STORY-018: one design system in `app/templates/base.html` (tokens + components), Notion-like sidebar shell, guided request form with a live summary, queue tabs with counts, two-column detail page, progress bar on My requests, status meanings (`STATUS_HELP`), `/help` page; Thai font self-hosted under `/static`. Strategy: `PRODUCT.md`. Open: contrast measured on the rendered pages (STORY-018 Notes) |
 | Deployment | part A done (CI on PostgreSQL, race tests, login limits, one worker; merged `390e9a0`) — part B (deploy, backup, real email) waits for IT — STORY-006 |
 
-Tests: 916 passing locally, 37 PostgreSQL tests skipped without
-`TEST_POSTGRES_URL`; CI runs all 953 on PostgreSQL 16. Peter read 953
+Tests: 955 passing locally, 37 PostgreSQL tests skipped without
+`TEST_POSTGRES_URL`; CI runs all 992 on PostgreSQL 16 (STORY-018 and its
+follow-ups added 39). Last read: 992 passed, 0 skipped on `68939a9`
+(`story/018-ux-followups`; user, from the run, 2026-11-11); 990 passed,
+0 skipped on `b7a8352` (same branch, before the auto-pick fix added 2;
+user, from the run, 2026-11-10); 985 passed, 0 skipped on `1ea3a97`
+(`story/018-ux-refresh`; Peter, 2026-11-09). Peter read 953
 passed, 0 skipped from the run logs on master `7325bc9` (2026-10-27) and on
 master `38ab22e` (the docs/handover-status merge; reported 2026-11-09), and
 953 passed with no skips on master `06286e4` (the docs/it-handover merge;
@@ -228,6 +236,10 @@ Upload an unencrypted copy of v5 instead once one is available.
 |---|---|
 | `app/services/codegen.py` | code issuance — central register + legacy engine |
 | `app/services/naming.py` | name composition + standard's rules |
+| `app/templates/base.html` | the design system: tokens, components, app shell (STORY-018); pages should not hardcode colors |
+| `app/templating.py` | status labels and `STATUS_HELP` (meaning + who acts next): one source for the legend, tooltips and `/help` |
+| `PRODUCT.md` | design context for UI work: users, purpose, principles, Notion as reference (read by `/impeccable`) |
+| `app/static/fonts/` | Noto Sans Thai (OFL), served publicly at `/static`; nothing else belongs there |
 | `app/services/units.py` | size normalization |
 | `app/services/categorizer.py` | category suggestion + learning from corrections |
 | `app/services/classifier.py` | search-name suggestion |

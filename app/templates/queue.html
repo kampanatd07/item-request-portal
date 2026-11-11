@@ -56,12 +56,28 @@
   </table>
 </div>
 <script>
-document.querySelector("table.queue").addEventListener("click", function (e) {
-  if (e.target.closest("a, button, input, select, textarea")) return;
-  if (String(window.getSelection())) return;  // selecting text, not opening
-  var row = e.target.closest("tr");
-  var link = row && row.querySelector("a.row-link");
-  if (link) window.location = link.href;
-});
+// A click on a row opens the request, like its link: Ctrl/Cmd/Shift or the
+// middle button open a new tab. Clicks on a code never navigate, so a
+// double-click selects it for copying; nor does a click that ends a text
+// selection.
+(function () {
+  var table = document.querySelector("table.queue");
+  function rowLink(e) {
+    if (e.target.closest("a, button, input, select, textarea, code")) return null;
+    if (String(window.getSelection())) return null;
+    var row = e.target.closest("tbody tr");
+    return row && row.querySelector("a.row-link");
+  }
+  table.addEventListener("click", function (e) {
+    var link = rowLink(e);
+    if (!link) return;
+    if (e.ctrlKey || e.metaKey || e.shiftKey) window.open(link.href, "_blank");
+    else window.location = link.href;
+  });
+  table.addEventListener("auxclick", function (e) {
+    var link = e.button === 1 && rowLink(e);
+    if (link) window.open(link.href, "_blank");
+  });
+})();
 </script>
 {% endblock %}

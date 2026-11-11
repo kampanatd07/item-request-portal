@@ -69,7 +69,7 @@
       --placeholder: #66716C;
       /* Feedback tones: soft background + ink that passes 4.5:1 on it. */
       --info-bg: #E6F0FB;    --info-ink: #0C447C;    --info-line: #A9C8EC;
-      --warn-bg: #FCF1DC;    --warn-ink: #6B3F00;    --warn-line: #EDC27A;
+      --warn-bg: #FCF1DC;    --warn-ink: #6B3F00;    --warn-line: #EDC27A;  --warn-dot: #B7791F;
       --attn-bg: #FFF4CC;    --attn-ink: #5E4500;    --attn-line: #E8CB62;
       --danger: #A32D2D;     --danger-strong: #862222;
       --danger-bg: #FCEBEB;  --danger-ink: #7A1F1F;  --danger-line: #EDB3B3;
@@ -166,7 +166,7 @@
     .section-head h2 { font-size: 18px; margin: 0; line-height: 1.4; }
     .section-head p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
     .step { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--brand-soft); color: var(--brand-ink); display: grid; place-items: center; font-weight: 700; font-size: 14px; margin-top: 1px; }
-    .form-aside { position: sticky; top: var(--space-5); max-height: calc(100vh - 2 * var(--space-5)); overflow-y: auto; }
+    .form-aside { position: sticky; top: var(--space-5); max-height: calc(100vh - 2 * var(--space-5)); overflow-y: auto; padding: 4px; margin: -4px; }
     .summary { border: 1px solid var(--border); border-radius: 10px; padding: var(--space-5); background: var(--sidebar); }
     .summary-label { font-size: 13px; font-weight: 600; color: var(--muted); }
     .name-preview { font-size: 18px; font-weight: 650; line-height: 1.45; margin-top: 6px; min-height: 26px; overflow-wrap: anywhere; color: var(--ink); }
@@ -226,8 +226,8 @@
     .tabs a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--brand); font-weight: 600; }
     .tab-count { min-width: 22px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); font-size: 12.5px; font-weight: 600; text-align: center; line-height: 20px; }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); }
-    .dot.submitted { background: var(--info-ink); } .dot.in_review { background: #B7791F; } .dot.needs_info { background: var(--pink-ink); }
-    .dot.approved { background: var(--ok-ink); } .dot.rejected { background: var(--danger); } .dot.done { background: var(--brand); } .dot.needs_import { background: #B7791F; }
+    .dot.submitted { background: var(--info-ink); } .dot.in_review { background: var(--warn-dot); } .dot.needs_info { background: var(--pink-ink); }
+    .dot.approved { background: var(--ok-ink); } .dot.rejected { background: var(--danger); } .dot.done { background: var(--brand); } .dot.needs_import { background: var(--warn-dot); }
     .subfilters { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 var(--space-4); }
     .subfilters a { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 12px; border: 1px solid var(--border); border-radius: 999px; color: var(--ink-2); font-size: 13.5px; font-weight: 500; text-decoration: none; }
     .subfilters a:hover { border-color: var(--border-strong); color: var(--ink); }
@@ -248,7 +248,9 @@
     .back-link { display: inline-block; margin-bottom: var(--space-3); color: var(--muted); font-size: 14px; text-decoration: none; }
     .back-link:hover { color: var(--ink); }
     .detail { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--space-5); align-items: start; }
-    .detail-aside { position: sticky; top: var(--space-5); max-height: calc(100vh - 2 * var(--space-5)); overflow-y: auto; }
+    /* Scrolls when taller than the screen; the 4px inset keeps focus rings
+       at the edges from being clipped by the scroll box. */
+    .detail-aside { position: sticky; top: var(--space-5); max-height: calc(100vh - 2 * var(--space-5)); overflow-y: auto; padding: 4px; margin: -4px; }
     .detail-aside .card form { max-width: none !important; }
     .detail-aside .card button { margin-top: var(--space-3); margin-right: 4px; }
     .detail-head { margin-bottom: var(--space-5); }

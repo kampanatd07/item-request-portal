@@ -1236,9 +1236,9 @@ def list_my_requests(db: Session, account: Account) -> list[ItemRequest]:
     ))
 
 
-# The queue's last tab: requests already in AX/D365 (exported or later),
-# folded into one view so the tabs Procurement works from stay short
-# (STORY-018, Peter 2026-11-09).
+# The queue's last tab: requests exported or later, folded into one view so
+# the tabs Procurement works from stay short (STORY-018, Peter 2026-11-09).
+# Not "in AX": an exported request still waits to be imported.
 DONE_GROUP = "done"
 DONE_STATUSES = ("exported", "created", "notified")
 
@@ -1264,6 +1264,12 @@ class QueueCounts:
     by_status: dict[str, int]
     done: int
     total: int
+
+
+# Every status a request can reach has exactly one tab.
+_ALL_STATUSES = set(TRANSITIONS) | {s for targets in TRANSITIONS.values() for s in targets}
+assert set(WORK_STATUSES) | set(DONE_STATUSES) == _ALL_STATUSES, "a status has no queue tab"
+assert not set(WORK_STATUSES) & set(DONE_STATUSES), "a status has two queue tabs"
 
 
 def queue_counts(db: Session) -> QueueCounts:
