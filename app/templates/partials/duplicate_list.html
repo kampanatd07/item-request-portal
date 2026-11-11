@@ -16,7 +16,7 @@
     </div>
     {% endfor %}
     {% if categories[0].confidence >= auto_select %}
-    <p class="muted" style="font-size:12px;">เลือกอันดับ 1 ให้อัตโนมัติแล้ว — เปลี่ยนได้</p>
+    <p class="muted" style="font-size:12px;" data-autopick-note>เลือกอันดับ 1 ให้อัตโนมัติแล้ว — เปลี่ยนได้</p>
     <script>pickCategory('{{ categories[0].group.id }}','{{ categories[0].sub.id }}', null);</script>
     {% endif %}
   </div>

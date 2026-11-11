@@ -165,10 +165,12 @@ upgrade; check `.env` is still read.
 | UX / design system | done — STORY-018: one design system in `app/templates/base.html` (tokens + components), Notion-like sidebar shell, guided request form with a live summary, queue tabs with counts, two-column detail page, progress bar on My requests, status meanings (`STATUS_HELP`), `/help` page; Thai font self-hosted under `/static`. Strategy: `PRODUCT.md`. Open: contrast measured on the rendered pages (STORY-018 Notes) |
 | Deployment | part A done (CI on PostgreSQL, race tests, login limits, one worker; merged `390e9a0`) — part B (deploy, backup, real email) waits for IT — STORY-006 |
 
-Tests: 953 passing locally, 37 PostgreSQL tests skipped without
-`TEST_POSTGRES_URL`; CI runs all 990 on PostgreSQL 16 (STORY-018 and its
-follow-ups added 37). Last read before this: 985 passed, 0 skipped on
-`1ea3a97` (`story/018-ux-refresh`; Peter, 2026-11-09). Peter read 953
+Tests: 955 passing locally, 37 PostgreSQL tests skipped without
+`TEST_POSTGRES_URL`; CI runs all 992 on PostgreSQL 16 (STORY-018 and its
+follow-ups added 39). Last read: 990 passed, 0 skipped on `b7a8352`
+(`story/018-ux-followups`, before the auto-pick fix added 2; user, from the
+run, 2026-11-10); 985 passed, 0 skipped on `1ea3a97`
+(`story/018-ux-refresh`; Peter, 2026-11-09). Peter read 953
 passed, 0 skipped from the run logs on master `7325bc9` (2026-10-27) and on
 master `38ab22e` (the docs/handover-status merge; reported 2026-11-09), and
 953 passed with no skips on master `06286e4` (the docs/it-handover merge;

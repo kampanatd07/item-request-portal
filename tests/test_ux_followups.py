@@ -52,3 +52,39 @@ def test_the_queue_legend_uses_the_shared_status_table(client_as, app_db) -> Non
     table = page.split('<table class="legend-table">', 1)[1].split("</table>", 1)[0]
     for status in STATUS_HELP:
         assert f'<span class="badge {status}">' in table
+
+
+# --- Review of 3888c5a..b7a8352: the automatic pick never overwrites a manual choice ---
+
+def _pick_category_script(page: str) -> str:
+    return page.split("function pickCategory", 1)[1].split("\n}\n", 1)[0]
+
+
+def test_auto_pick_still_runs_and_its_note_can_be_hidden(client_as, app_db, monkeypatch) -> None:
+    from app.models import CodeGroup
+    from app.services import categorizer
+    from app.services.categorizer import Suggestion
+
+    seal = central_ids(app_db, "APM", "900", "02")[3]
+    monkeypatch.setattr(categorizer, "suggest_category", lambda db, name, **kw: [
+        Suggestion(app_db.get(CodeGroup, seal.parent_id), seal, 0.95, "test")])
+    c = client_as("requester", plant="APM")
+    factory = central_ids(app_db, "APM")[0]
+    r = c.post("/fragments/duplicates", data={"factory_id": factory.id, "item_name": "Oil Seal"})
+    assert "<script>pickCategory(" in r.text  # nobody chose yet: the top suggestion is picked
+    assert "data-autopick-note" in r.text  # and the script can hide its note when it is not
+
+
+def test_auto_pick_keeps_a_category_the_requester_chose(client_as) -> None:
+    page = client_as("requester", plant="APM").get("/").text
+    script = _pick_category_script(page)
+    guard, rest = script.split("groupSel.value = groupId;", 1)
+    # The automatic call (no button) returns before touching the selects once
+    # the Requester has chosen; a chip click counts as choosing.
+    assert "if (!btn && categoryChosenByUser && groupSel.value)" in guard
+    assert "return;" in guard.split("categoryChosenByUser && groupSel.value", 1)[1]
+    assert "if (btn) categoryChosenByUser = true;" in guard
+    # A select changed by hand marks the choice.
+    listener = page.split("var categoryChosenByUser = false;", 1)[1].split("function pickCategory", 1)[0]
+    assert "'group_id'" in listener and "'subgroup_id'" in listener
+    assert "categoryChosenByUser = true" in listener

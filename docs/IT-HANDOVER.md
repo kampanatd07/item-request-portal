@@ -30,8 +30,8 @@ non-stock และ service ระบบตรวจรายการซ้ำ 
 อีเมลผ่าน Microsoft Graph, Anthropic API เป็นตัวเลือกเสริมสำหรับแนะนำชื่อค้นหา
 รายละเอียดสถาปัตยกรรม: `docs/architecture.md`
 
-### A2. สถานะวันนี้ (2026-11-03)
-- โค้ดก่อน deploy เสร็จครบ เทสต์ 990 ตัวบน CI (ตัวเลขที่อ่านแล้วล่าสุดอยู่ใน HANDOFF §2)
+### A2. สถานะวันนี้ (2026-11-11)
+- โค้ดก่อน deploy เสร็จครบ เทสต์ 992 ตัวบน CI (ตัวเลขที่อ่านแล้วล่าสุดอยู่ใน HANDOFF §2)
 - หน้าเว็บยกเครื่องใหม่ทั้งหมด (STORY-018, 2026-11-09): เมนูด้านซ้าย ฟอร์มแบบนำทาง
   คิวแบบแท็บ คำอธิบายสถานะ และหน้า `/help` สำหรับผู้ใช้
 - **ยังไม่ได้ deploy และยังไม่เปิดให้โรงงานใช้** ตอนนี้รันอยู่บนเครื่องของ Peter เท่านั้น
@@ -67,7 +67,7 @@ non-stock และ service ระบบตรวจรายการซ้ำ 
   PostgreSQL 16, migrate + seed บนฐานว่าง, `alembic check`, รัน pytest ทั้งชุดโดยตั้ง
   `TEST_POSTGRES_URL`
 - **หลังโอนทั้งสองแบบ:** ยืนยันว่า `[IT-OWNER]` เป็น admin, รัน CI หนึ่งรอบต้องได้
-  **990 passed, 0 skipped**, ถอนสิทธิ์บัญชีส่วนตัวของ Peter, ตั้ง branch protection
+  **992 passed, 0 skipped**, ถอนสิทธิ์บัญชีส่วนตัวของ Peter, ตั้ง branch protection
   ถ้าแพลนรองรับ (ตอนนี้ไม่มี CI แดงจึงไม่บล็อกการ merge)
 
 ### A6. ทำงานต่อด้วย Claude Code
@@ -115,8 +115,8 @@ Tech: Python 3.12, FastAPI, SQLAlchemy + Alembic, PostgreSQL 16 (production)
 email through Microsoft Graph, optional Anthropic API for search-name
 suggestions. Architecture: `docs/architecture.md`.
 
-### B2. Status today (2026-11-03)
-- All code before deploy is done; 990 tests on CI (the last numbers read
+### B2. Status today (2026-11-11)
+- All code before deploy is done; 992 tests on CI (the last numbers read
   are in HANDOFF §2).
 - The UI was overhauled (STORY-018, 2026-11-09): sidebar, guided form,
   queue tabs, status explanations and a `/help` page for users.
@@ -156,7 +156,7 @@ The code is on Peter's personal GitHub (`kampanatd07/item-request-portal`, priva
   since `.github/workflows/ci.yml` is GitHub-only. What CI must do:
   PostgreSQL 16, migrate + seed on an empty database, `alembic check`, the
   whole pytest suite with `TEST_POSTGRES_URL` set.
-- **After either:** confirm `[IT-OWNER]` is admin, run CI once: **990
+- **After either:** confirm `[IT-OWNER]` is admin, run CI once: **992
   passed, 0 skipped**; remove Peter's personal account; turn on branch
   protection if the plan allows (today a red CI does not block a merge).
 
@@ -265,7 +265,7 @@ old and the new root. "(fill in)": path not found yet, Peter to confirm.
 ทีม IT ตอนรับมอบ / IT team on receipt:
 - [ ] clone และรันในเครื่องตาม HANDOFF §4 เปิด http://localhost:8000 ได้ / clone and run per HANDOFF §4
 - [ ] `pytest` ในเครื่อง: 953 passed, 37 skipped (ไม่มี PostgreSQL) / local pytest: 953 passed, 37 skipped (no PostgreSQL)
-- [ ] CI ที่ที่ใหม่: 990 passed, 0 skipped / CI at the new home: 990 passed, 0 skipped
+- [ ] CI ที่ที่ใหม่: 992 passed, 0 skipped / CI at the new home: 992 passed, 0 skipped
 - [ ] ติดตั้ง Claude Code; สรุปสถานะ session แรกตรงกับ HANDOFF §2 / Claude Code set up; its first summary matches HANDOFF §2
 - [ ] อ่านความเสี่ยง A7/B7 แล้ว / risks A7/B7 read
 

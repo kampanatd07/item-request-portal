@@ -266,11 +266,30 @@
   </aside>
 </form>
 <script>
+// True once the Requester chose a category themselves (changed a select or
+// clicked a suggestion chip). The automatic pick that comes with each
+// Duplicate Check (btn = null) must then never overwrite it (review of
+// 3888c5a..b7a8352). Setting .value from script fires no change event.
+var categoryChosenByUser = false;
+document.addEventListener('change', function (e) {
+  if (e.target.name === 'group_id' || e.target.name === 'subgroup_id') categoryChosenByUser = true;
+});
+
 // Select a suggested category: set the group dropdown, load its sub-categories,
 // then select the sub once the fragment has swapped in.
 function pickCategory(groupId, subId, btn) {
   var groupSel = document.querySelector('[name="group_id"]');
   if (!groupSel) return;
+  if (!btn && categoryChosenByUser && groupSel.value) {
+    // Keep the Requester's choice; do not show the suggestion as picked.
+    var slot = document.getElementById('cat-slot');
+    slot.querySelectorAll('button.chip').forEach(function (b) {
+      b.classList.remove('selected'); b.setAttribute('aria-pressed', 'false');
+    });
+    slot.querySelectorAll('[data-autopick-note]').forEach(function (p) { p.hidden = true; });
+    return;
+  }
+  if (btn) categoryChosenByUser = true;
   groupSel.value = groupId;
   htmx.ajax('GET', '/fragments/subgroups?group_id=' + groupId,
             { target: '#subgroup-slot', swap: 'innerHTML' })
