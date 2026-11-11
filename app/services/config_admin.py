@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     CodeGroup,
+    CodeSystem,
     GroupExportMap,
     ItemRequest,
     MailDomain,
@@ -19,6 +20,13 @@ from app.models import (
     SearchTerm,
     Uom,
     UomAlias,
+)
+from app.services.thai_labels import (
+    HINT_TH_MAX,
+    NAME_TH_MAX,
+    LabelError,
+    clean_label,
+    file_labels,
 )
 
 
@@ -207,3 +215,66 @@ def set_group_map(
     mp.group_type_code = group_type_code.strip() or None
     db.commit()
     return mp
+
+
+# --- Thai names and hints of the central categories (STORY-019) -------------
+
+def _central_id(db: Session) -> int | None:
+    return db.scalar(select(CodeSystem.id).where(CodeSystem.code == "CENTRAL"))
+
+
+def list_thai_labels(db: Session) -> list[tuple[str, CodeGroup]]:
+    """(key, group) for central groups, each followed by its sub-categories,
+    in code order. key is "900" or "900-02", as in taxonomy_th.json."""
+    rows = db.scalars(
+        select(CodeGroup).where(CodeGroup.code_system_id == _central_id(db))
+    ).all()
+    children: dict[int | None, list[CodeGroup]] = {}
+    for row in rows:
+        children.setdefault(row.parent_id, []).append(row)
+    out: list[tuple[str, CodeGroup]] = []
+    for g in sorted(children.get(None, []), key=lambda g: g.code):
+        out.append((g.code, g))
+        out.extend((f"{g.code}-{s.code}", s)
+                   for s in sorted(children.get(g.id, []), key=lambda s: s.code))
+    return out
+
+
+def _central_row(db: Session, group_id: int) -> CodeGroup:
+    group = db.get(CodeGroup, group_id)
+    if group is None or group.code_system_id != _central_id(db):
+        raise ConfigError("ไม่พบหมวด")
+    return group
+
+
+def set_thai_label(db: Session, group_id: int, *, name_th: str, hint_th: str) -> CodeGroup:
+    """Set or clear (empty) a category's Thai name and hint. Display only.
+
+    A real change marks the row as edited, so the seed never puts the
+    file's text back. A save with nothing changed marks nothing: an idle
+    click must not keep approved wording out of the row (review 2026-11-11).
+    """
+    group = _central_row(db, group_id)
+    try:
+        name = clean_label(name_th, NAME_TH_MAX, "ชื่อไทย")
+        hint = clean_label(hint_th, HINT_TH_MAX, "ตัวอย่าง")
+    except LabelError as e:
+        raise ConfigError(str(e)) from e
+    if (name, hint) != (group.name_th, group.hint_th):
+        group.name_th, group.hint_th, group.th_edited = name, hint, True
+        db.commit()
+    return group
+
+
+def reset_thai_label(db: Session, group_id: int) -> CodeGroup:
+    """Give a row back to taxonomy_th.json: unmark it and take the file's
+    text now (none when the file has no entry for it)."""
+    group = _central_row(db, group_id)
+    key = f"{group.parent.code}-{group.code}" if group.parent_id else group.code
+    try:
+        name, hint = file_labels().get(key, (None, None))
+    except LabelError as e:
+        raise ConfigError(str(e)) from e
+    group.name_th, group.hint_th, group.th_edited = name, hint, False
+    db.commit()
+    return group

@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import settings
 from app.services.auth import has_role
+from app.services.thai_labels import HINT_TH_MAX, NAME_TH_MAX
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
@@ -19,6 +20,18 @@ STATUS_LABELS = {
     "notified": "แจ้งผู้ขอแล้ว",
 }
 templates.env.globals["status_labels"] = STATUS_LABELS
+
+
+def category_label(group) -> str:
+    """'900 — Spare Parts & Mechanical Parts (อะไหล่…)': the Thai name, when
+    set, follows the English one (STORY-019). Display only."""
+    label = f"{group.code} — {group.name}"
+    return f"{label} ({group.name_th})" if group.name_th else label
+
+
+templates.env.globals["category_label"] = category_label
+templates.env.globals["NAME_TH_MAX"] = NAME_TH_MAX
+templates.env.globals["HINT_TH_MAX"] = HINT_TH_MAX
 
 # What each status means and who acts next, in plain Thai (STORY-018). The
 # one source for the status legend, badge tooltips and the help page; Peter

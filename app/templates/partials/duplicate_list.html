@@ -8,7 +8,7 @@
       {% set picked = loop.first and c.confidence >= auto_select %}
       <button type="button" class="chip{{ ' selected' if picked }}" aria-pressed="{{ 'true' if picked else 'false' }}"
               onclick="pickCategory('{{ c.group.id }}','{{ c.sub.id }}', this)">
-        {{ c.label }} · {{ (c.confidence * 100) | round | int }}%
+        {{ c.label }}{% if c.sub.name_th %} ({{ c.sub.name_th }}){% endif %} · {{ (c.confidence * 100) | round | int }}%
       </button>
       {% if c.examples %}
       <span class="muted" style="font-size:12px;">เพราะคล้ายกับ: {{ c.examples[0][:48] }}</span>

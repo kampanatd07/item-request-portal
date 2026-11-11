@@ -1,8 +1,9 @@
 <h3>หมวดสินค้า</h3>
 <p style="font-size:16px;">
   <code>{{ req.group.code }}{% if req.subgroup %}-{{ req.subgroup.code }}{% endif %}</code>
-  {{ req.subgroup.name if req.subgroup else req.group.name }}
-  <span class="muted">({{ req.group.name }})</span>
+  {% set shown = req.subgroup or req.group %}
+  {{ shown.name }}{% if shown.name_th %} ({{ shown.name_th }}){% endif %}
+  {% if req.subgroup %}<span class="muted">({{ req.group.name }}{% if req.group.name_th %} · {{ req.group.name_th }}{% endif %})</span>{% endif %}
 </p>
 {% set can_recode = req.status == "approved" and has_role(request.state.account, "administrator") %}
 {% if not req.generated_code or can_recode %}
@@ -17,10 +18,10 @@
     <option value="" disabled selected>-- เลือกหมวดย่อย --</option>
     {# After a code, only Sub-Categories of the same Item Group (Governance §4). #}
     {% for grp, subs in taxonomy if not req.generated_code or grp.id == req.group_id %}
-    <optgroup label="{{ grp.code }} {{ grp.name }}">
+    <optgroup label="{{ grp.code }} {{ grp.name }}{% if grp.name_th %} ({{ grp.name_th }}){% endif %}">
       {% for s in subs %}
       <option value="{{ s.id }}" {% if req.subgroup and s.id == req.subgroup.id %}selected{% endif %}>
-        {{ grp.code }}-{{ s.code }} {{ s.name }}
+        {{ grp.code }}-{{ s.code }} {{ s.name }}{% if s.name_th %} ({{ s.name_th }}){% endif %}
       </option>
       {% endfor %}
     </optgroup>

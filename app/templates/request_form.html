@@ -300,6 +300,7 @@ function pickCategory(groupId, subId, btn) {
       var hasOptions = subSel && Array.prototype.some.call(subSel.options, function (o) { return o.value; });
       if (hasOptions) { subSel.disabled = false; subSel.value = subId; }
       updateChecklist();
+      showSubgroupHint();
     });
   if (btn) {
     btn.parentElement.parentElement
@@ -319,6 +320,22 @@ function updateChecklist() {
     li.classList.toggle('done', done);
   });
 }
+// The chosen sub-category's Thai examples under its select (STORY-019).
+// textContent, never innerHTML: the hint is data an Administrator typed.
+function showSubgroupHint() {
+  var sel = document.querySelector('[name="subgroup_id"]');
+  var p = document.getElementById('subgroup-hint');
+  if (!sel || !p) return;
+  var opt = sel.options[sel.selectedIndex];
+  var hint = (opt && opt.value && opt.dataset.hint) || '';
+  p.textContent = hint;
+  p.hidden = !hint;
+}
+document.addEventListener('change', function (e) {
+  if (e.target.name === 'subgroup_id') showSubgroupHint();
+});
+document.addEventListener('htmx:afterSwap', showSubgroupHint);
+document.addEventListener('DOMContentLoaded', showSubgroupHint);
 document.addEventListener('input', updateChecklist);
 document.addEventListener('change', updateChecklist);
 document.addEventListener('htmx:afterSwap', updateChecklist);

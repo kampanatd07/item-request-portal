@@ -34,6 +34,7 @@ from app.models import (
     Uom,
 )
 from app.services.naming import MAX_CATEGORY_LEN, clean_part
+from app.services.thai_labels import LabelError, parse_label_file
 
 
 class SeedError(Exception):
@@ -264,9 +265,20 @@ SEARCH_TERMS = [
 ]
 
 
+def load_thai_labels(
+    raw: dict, taxonomy: list[dict],
+) -> dict[str, tuple[str | None, str | None]]:
+    """Check app/data/taxonomy_th.json against the taxonomy before any write."""
+    try:
+        return parse_label_file(raw, taxonomy)
+    except LabelError as e:
+        raise SeedError(str(e)) from e
+
+
 def seed(db: Session) -> None:
     taxonomy = _load_json("taxonomy.json")
     check_taxonomy(taxonomy)  # before the first write
+    thai_labels = load_thai_labels(_load_json("taxonomy_th.json"), taxonomy)
     factories: dict[str, Factory] = {}
     for code, name, item_source in FACTORIES:
         f = db.scalar(select(Factory).where(Factory.code == code))
@@ -337,6 +349,7 @@ def seed(db: Session) -> None:
     # Source of truth is app/data/taxonomy.json, extracted from the approved
     # 'Taxonomy' sheet of Carabao_Group_Item_Master_Central.
     central = systems["CENTRAL"]
+    central_by_key: dict[str, CodeGroup] = {}
     for row in taxonomy:
         grp = ensure_group(central, row["group"], row["group_name"])
         sub = ensure_group(
@@ -345,6 +358,16 @@ def seed(db: Session) -> None:
         )
         sub.name_prefix = row["prefix"]
         sub.product_type = row["product_type"]
+        central_by_key[row["group"]] = grp
+        central_by_key[f"{row['group']}-{row['sub']}"] = sub
+
+    # Thai names and hints (STORY-019). A row an Administrator saved on the
+    # reference data page (th_edited, even to clear it) is never touched;
+    # every other row follows app/data/taxonomy_th.json, so a corrected
+    # wording reaches it and a key removed from the file clears it.
+    for key, g in central_by_key.items():
+        if not g.th_edited:
+            g.name_th, g.hint_th = thai_labels.get(key, (None, None))
 
     # --- Central running register ------------------------------------------
     # Seeded with the last number already issued per Category+Sub so the portal

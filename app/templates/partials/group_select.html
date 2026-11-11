@@ -2,6 +2,6 @@
         hx-get="/fragments/subgroups" hx-target="#subgroup-slot" hx-swap="innerHTML">
   <option value="" disabled{{ "" if selected else " selected" }}>-- เลือกหมวด --</option>
   {% for g in groups %}
-  <option value="{{ g.id }}"{{ " selected" if g.id == selected }}>{{ g.code }} — {{ g.name }}</option>
+  <option value="{{ g.id }}"{{ " selected" if g.id == selected }}>{{ category_label(g) }}</option>
   {% endfor %}
 </select>

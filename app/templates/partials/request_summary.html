@@ -4,8 +4,8 @@
     {% if originator %}<tr><th>ขอแทน</th><td>{{ originator }}{% if req.originator_email %} ({{ req.originator_email }}){% endif %}</td></tr>{% endif %}
     <tr><th>โรงงาน</th><td>{{ req.factory.code }} — {{ req.factory.name }}</td></tr>
     <tr><th>ระบบรหัส</th><td>{{ req.code_system.name_th }}</td></tr>
-    <tr><th>หมวด</th><td>{{ req.group.code }} — {{ req.group.name }}</td></tr>
-    {% if req.subgroup %}<tr><th>หมวดย่อย</th><td>{{ req.subgroup.code }} — {{ req.subgroup.name }}</td></tr>{% endif %}
+    <tr><th>หมวด</th><td>{{ category_label(req.group) }}</td></tr>
+    {% if req.subgroup %}<tr><th>หมวดย่อย</th><td>{{ category_label(req.subgroup) }}</td></tr>{% endif %}
     <tr><th>แบรนด์ / รุ่น / ขนาด</th><td>{{ req.brand or "-" }} / {{ req.model or "-" }} / {{ req.size or "-" }}</td></tr>
     <tr><th>หน่วยนับ</th><td>{{ req.uom or "-" }}</td></tr>
     <tr><th>สเปคเพิ่มเติม</th><td>{{ req.spec_note or "-" }}</td></tr>

@@ -7,6 +7,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -87,6 +88,14 @@ class CodeGroup(Base):
     # 'Item' | 'Service' — from the group taxonomy, drives export defaults.
     product_type: Mapped[str | None] = mapped_column(String(10), nullable=True)
     scope_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Thai name and examples shown to people next to the English name
+    # (STORY-019). Display only: never used in codes, names or exports.
+    name_th: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    hint_th: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # True once an Administrator saved this row's Thai labels (even to clear
+    # them): the seed then never touches them. Untouched rows follow
+    # app/data/taxonomy_th.json on every seed.
+    th_edited: Mapped[bool] = mapped_column(default=False, server_default=false())
     # Overrides the system's pattern_template for this group (e.g. SVSP, 806 Mould).
     pattern_override: Mapped[str | None] = mapped_column(String(100), nullable=True)
     active: Mapped[bool] = mapped_column(default=True)
