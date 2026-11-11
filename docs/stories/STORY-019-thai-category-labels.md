@@ -1,6 +1,6 @@
 # STORY-019: Thai labels and examples for categories
 
-Status: in-progress · Branch: `story/019-thai-category-labels`
+Status: in-progress · Code merged 2026-11-11 (`6e11ffd`, branch `story/019-thai-category-labels`); open: the reviewed wording and the xlsx-to-JSON tool
 Triage: needs-triage
 
 ## Why

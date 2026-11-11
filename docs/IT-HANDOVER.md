@@ -36,6 +36,8 @@ non-stock และ service ระบบตรวจรายการซ้ำ 
   คิวแบบแท็บ คำอธิบายสถานะ และหน้า `/help` สำหรับผู้ใช้
 - ชื่อไทยของหมวดสินค้า (STORY-019, 2026-11-11): โค้ดเสร็จแล้ว แต่คำแปลยังรอ Peter ตรวจ
   (`docs/stories/STORY-019/thai-labels-draft.xlsx`) ระหว่างนี้หน้าจอยังเป็นภาษาอังกฤษ
+  ยกเว้นหมวดที่ผู้ดูแลระบบพิมพ์เองในแท็บ "ชื่อไทยของหมวด" ถ้า Peter ตรวจไม่ทัน
+  ต้องรอ `[BUSINESS-OWNER]` (C1) อนุมัติ IT ห้ามใส่คำแปลเอง ขั้นตอนโหลดคำแปล: HANDOFF §2
 - **ยังไม่ได้ deploy และยังไม่เปิดให้โรงงานใช้** ตอนนี้รันอยู่บนเครื่องของ Peter เท่านั้น
 - ลำดับก่อนเปิดใช้ (HANDOFF §2):
   1. Cutover Plan เฟส 1: โหลด master กลาง `Central_v5_with_DCM` (13,400 รหัส) เข้า D365
@@ -124,7 +126,10 @@ suggestions. Architecture: `docs/architecture.md`.
   queue tabs, status explanations and a `/help` page for users.
 - Thai category names (STORY-019, 2026-11-11): code done; the wording
   waits for Peter's review (`docs/stories/STORY-019/thai-labels-draft.xlsx`),
-  so the screens stay in English until it is loaded.
+  so the screens stay in English until it is loaded, except rows an
+  Administrator typed on the "ชื่อไทยของหมวด" tab. If Peter does not
+  finish, it waits for `[BUSINESS-OWNER]` (C1); IT must not fill it in
+  alone. Loading steps: HANDOFF §2.
 - **Not deployed and not open to the plants.** It runs on Peter's machine only.
 - Order before opening (HANDOFF §2):
   1. Cutover Plan phase 1: load the central master `Central_v5_with_DCM`
