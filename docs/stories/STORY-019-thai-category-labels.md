@@ -138,3 +138,30 @@ Confirmed by the user 2026-11-11 (all recommendations taken):
      the next start. Set labels through the admin page or the file.
   2. The save accepts any CENTRAL row, also one deeper than group/sub that
      the tab does not list; the taxonomy has only two levels today.
+- Tests changed in that round, both written on this branch and never on
+  master: `test_a_hint_only_row_counts_as_filled` became
+  `test_a_row_without_a_thai_name_counts_as_empty` (expectation reversed,
+  the user's choice 3ก: only a Thai name counts); in
+  `test_seed_never_touches_a_row_an_administrator_saved` the sub-category
+  now starts with a Thai name, because clearing an empty row is no longer
+  a change and would not mark it.
+- Review of `21fedb1..e1fe1b8` (2026-11-11; CI on `e1fe1b8`: 1018 passed,
+  0 skipped; browser check passed; both from the user): no (ก). (ข)
+  backlog:
+  1. A JSON syntax error in `taxonomy_th.json` makes "ใช้คำจากไฟล์" a 500
+     instead of a Thai 422 (`file_labels` catches only `LabelError`;
+     nothing is written; the seed already stops at start).
+  2. A row edited back to exactly the file's text stays marked; "ใช้คำจาก
+     ไฟล์" unmarks it.
+  3. The data folder is named in `seed.py` and in `thai_labels.py`, and
+     `seed.load_thai_labels` only converts the error type: use one loader.
+  4. `test_reset_reads_the_shipped_file` checks the row is unmarked, not
+     that it holds the file's text.
+  5. The nested `load()` in `file_labels` has no return type hint.
+  6. Reset on a row deeper than group/sub would build a wrong key (as (ข)
+     2 of the previous round); every reset re-reads both files from disk.
+  7. A row with only a hint counts as "ยังไม่กรอก" (the user's choice);
+     nothing on the tab says so.
+- Status: merged to master 2026-11-11 with the wording still in review
+  (Peter, before 2026-11-13). Open: load the approved wording into
+  `app/data/taxonomy_th.json` and tick the AC rows from real results.
