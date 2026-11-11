@@ -38,8 +38,7 @@ non-stock และ service ระบบตรวจรายการซ้ำ 
   (`docs/stories/STORY-019/thai-labels-draft.xlsx`) ระหว่างนี้หน้าจอยังเป็นภาษาอังกฤษ
   ยกเว้นหมวดที่ผู้ดูแลระบบพิมพ์เองในแท็บ "ชื่อไทยของหมวด" ถ้า Peter ตรวจไม่ทัน
   ต้องรอ `[BUSINESS-OWNER]` (C1) อนุมัติ IT ห้ามใส่คำแปลเอง ขั้นตอนโหลดคำแปล
-  (ต้องทำตามลำดับ): HANDOFF §2 **ก่อนเปิดใช้:** ตรวจแถวที่มีป้าย "แก้เองแล้ว"
-  ในแท็บนั้น ทุกแถวต้องให้ `[BUSINESS-OWNER]` อนุมัติ หรือกด "ใช้คำจากไฟล์"
+  (ต้องทำตามลำดับ): HANDOFF §2
 - **ยังไม่ได้ deploy และยังไม่เปิดให้โรงงานใช้** ตอนนี้รันอยู่บนเครื่องของ Peter เท่านั้น
 - ลำดับก่อนเปิดใช้ (HANDOFF §2):
   1. Cutover Plan เฟส 1: โหลด master กลาง `Central_v5_with_DCM` (13,400 รหัส) เข้า D365
@@ -48,7 +47,9 @@ non-stock และ service ระบบตรวจรายการซ้ำ 
      re-sync register (STORY-005)
   3. กำหนดวัน cut-over ที่หลังจากนั้นออกรหัสกลางได้จากพอร์ทัลที่เดียว
   4. Deploy (STORY-006 part B): hosting, PostgreSQL, อีเมลจริง, backup/restore
-  5. เปิดให้โรงงานใช้
+  5. บน production: ตรวจแถวที่มีป้าย "แก้เองแล้ว" ในแท็บ "ชื่อไทยของหมวด" ทุกแถวต้องให้
+     `[BUSINESS-OWNER]` อนุมัติ หรือกด "ใช้คำจากไฟล์" (STORY-019)
+  6. เปิดให้โรงงานใช้
 - **ห้ามรัน group pipeline ใหม่ทั้งชุดหลังรหัส v5 ถูกใช้แล้ว** pipeline ออกรหัสใหม่
   ทั้งชุด รหัสเดิมอาจเลื่อน delta ต้องคงรหัส v5 ทุกตัว
 
@@ -131,9 +132,7 @@ suggestions. Architecture: `docs/architecture.md`.
   so the screens stay in English until it is loaded, except rows an
   Administrator typed on the "ชื่อไทยของหมวด" tab. If Peter does not
   finish, it waits for `[BUSINESS-OWNER]` (C1); IT must not fill it in
-  alone. Loading steps (in order): HANDOFF §2. **Before go-live:** check
-  the tab for rows marked "แก้เองแล้ว"; each needs `[BUSINESS-OWNER]`
-  approval or "ใช้คำจากไฟล์".
+  alone. Loading steps (in order): HANDOFF §2.
 - **Not deployed and not open to the plants.** It runs on Peter's machine only.
 - Order before opening (HANDOFF §2):
   1. Cutover Plan phase 1: load the central master `Central_v5_with_DCM`
@@ -143,7 +142,10 @@ suggestions. Architecture: `docs/architecture.md`.
      B = through the group pipeline, then re-sync the register (STORY-005).
   3. Set the cut-over date after which only the portal issues central codes.
   4. Deploy (STORY-006 part B): hosting, PostgreSQL, real email, backup/restore.
-  5. Open to the plants.
+  5. On production: check the "ชื่อไทยของหมวด" tab for rows marked
+     "แก้เองแล้ว"; each needs `[BUSINESS-OWNER]` approval or
+     "ใช้คำจากไฟล์" (STORY-019).
+  6. Open to the plants.
 - **Never re-run the whole group pipeline once v5 codes are in use.** It
   issues every code afresh, so existing codes may shift. A delta must keep
   every v5 code.

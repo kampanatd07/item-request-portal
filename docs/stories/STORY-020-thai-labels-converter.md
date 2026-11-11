@@ -1,6 +1,6 @@
 # STORY-020: Converter from the reviewed Thai-label xlsx to taxonomy_th.json
 
-Status: todo
+Status: todo · Branch: none yet · Depends on: STORY-019
 Triage: needs-triage
 
 ## Why
@@ -16,6 +16,8 @@ A command (proposed: `python -m app.import_thai_labels <file.xlsx>`) that
 reads the reviewed xlsx, takes the corrected text where a row says
 แก้ไข and the draft where it says อนุมัติ, runs the same checks as the
 seed (`thai_labels.parse_label_file`) and writes `taxonomy_th.json`.
+On a แก้ไข row with only one corrected column, the other column keeps
+the draft text.
 
 ## Out of scope
 - Writing to the database; the seed loads the file (HANDOFF §2 steps).
@@ -35,5 +37,14 @@ Thai stored NFC with SARA AM recomposed (`thai_labels.clean_label`); never
 NFKC. The wording is `[BUSINESS-OWNER]`'s call: the converter only copies
 what was approved.
 
+## Files likely touched
+A new `app/import_thai_labels.py`, `app/services/thai_labels.py`,
+`app/data/taxonomy_th.json` (output), a new test file, HANDOFF §2.
+
 ## Plan
-Not yet confirmed by the user.
+Not yet confirmed by the user. Open question for `[BUSINESS-OWNER]`:
+if only some rows are approved (for example 140 of 150), may the
+approved rows be loaded and the rest stay English, or must every row be
+reviewed first?
+
+## Notes
