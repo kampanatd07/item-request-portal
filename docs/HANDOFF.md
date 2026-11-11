@@ -26,7 +26,7 @@ It replaces: Microsoft Forms → Peter checks manually → types into AX → ema
 notification (STORY-002, done 2026-10-14), requester resubmit (STORY-009,
 done 2026-10-19), the Name Prefix on category moves (STORY-013, done
 2026-10-21) and a UX/UI overhaul (STORY-018, merged 2026-11-09 as
-`3888c5a`, follow-ups on `story/018-ux-followups`). Not yet open to the
+`3888c5a`, follow-ups merged 2026-11-11 as `08ac556`). Not yet open to the
 plants.**
 
 **Goal now: handover, not go-live (Peter, 2026-10-27).** Peter leaves on
@@ -167,8 +167,9 @@ upgrade; check `.env` is still read.
 
 Tests: 955 passing locally, 37 PostgreSQL tests skipped without
 `TEST_POSTGRES_URL`; CI runs all 992 on PostgreSQL 16 (STORY-018 and its
-follow-ups added 39). Last read: 992 passed, 0 skipped on `68939a9`
-(`story/018-ux-followups`; user, from the run, 2026-11-11); 990 passed,
+follow-ups added 39). Last read: 992 passed, 0 skipped on master `08ac556`
+(the story/018-ux-followups merge; user, from the run, 2026-11-11) and on
+`68939a9` (the branch); 990 passed,
 0 skipped on `b7a8352` (same branch, before the auto-pick fix added 2;
 user, from the run, 2026-11-10); 985 passed, 0 skipped on `1ea3a97`
 (`story/018-ux-refresh`; Peter, 2026-11-09). Peter read 953
